@@ -1,0 +1,26 @@
+[package]
+name    = "cancer"
+version = "0.1.0"
+
+authors = ["meh. <meh@schizofreni.co>"]
+license = "WTFPL"
+
+description = "Terminal cancer."
+repository  = "https://github.com/meh/terme"
+keywords    = ["term", "pty"]
+
+[dependencies]
+log        = "0.3"
+env_logger = "0.3"
+
+clap    = "2"
+xdg     = "2"
+toml    = "0.1"
+palette = "0.2"
+
+xcb       = { version = "0.7.5", features = ["thread"] }
+xcb-util  = { version = "0.1.5", features = ["icccm", "ewmh", "thread"] }
+xkbcommon = { version = "0.2",   features = ["x11"] }
+
+libc = "0.2"
+nix  = "0.7"

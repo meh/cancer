@@ -1,0 +1,25 @@
+[environment]
+display = ":0.0"
+fps     = 30
+
+[style]
+font   = "monospace 11px"
+margin = 2
+
+[color]
+0  = "#000000"
+1  = "#b21818"
+2  = "#18b218"
+3  = "#BE5F00"
+4  = "#6D85BA"
+5  = "#b218b2"
+6  = "#18b2b2"
+7  = "#b2b2b2"
+8  = "#686868"
+9  = "#FF5454"
+10 = "#54FF54"
+11 = "#FFFF54"
+12 = "#73A5FF"
+13 = "#FF54FF"
+14 = "#54FFFF"
+15 = "#ffffff"
