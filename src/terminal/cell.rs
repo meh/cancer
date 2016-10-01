@@ -20,6 +20,7 @@ use unicode_width::UnicodeWidthStr;
 
 use style::Style;
 
+#[derive(PartialEq, Clone, Debug)]
 pub struct Cell {
 	x: u32,
 	y: u32,

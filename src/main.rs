@@ -97,13 +97,13 @@ fn open(matches: &ArgMatches) -> error::Result<()> {
 	let mut render   = Renderer::new(config.clone(), font.clone(), &window, window.width(), window.height());
 	let mut terminal = Terminal::open(config.clone(), render.columns(), render.rows())?;
 
-	let input  = terminal.input();
+	let output = terminal.output();
 	let events = window.events();
 
 	loop {
 		select! {
-			input = input.recv() => {
-				// TODO: handle input
+			output = output.recv() => {
+				// TODO: handle output
 			},
 
 			event = events.recv() => {

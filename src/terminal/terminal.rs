@@ -30,17 +30,15 @@ use terminal::{Cell, Iter};
 
 pub struct Terminal {
 	config: Arc<Config>,
+	output: Option<Receiver<Vec<u8>>>,
 
-	area:  Area,
-	lines: Vec<Vec<Cell>>,
-	input: Option<Receiver<Vec<u8>>>,
+	area:   Area,
+	cells:  Vec<Option<Cell>>,
+	cursor: (u32, u32),
 }
 
 impl Terminal {
 	pub fn open(config: Arc<Config>, width: u32, height: u32) -> error::Result<Self> {
-		let style = Rc::new(Style::default());
-		let lines = (0 .. height).map(|y| vec![Cell::new(0, y, " ".into(), style.clone())]).collect();
-
 		let (sender, receiver) = sync_channel(1);
 		thread::spawn(move || {
 			loop {
@@ -49,20 +47,33 @@ impl Terminal {
 			}
 		});
 
+		let area  = Area::from(0, 0, width, height);
+		let style = Rc::new(Style::default());
+		let cells = area.absolute().map(|(x, y)| {
+			let mut string = String::new();
+			string.push(char::from((0x1d + (x + y) % 127) as u8));
+
+			Some(Cell::new(x, y, string, style.clone())) });
+
 		Ok(Terminal {
 			config: config,
+			output: Some(receiver),
 
-			area:  Area::from(0, 0, width, height),
-			lines: lines,
-			input: Some(receiver),
+			area:   area,
+			cells:  cells.collect(),
+			cursor: (0, 0),
 		})
 	}
 
-	pub fn input(&mut self) -> Receiver<Vec<u8>> {
-		self.input.take().unwrap()
+	pub fn output(&mut self) -> Receiver<Vec<u8>> {
+		self.output.take().unwrap()
 	}
 
 	pub fn area(&self, area: Area) -> Iter {
 		Iter::new(&self, area)
+	}
+
+	pub fn get(&self, x: u32, y: u32) -> Option<&Cell> {
+		self.cells.get((y * self.area.width + x) as usize).and_then(|s| s.as_ref())
 	}
 }
