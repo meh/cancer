@@ -15,36 +15,33 @@
 // You should have received a copy of the GNU General Public License
 // along with cancer.  If not, see <http://www.gnu.org/licenses/>.
 
-use xcb;
-use ffi::cairo::*;
-use libc::c_int;
+use picto::Area;
+use terminal::{Terminal, Cell};
 
-pub struct Surface(pub *mut cairo_surface_t);
+pub struct Iter<'a> {
+	x: u32,
+	y: u32,
 
-impl Surface {
-	pub fn new(connection: &xcb::Connection, drawable: xcb::Drawable, visual: xcb::Visualtype, width: u32, height: u32) -> Self {
-		unsafe {
-			Surface(cairo_xcb_surface_create(connection.get_raw_conn(), drawable, visual.ptr, width as c_int, height as c_int))
-		}
-	}
+	area:  Area,
+	inner: &'a Terminal,
+}
 
-	pub fn resize(&mut self, width: u32, height: u32) {
-		unsafe {
-			cairo_xcb_surface_set_size(self.0, width as c_int, height as c_int);
-		}
-	}
+impl<'a> Iter<'a> {
+	pub fn new(inner: &Terminal, area: Area) -> Iter {
+		Iter {
+			x: 0,
+			y: 0,
 
-	pub fn flush(&self) {
-		unsafe {
-			cairo_surface_flush(self.0);
+			area:  area,
+			inner: inner,
 		}
 	}
 }
 
-impl Drop for Surface {
-	fn drop(&mut self) {
-		unsafe {
-			cairo_surface_destroy(self.0);
-		}
+impl<'a> Iterator for Iter<'a> {
+	type Item = &'a Cell;
+
+	fn next(&mut self) -> Option<Self::Item> {
+		None
 	}
 }

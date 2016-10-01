@@ -3,8 +3,13 @@ display = ":0.0"
 fps     = 30
 
 [style]
-font   = "monospace 11px"
-margin = 2
+font    = "monospace 11px"
+margin  = 2
+spacing = 1
+
+cursor     = "#b21818"
+foreground = "#c6c6c6"
+background = "#000000"
 
 [color]
 0  = "#000000"

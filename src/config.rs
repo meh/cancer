@@ -21,10 +21,11 @@ use std::path::Path;
 
 use toml;
 use xdg;
+use picto::color::Rgba;
 
 use error;
 
-#[derive(Eq, PartialEq, Clone, Debug)]
+#[derive(PartialEq, Clone, Debug)]
 pub struct Environment {
 	display: Option<String>,
 	fps:     u8,
@@ -39,11 +40,15 @@ impl Default for Environment {
 	}
 }
 
-#[derive(Eq, PartialEq, Clone, Debug)]
+#[derive(PartialEq, Clone, Debug)]
 pub struct Style {
 	font:    Option<String>,
 	margin:  u8,
 	spacing: u8,
+
+	cursor:     Option<Rgba<f64>>,
+	foreground: Option<Rgba<f64>>,
+	background: Option<Rgba<f64>>,
 }
 
 impl Default for Style {
@@ -52,11 +57,15 @@ impl Default for Style {
 			font:    None,
 			margin:  2,
 			spacing: 1,
+
+			cursor:     None,
+			foreground: None,
+			background: None,
 		}
 	}
 }
 
-#[derive(Eq, PartialEq, Clone, Default, Debug)]
+#[derive(PartialEq, Clone, Default, Debug)]
 pub struct Config {
 	environment: Environment,
 	style:       Style,
@@ -106,6 +115,18 @@ impl Style {
 	pub fn spacing(&self) -> u32 {
 		self.spacing as u32
 	}
+
+	pub fn cursor(&self) -> &Rgba<f64> {
+		self.cursor.as_ref().unwrap()
+	}
+
+	pub fn foreground(&self) -> &Rgba<f64> {
+		self.foreground.as_ref().unwrap()
+	}
+
+	pub fn background(&self) -> &Rgba<f64> {
+		self.background.as_ref().unwrap()
+	}
 }
 
 impl Environment {
@@ -151,9 +172,78 @@ impl From<toml::Table> for Config {
 				style.spacing = value as u8;
 			}
 
+			if let Some(value) = table.lookup("cursor").and_then(|v| v.as_str()).and_then(|v| to_color(v)) {
+				style.cursor = Some(value);
+			}
+			else {
+				style.cursor = to_color("#fff");
+			}
+
+			if let Some(value) = table.lookup("foreground").and_then(|v| v.as_str()).and_then(|v| to_color(v)) {
+				style.foreground = Some(value);
+			}
+			else {
+				style.foreground = to_color("#c6c6c6");
+			}
+
+			if let Some(value) = table.lookup("background").and_then(|v| v.as_str()).and_then(|v| to_color(v)) {
+				style.background = Some(value);
+			}
+			else {
+				style.background = to_color("#000");
+			}
+
 			config.style = style;
 		}
 
 		config
 	}
+}
+
+fn is_color(arg: &str) -> bool {
+	if arg.starts_with('#') {
+		if arg.len() == 4 || arg.len() == 5 || arg.len() == 7 || arg.len() == 9 {
+			if arg.chars().skip(1).all(|c| c.is_digit(16)) {
+				return true;
+			}
+		}
+	}
+
+	false
+}
+
+fn to_color(arg: &str) -> Option<Rgba<f64>> {
+	if !is_color(arg) {
+		return None;
+	}
+
+	let (r, g, b, a) = if arg.len() == 4 {
+		(u8::from_str_radix(&arg[1..2], 16).unwrap() * 0x11,
+		 u8::from_str_radix(&arg[2..3], 16).unwrap() * 0x11,
+		 u8::from_str_radix(&arg[3..4], 16).unwrap() * 0x11,
+		 255)
+	}
+	else if arg.len() == 5 {
+		(u8::from_str_radix(&arg[1..2], 16).unwrap() * 0x11,
+		 u8::from_str_radix(&arg[2..3], 16).unwrap() * 0x11,
+		 u8::from_str_radix(&arg[3..4], 16).unwrap() * 0x11,
+		 u8::from_str_radix(&arg[4..5], 16).unwrap() * 0x11)
+	}
+	else if arg.len() == 7 {
+		(u8::from_str_radix(&arg[1..3], 16).unwrap(),
+		 u8::from_str_radix(&arg[3..5], 16).unwrap(),
+		 u8::from_str_radix(&arg[5..7], 16).unwrap(),
+		 255)
+	}
+	else if arg.len() == 9 {
+		(u8::from_str_radix(&arg[1..3], 16).unwrap(),
+		 u8::from_str_radix(&arg[3..5], 16).unwrap(),
+		 u8::from_str_radix(&arg[5..7], 16).unwrap(),
+		 u8::from_str_radix(&arg[7..9], 16).unwrap())
+	}
+	else {
+		unreachable!()
+	};
+
+	Some(Rgba::new_u8(r, g, b, a))
 }

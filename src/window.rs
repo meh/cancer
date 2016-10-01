@@ -32,12 +32,15 @@ pub struct Window {
 	window:     xcb::Window,
 	surface:    Surface,
 	events:     Option<Receiver<xcb::GenericEvent>>,
+
+	width:  u32,
+	height: u32,
 }
 
 impl Window {
-	pub fn open(config: Arc<Config>, font: &Font) -> error::Result<Self> {
-		let mut width  = 640u32;
-		let mut height = 480u32;
+	pub fn open(config: Arc<Config>, font: Arc<Font>) -> error::Result<Self> {
+		let mut width  = (80 * font.width()) + (config.style().margin() * 2);
+		let mut height = (24 * font.height()) + (24 * config.style().spacing()) + (config.style().margin() * 2);
 
 		let (connection, screen) = xcb::Connection::connect(config.environment().display())?;
 		let connection           = Arc::new(xcbu::ewmh::Connection::connect(connection).map_err(|(e, _)| e)?);
@@ -82,7 +85,24 @@ impl Window {
 			window:     window,
 			surface:    surface,
 			events:     Some(events),
+
+			width:  width,
+			height: height,
 		})
+	}
+
+	pub fn width(&self) -> u32 {
+		self.width
+	}
+
+	pub fn height(&self) -> u32 {
+		self.height
+	}
+
+	pub fn resized(&mut self, width: u32, height: u32) {
+		self.width  = width;
+		self.height = height;
+		self.surface.resize(width, height);
 	}
 
 	pub fn events(&mut self) -> Receiver<xcb::GenericEvent> {

@@ -15,36 +15,23 @@
 // You should have received a copy of the GNU General Public License
 // along with cancer.  If not, see <http://www.gnu.org/licenses/>.
 
-use xcb;
-use ffi::cairo::*;
-use libc::c_int;
+use picto::color::{Rgb, Rgba};
 
-pub struct Surface(pub *mut cairo_surface_t);
-
-impl Surface {
-	pub fn new(connection: &xcb::Connection, drawable: xcb::Drawable, visual: xcb::Visualtype, width: u32, height: u32) -> Self {
-		unsafe {
-			Surface(cairo_xcb_surface_create(connection.get_raw_conn(), drawable, visual.ptr, width as c_int, height as c_int))
-		}
-	}
-
-	pub fn resize(&mut self, width: u32, height: u32) {
-		unsafe {
-			cairo_xcb_surface_set_size(self.0, width as c_int, height as c_int);
-		}
-	}
-
-	pub fn flush(&self) {
-		unsafe {
-			cairo_surface_flush(self.0);
-		}
-	}
+#[derive(PartialEq, Copy, Clone, Default, Debug)]
+pub struct Style {
+	pub foreground: Option<Rgba<f64>>,
+	pub background: Option<Rgba<f64>>,
+	pub underline:  bool,
+	pub bold:       bool,
+	pub blink:      bool,
 }
 
-impl Drop for Surface {
-	fn drop(&mut self) {
-		unsafe {
-			cairo_surface_destroy(self.0);
-		}
+impl Style {
+	pub fn foreground(&self) -> Option<&Rgba<f64>> {
+		self.foreground.as_ref()
+	}
+
+	pub fn background(&self) -> Option<&Rgba<f64>> {
+		self.background.as_ref()
 	}
 }

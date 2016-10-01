@@ -15,36 +15,49 @@
 // You should have received a copy of the GNU General Public License
 // along with cancer.  If not, see <http://www.gnu.org/licenses/>.
 
-use xcb;
-use ffi::cairo::*;
-use libc::c_int;
+use std::rc::Rc;
+use unicode_width::UnicodeWidthStr;
 
-pub struct Surface(pub *mut cairo_surface_t);
+use style::Style;
 
-impl Surface {
-	pub fn new(connection: &xcb::Connection, drawable: xcb::Drawable, visual: xcb::Visualtype, width: u32, height: u32) -> Self {
-		unsafe {
-			Surface(cairo_xcb_surface_create(connection.get_raw_conn(), drawable, visual.ptr, width as c_int, height as c_int))
+pub struct Cell {
+	x: u32,
+	y: u32,
+
+	inner: String,
+	style: Rc<Style>,
+}
+
+impl Cell {
+	pub fn new(x: u32, y: u32, inner: String, style: Rc<Style>) -> Self {
+		Cell {
+			x: x,
+			y: y,
+
+			inner: inner,
+			style: style,
 		}
 	}
 
-	pub fn resize(&mut self, width: u32, height: u32) {
-		unsafe {
-			cairo_xcb_surface_set_size(self.0, width as c_int, height as c_int);
-		}
+	pub fn x(&self) -> u32 {
+		self.x
 	}
 
-	pub fn flush(&self) {
-		unsafe {
-			cairo_surface_flush(self.0);
-		}
+	pub fn y(&self) -> u32 {
+		self.y
+	}
+
+	pub fn width(&self) -> u32 {
+		self.inner.width() as u32
+	}
+
+	pub fn style(&self) -> &Style {
+		&self.style
 	}
 }
 
-impl Drop for Surface {
-	fn drop(&mut self) {
-		unsafe {
-			cairo_surface_destroy(self.0);
-		}
+impl AsRef<str> for Cell {
+	fn as_ref(&self) -> &str {
+		&self.inner
 	}
 }

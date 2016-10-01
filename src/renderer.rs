@@ -16,47 +16,118 @@
 // along with cancer.  If not, see <http://www.gnu.org/licenses/>.
 
 use std::sync::Arc;
-use palette::Rgb;
+use std::ops::{Deref, DerefMut};
 
+use unicode_width::UnicodeWidthStr;
+use picto::Area;
 use config::Config;
-use sys::cairo::{Surface, Context};
-use sys::pango::{Layout};
+use sys::cairo;
+use sys::pango;
 use font::Font;
+use style::Style;
 
 pub struct Renderer {
-	context: Context,
-	layout:  Layout,
-	font:    Font,
+	config: Arc<Config>,
+	font:   Arc<Font>,
+	width:  u32,
+	height: u32,
+
+	context: cairo::Context,
+	layout:  pango::Layout,
 }
 
 impl Renderer {
-	pub fn new<S: AsRef<Surface>>(config: Arc<Config>, font: Font, surface: S) -> Self {
-		let context = Context::new(surface);
-		let layout  = Layout::new(&font);
+	pub fn new<S: AsRef<cairo::Surface>>(config: Arc<Config>, font: Arc<Font>, surface: S, width: u32, height: u32) -> Self {
+		let context = cairo::Context::new(surface);
+		let layout  = pango::Layout::new(font.as_ref());
 
 		Renderer {
+			config: config,
+			font:   font,
+			width:  width,
+			height: height,
+
 			context: context,
 			layout:  layout,
-			font:    font,
 		}
 	}
 
-	pub fn draw(&mut self) {
-		let (c, l, f) = (&mut self.context, &mut self.layout, &mut self.font);
+	pub fn rows(&self) -> u32 {
+		(self.height - (self.config.style().margin() * 2)) /
+			(self.font.height() + self.config.style().spacing())
+	}
 
-		l.update(&c);
+	pub fn columns(&self) -> u32 {
+		(self.width - (self.config.style().margin() * 2)) /
+			self.font.width()
+	}
 
-		c.group(|mut c| {
-			c.rgb(Rgb::new(1.0, 1.0, 1.0));
-			c.paint();
+	pub fn resize(&mut self, width: u32, height: u32) {
+		self.width  = width;
+		self.height = height;
+	}
 
-			c.rgb(Rgb::new(1.0, 0.0, 0.0));
-			c.move_to(10.0, 10.0);
-			c.text(l, "█wanna sign a contract? █／人◕ ‿‿ ◕人＼█");
+	pub fn damaged(&self, x: u16, y: u16, width: u16, height: u16) -> Area {
+		Area::from(0, 0, 0, 0)
+	}
 
-			c.rgb(Rgb::new(0.0, 0.5, 0.0));
-			c.move_to(10.0, 22.0);
-			c.text(l, format!("{}x{} MOTHERFUCKER", f.width(), f.height()));
-		});
+	pub fn update<T, F: FnOnce(&mut Self) -> T>(&mut self, func: F) -> T {
+		self.push();
+		let out = func(self);
+		self.pop();
+		self.paint();
+
+		out
+	}
+
+	pub fn cell<S: AsRef<str>>(&mut self, x: u32, y: u32, ch: S, style: &Style) {
+		let ch           = ch.as_ref();
+		let (c, o, l, f) = (&self.config, &mut self.context, &mut self.layout, &self.font);
+
+		o.save();
+		{
+			let x = (c.style().margin() + (x * f.width())) as f64;
+			let y = (c.style().margin() + ((y * f.width()) + y * c.style().spacing())) as f64;
+			let w = (f.width() * ch.width() as u32) as f64;
+			let h = (f.height() + c.style().spacing()) as f64;
+
+			// Clip to the cell area.
+			o.rectangle(x, y, w, h);
+			o.clip();
+
+			// Set background.
+			if let Some(bg) = style.background() {
+				o.rgba(bg);
+			}
+			else {
+				o.rgba(&c.style().background());
+			}
+			o.paint();
+
+			if let Some(fg) = style.foreground() {
+				o.rgba(fg);
+			}
+			else {
+				o.rgba(c.style().foreground());
+			}
+
+			o.move_to(x, y);
+			o.text(l, ch);
+		}
+		o.restore();
+	}
+}
+
+impl Deref for Renderer {
+	type Target = cairo::Context;
+
+	fn deref(&self) -> &Self::Target {
+		&self.context
+	}
+}
+
+impl DerefMut for Renderer {
+	fn deref_mut(&mut self) -> &mut Self::Target {
+		&mut self.context
 	}
 }

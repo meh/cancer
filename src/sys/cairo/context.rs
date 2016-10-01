@@ -17,7 +17,7 @@
 
 use xcb;
 use libc::c_int;
-use palette::{Rgb, Rgba};
+use picto::color::{Rgb, Rgba};
 
 use ffi::cairo::*;
 use ffi::pango::*;
@@ -33,38 +33,49 @@ impl Context {
 		}
 	}
 
-	pub fn group<T, F: FnOnce(&mut Self) -> T>(&mut self, func: F) -> T {
+	pub fn push(&mut self) {
 		unsafe {
 			cairo_push_group(self.0);
-			let result = func(self);
-			cairo_pop_group_to_source(self.0);
-			cairo_paint(self.0);
-
-			result
 		}
 	}
 
-	pub fn save<T, F: FnOnce(&mut Self) -> T>(&mut self, func: F) -> T {
+	pub fn pop(&mut self) {
+		unsafe {
+			cairo_pop_group_to_source(self.0);
+		}
+	}
+
+	pub fn save(&mut self) {
 		unsafe {
 			cairo_save(self.0);
-			let result = func(self);
-			cairo_restore(self.0);
-
-			result
 		}
 	}
 
-	pub fn rgb<P: Into<Rgb<f64>>>(&mut self, px: P) {
-		let px = px.into();
+	pub fn restore(&mut self) {
+		unsafe {
+			cairo_restore(self.0);
+		}
+	}
 
+	pub fn rectangle(&mut self, x: f64, y: f64, width: f64, height: f64) {
+		unsafe {
+			cairo_rectangle(self.0, x, y, width, height);
+		}
+	}
+
+	pub fn clip(&mut self) {
+		unsafe {
+			cairo_clip(self.0);
+		}
+	}
+
+	pub fn rgb(&mut self, px: &Rgb<f64>) {
 		unsafe {
 			cairo_set_source_rgb(self.0, px.red, px.green, px.blue);
 		}
 	}
 
-	pub fn rgba<P: Into<Rgba<f64>>>(&mut self, px: P) {
-		let px = px.into();
-
+	pub fn rgba(&mut self, px: &Rgba<f64>) {
 		unsafe {
 			cairo_set_source_rgba(self.0, px.red, px.green, px.blue, px.alpha);
 		}

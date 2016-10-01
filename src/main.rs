@@ -29,7 +29,10 @@ use clap::{App, Arg, SubCommand, ArgMatches};
 extern crate xcb;
 extern crate xcb_util as xcbu;
 extern crate xkbcommon;
-extern crate palette;
+extern crate picto;
+
+extern crate unicode_segmentation;
+extern crate unicode_width;
 
 extern crate libc;
 extern crate nix;
@@ -43,6 +46,12 @@ use config::Config;
 
 mod font;
 use font::Font;
+
+mod terminal;
+use terminal::Terminal;
+
+mod style;
+use style::Style;
 
 mod window;
 use window::Window;
@@ -79,44 +88,41 @@ fn main() {
 }
 
 fn open(matches: &ArgMatches) -> error::Result<()> {
-	use std::thread;
 	use std::sync::Arc;
-	use std::sync::mpsc::sync_channel;
-	use std::time::Duration;
 
 	let     config   = Arc::new(Config::load(matches.value_of("config"))?);
-	let mut font     = Font::load(config.clone())?;
-	let mut window   = Window::open(config.clone(), &font)?;
-	let mut renderer = Renderer::new(config.clone(), font, &window);
-	let     events   = window.events();
+	let mut font     = Arc::new(Font::load(config.clone())?);
+	let mut window   = Window::open(config.clone(), font.clone())?;
+	let mut render   = Renderer::new(config.clone(), font.clone(), &window, window.width(), window.height());
+	let mut terminal = Terminal::open(config.clone(), render.columns(), render.rows())?;
 
-	let timer = {
-		let (sender, receiver) = sync_channel(1);
-		let fps                = config.environment().fps();
-
-		thread::spawn(move || {
-			loop {
-				sender.send(()).unwrap();
-				thread::sleep(Duration::from_millis(1_000 / fps))
-			}
-		});
-
-		receiver
-	};
+	let input  = terminal.input();
+	let events = window.events();
 
 	loop {
 		select! {
-			event = timer.recv() => {
-				renderer.draw();
-				window.flush();
+			input = input.recv() => {
+				// TODO: handle input
 			},
 
 			event = events.recv() => {
 				let event = event.unwrap();
 
 				match event.response_type() {
+					xcb::EXPOSE => {
+						let event = xcb::cast_event::<xcb::ExposeEvent>(&event);
+
+						render.update(|mut o| {
+							for cell in terminal.area(o.damaged(event.x(), event.y(), event.width(), event.height())) {
+								o.cell(cell.x(), cell.y(), cell.as_ref(), cell.style());
+							}
+						});
+
+						window.flush();
+					}
+
 					e => {
-						println!("unhandled event: {:?}", e);
+						debug!("unhandled event: {:?}", e);
 					}
 				}
 			}
