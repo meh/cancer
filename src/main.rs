@@ -30,6 +30,7 @@ extern crate xcb;
 extern crate xcb_util as xcbu;
 extern crate xkbcommon;
 extern crate picto;
+use picto::Area;
 
 extern crate unicode_segmentation;
 extern crate unicode_width;
@@ -110,10 +111,14 @@ fn open(matches: &ArgMatches) -> error::Result<()> {
 
 				match event.response_type() {
 					xcb::EXPOSE => {
-						let event = xcb::cast_event::<xcb::ExposeEvent>(&event);
+						let event  = xcb::cast_event::<xcb::ExposeEvent>(&event);
+						let area   = Area::from(event.x() as u32, event.y() as u32,
+							event.width() as u32, event.height() as u32);
 
 						render.update(|mut o| {
-							for cell in terminal.area(o.damaged(event.x(), event.y(), event.width(), event.height())) {
+							o.margin(&area);
+
+							for cell in terminal.area(o.damaged(&area)) {
 								o.cell(cell.x(), cell.y(), cell.as_ref(), cell.style());
 							}
 						});
