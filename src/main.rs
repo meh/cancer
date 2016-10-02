@@ -135,9 +135,29 @@ fn open(matches: &ArgMatches) -> error::Result<()> {
 							for cell in terminal.area(o.damaged(&area)) {
 								o.cell(cell);
 							}
+
+							o.cursor(terminal.cursor());
 						});
 
 						window.flush();
+					}
+
+					xcb::CONFIGURE_NOTIFY => {
+						let event  = xcb::cast_event::<xcb::ConfigureNotifyEvent>(&event);
+						let width  = event.width() as u32;
+						let height = event.height() as u32;
+
+						if window.width() != width || window.height() != height {
+							window.resized(width, height);
+							render.resize(width, height);
+
+							let rows    = render.rows();
+							let columns = render.columns();
+
+							if terminal.columns() != columns || terminal.rows() != rows {
+								terminal.resize(columns, rows);
+							}
+						}
 					}
 
 					e => {
