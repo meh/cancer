@@ -90,33 +90,40 @@ impl Renderer {
 		}
 
 		// Cache font dimensions.
-		let width  = f.width();
-		let height = f.height() + s;
+		let width  = f.width() as f32;
+		let height = (f.height() + s) as f32;
 
 		// Cache terminal dimension.
-		let columns = self.width - (m * 2) / width;
-		let rows    = self.height - (m * 2) / height;
+		let columns = (self.width - (m * 2)) / width as u32;
+		let rows    = (self.height - (m * 2)) / height as u32;
 
 		// Remove the margin from coordinates.
-		let x = area.x.saturating_sub(m);
-		let y = area.y.saturating_sub(m);
+		let x = area.x.saturating_sub(m) as f32;
+		let y = area.y.saturating_sub(m) as f32;
 
 		// Remove margins from width.
 		let w = area.width
 			.saturating_sub(m.saturating_sub(area.x))
-			.saturating_sub(m.saturating_sub(self.width - (area.x + area.width)));
+			.saturating_sub(m.saturating_sub(self.width - (area.x + area.width))) as f32;
 
 		// Remove margins from height.
 		let h = area.height
 			.saturating_sub(m.saturating_sub(area.y))
-			.saturating_sub(m.saturating_sub(self.height - (area.y + area.height)));
+			.saturating_sub(m.saturating_sub(self.height - (area.y + area.height))) as f32;
 
-		// Increase dimensions by one, and clamp to maximum dimensions.
-		Area::from(
-			cmp::min(columns,     (x as f32 / width as f32).floor() as u32),
-			cmp::min(rows,        (y as f32 / height as f32).floor() as u32),
-			cmp::min(columns, 1 + (w as f32 / width as f32).ceil() as u32),
-			cmp::min(rows,    1 + (h as f32 / height as f32).ceil() as u32))
+		let x = (x / width).floor() as u32;
+		let y = (y / height).floor() as u32;
+		let w = (w / width).ceil() as u32;
+		let h = (h / height).ceil() as u32;
+
+		// Increment width and height by one if it fits within dimensions.
+		//
+		// This is done because the dirty area is actually bigger than the one
+		// reported, or because the algorithm is broken. Regardless, this way it
+		// works properly.
+		Area::from(x, y,
+			w + if x + w < columns { 1 } else { 0 },
+			h + if y + h < rows { 1 } else { 0 })
 	}
 
 	/// Batch the drawing operations within the closure.
