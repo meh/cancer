@@ -38,6 +38,7 @@ pub struct Window {
 }
 
 impl Window {
+	/// Create the window.
 	pub fn open(config: Arc<Config>, font: Arc<Font>) -> error::Result<Self> {
 		let mut width  = (80 * font.width()) + (config.style().margin() * 2);
 		let mut height = (24 * font.height()) + (24 * config.style().spacing()) + (config.style().margin() * 2);
@@ -91,24 +92,29 @@ impl Window {
 		})
 	}
 
+	/// Get the width.
 	pub fn width(&self) -> u32 {
 		self.width
 	}
 
+	/// Get the height.
 	pub fn height(&self) -> u32 {
 		self.height
 	}
 
+	/// Handle a resize event.
 	pub fn resized(&mut self, width: u32, height: u32) {
 		self.width  = width;
 		self.height = height;
 		self.surface.resize(width, height);
 	}
 
+	/// Take the events sink.
 	pub fn events(&mut self) -> Receiver<xcb::GenericEvent> {
 		self.events.take().unwrap()
 	}
 
+	/// Flush the surface and connection.
 	pub fn flush(&self) {
 		self.surface.flush();
 		self.connection.flush();

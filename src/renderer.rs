@@ -27,6 +27,7 @@ use sys::pango;
 use font::Font;
 use style::Style;
 
+/// Renderer for a `cairo::Surface`.
 pub struct Renderer {
 	config: Arc<Config>,
 	font:   Arc<Font>,
@@ -38,6 +39,7 @@ pub struct Renderer {
 }
 
 impl Renderer {
+	/// Create a new renderer for the given settings and surface.
 	pub fn new<S: AsRef<cairo::Surface>>(config: Arc<Config>, font: Arc<Font>, surface: S, width: u32, height: u32) -> Self {
 		let context = cairo::Context::new(surface);
 		let layout  = pango::Layout::new(font.as_ref());
@@ -53,21 +55,25 @@ impl Renderer {
 		}
 	}
 
+	/// How many rows fit the view.
 	pub fn rows(&self) -> u32 {
 		(self.height - (self.config.style().margin() * 2)) /
 			(self.font.height() + self.config.style().spacing())
 	}
 
+	/// How many columns fit the view.
 	pub fn columns(&self) -> u32 {
 		(self.width - (self.config.style().margin() * 2)) /
 			self.font.width()
 	}
 
+	/// Resize the renderer viewport.
 	pub fn resize(&mut self, width: u32, height: u32) {
 		self.width  = width;
 		self.height = height;
 	}
 
+	/// Turn the damaged area to cell-space.
 	pub fn damaged(&self, area: &Area) -> Area {
 		let (c, f) = (&self.config, &self.font);
 		let m      = c.style().margin();
@@ -112,6 +118,7 @@ impl Renderer {
 			cmp::min(rows,    1 + (h as f32 / height as f32).ceil() as u32))
 	}
 
+	/// Batch the drawing operations within the closure.
 	pub fn update<T, F: FnOnce(&mut Self) -> T>(&mut self, func: F) -> T {
 		self.push();
 		let out = func(self);
@@ -121,9 +128,10 @@ impl Renderer {
 		out
 	}
 
+	/// Render the margins within the given area.
 	pub fn margin(&mut self, area: &Area) {
-		let (c, o, l, f) = (&self.config, &mut self.context, &mut self.layout, &self.font);
-		let m            = c.style().margin();
+		let (c, o) = (&self.config, &mut self.context);
+		let m      = c.style().margin();
 
 		if m == 0 {
 			return;
@@ -160,6 +168,7 @@ impl Renderer {
 		o.restore();
 	}
 
+	/// Update the given cell.
 	pub fn cell<S: AsRef<str>>(&mut self, x: u32, y: u32, ch: S, style: &Style) {
 		let (c, o, l, f) = (&self.config, &mut self.context, &mut self.layout, &self.font);
 		let ch           = ch.as_ref();

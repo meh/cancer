@@ -24,7 +24,6 @@ use std::sync::mpsc::{Receiver, sync_channel};
 use picto::Area;
 use error;
 use config::Config;
-use font::Font;
 use style::Style;
 use terminal::{Cell, Iter};
 

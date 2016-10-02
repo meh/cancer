@@ -15,7 +15,7 @@
 // You should have received a copy of the GNU General Public License
 // along with cancer.  If not, see <http://www.gnu.org/licenses/>.
 
-use libc::{c_void, c_int, c_uint, c_double};
+use libc::{c_void, c_int, c_double};
 use xcb::ffi::*;
 
 #[repr(C)]

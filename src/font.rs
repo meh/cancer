@@ -22,6 +22,7 @@ use sys::pango;
 use config::Config;
 use error;
 
+/// The font to use for rendering.
 pub struct Font {
 	map:     pango::Map,
 	context: pango::Context,
@@ -30,6 +31,7 @@ pub struct Font {
 }
 
 impl Font {
+	/// Load the font from the given configuration.
 	pub fn load(config: Arc<Config>) -> error::Result<Self> {
 		let map     = pango::Map::new();
 		let context = pango::Context::new(&map);

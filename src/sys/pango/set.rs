@@ -16,7 +16,6 @@
 // along with cancer.  If not, see <http://www.gnu.org/licenses/>.
 
 use ffi::pango::*;
-use ffi::glib::*;
 
 use super::Metrics;
 
