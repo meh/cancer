@@ -20,7 +20,7 @@ use std::sync::Arc;
 use std::sync::mpsc::{Receiver, sync_channel};
 
 use xcb;
-use xcbu;
+use xcbu::{icccm, ewmh};
 
 use error;
 use sys::cairo::Surface;
@@ -28,7 +28,7 @@ use config::Config;
 use font::Font;
 
 pub struct Window {
-	connection: Arc<xcbu::ewmh::Connection>,
+	connection: Arc<ewmh::Connection>,
 	window:     xcb::Window,
 	surface:    Surface,
 	events:     Option<Receiver<xcb::GenericEvent>>,
@@ -40,14 +40,17 @@ pub struct Window {
 impl Window {
 	/// Create the window.
 	pub fn open(config: Arc<Config>, font: Arc<Font>) -> error::Result<Self> {
-		let mut width  = (80 * font.width()) + (config.style().margin() * 2);
-		let mut height = (24 * font.height()) + (24 * config.style().spacing()) + (config.style().margin() * 2);
+		let margin  = config.style().margin();
+		let spacing = config.style().spacing();
+
+		let mut width  = (80 * font.width()) + (margin * 2);
+		let mut height = (24 * (font.height() + spacing)) + (margin * 2);
 
 		let (connection, screen) = xcb::Connection::connect(config.environment().display())?;
-		let connection           = Arc::new(xcbu::ewmh::Connection::connect(connection).map_err(|(e, _)| e)?);
+		let connection           = Arc::new(ewmh::Connection::connect(connection).map_err(|(e, _)| e)?);
 		let events               = sink(connection.clone());
 		let (window, surface)    = {
-			let window               = connection.generate_id();
+			let window = connection.generate_id();
 			let screen = connection.get_setup().roots().nth(screen as usize).unwrap();
 
 			xcb::create_window(&connection, xcb::COPY_FROM_PARENT as u8, window, screen.root(),
@@ -62,6 +65,16 @@ impl Window {
 						xcb::EVENT_MASK_POINTER_MOTION |
 						xcb::EVENT_MASK_STRUCTURE_NOTIFY |
 						xcb::EVENT_MASK_EXPOSURE)]);
+
+			icccm::set_wm_class(&connection, window, "cancer", "Terminal");
+			icccm::set_wm_name(&connection, window, "cancer");
+			ewmh::set_wm_name(&connection, window, "cancer");
+
+			icccm::set_wm_size_hints(&connection, window, xcb::ATOM_WM_NORMAL_HINTS, &icccm::SizeHints::empty()
+				.base((margin * 2) as i32, (margin * 2) as i32)
+				.min_size((font.width() + (margin * 2)) as i32, (font.height() + spacing + (margin * 2)) as i32)
+				.resize(font.width() as i32, (font.height() + spacing) as i32)
+				.build());
 
 			xcb::map_window(&connection, window);
 			connection.flush();
@@ -133,7 +146,7 @@ fn create(connection: &xcb::Connection, screen: &xcb::Screen, window: xcb::Windo
 	Err(error::X::MissingDepth(24).into())
 }
 
-fn sink(connection: Arc<xcbu::ewmh::Connection>) -> Receiver<xcb::GenericEvent> {
+fn sink(connection: Arc<ewmh::Connection>) -> Receiver<xcb::GenericEvent> {
 	let (sender, receiver) = sync_channel(1);
 
 	// Drain events into a channel.
