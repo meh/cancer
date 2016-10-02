@@ -21,44 +21,68 @@ use unicode_width::UnicodeWidthStr;
 use style::Style;
 
 #[derive(PartialEq, Clone, Debug)]
-pub struct Cell {
-	x: u32,
-	y: u32,
+pub enum Cell {
+	Empty {
+		x: u32,
+		y: u32,
 
-	inner: String,
-	style: Rc<Style>,
+		style: Rc<Style>,
+	},
+
+	Char {
+		x: u32,
+		y: u32,
+
+		value: String,
+		style: Rc<Style>,
+	},
+
+	Reference {
+		x: u32,
+		y: u32,
+	},
 }
 
 impl Cell {
-	pub fn new(x: u32, y: u32, inner: String, style: Rc<Style>) -> Self {
-		Cell {
-			x: x,
-			y: y,
-
-			inner: inner,
-			style: style,
+	pub fn x(&self) -> u32 {
+		match self {
+			&Cell::Empty { x, .. } |
+			&Cell::Char { x, .. } |
+			&Cell::Reference { x, .. } =>
+				x
 		}
 	}
 
-	pub fn x(&self) -> u32 {
-		self.x
-	}
-
 	pub fn y(&self) -> u32 {
-		self.y
+		match self {
+			&Cell::Empty { y, .. } |
+			&Cell::Char { y, .. } |
+			&Cell::Reference { y, .. } =>
+				y
+		}
 	}
 
 	pub fn width(&self) -> u32 {
-		self.inner.width() as u32
+		match self {
+			&Cell::Empty { .. } =>
+				1,
+
+			&Cell::Char { ref value, .. } =>
+				value.width() as u32,
+
+			&Cell::Reference { .. } =>
+				unreachable!(),
+		}
 	}
 
 	pub fn style(&self) -> &Style {
-		&self.style
-	}
-}
+		match self {
+			&Cell::Empty { ref style, .. } |
+			&Cell::Char { ref style, .. } =>
+				style,
 
-impl AsRef<str> for Cell {
-	fn as_ref(&self) -> &str {
-		&self.inner
+			&Cell::Reference { .. } =>
+				unreachable!(),
+		}
 	}
 }

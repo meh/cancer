@@ -27,12 +27,13 @@ use config::Config;
 use style::Style;
 use terminal::{Cell, Iter};
 
+#[derive(Debug)]
 pub struct Terminal {
 	config: Arc<Config>,
 	output: Option<Receiver<Vec<u8>>>,
 
 	area:   Area,
-	cells:  Vec<Option<Cell>>,
+	cells:  Vec<Cell>,
 	cursor: (u32, u32),
 }
 
@@ -48,11 +49,8 @@ impl Terminal {
 
 		let area  = Area::from(0, 0, width, height);
 		let style = Rc::new(Style::default());
-		let cells = area.absolute().map(|(x, y)| {
-			let mut string = String::new();
-			string.push(char::from((0x1d + (x + y) % 127) as u8));
-
-			Some(Cell::new(x, y, string, style.clone())) });
+		let cells = area.absolute().map(|(x, y)|
+			Cell::Empty { x: x, y: y, style: style.clone() });
 
 		Ok(Terminal {
 			config: config,
@@ -72,7 +70,7 @@ impl Terminal {
 		Iter::new(&self, area)
 	}
 
-	pub fn get(&self, x: u32, y: u32) -> Option<&Cell> {
-		self.cells.get((y * self.area.width + x) as usize).and_then(|s| s.as_ref())
+	pub fn get(&self, x: u32, y: u32) -> &Cell {
+		&self.cells[(y * self.area.width + x) as usize]
 	}
 }

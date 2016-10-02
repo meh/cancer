@@ -26,6 +26,7 @@ use sys::cairo;
 use sys::pango;
 use font::Font;
 use style::Style;
+use terminal::Cell;
 
 /// Renderer for a `cairo::Surface`.
 pub struct Renderer {
@@ -169,23 +170,24 @@ impl Renderer {
 	}
 
 	/// Update the given cell.
-	pub fn cell<S: AsRef<str>>(&mut self, x: u32, y: u32, ch: S, style: &Style) {
+	pub fn cell(&mut self, cell: &Cell) {
+		debug_assert!(match cell { &Cell::Reference { .. } => false, _ => true });
+
 		let (c, o, l, f) = (&self.config, &mut self.context, &mut self.layout, &self.font);
-		let ch           = ch.as_ref();
 
 		o.save();
 		{
-			let w = f.width() * ch.width() as u32;
+			let w = f.width() * cell.width();
 			let h = f.height() + c.style().spacing();
-			let x = c.style().margin() + (x * f.width());
-			let y = c.style().margin() + (y * h);
+			let x = c.style().margin() + (cell.x() * f.width());
+			let y = c.style().margin() + (cell.y() * h);
 
 			// Clip to the cell area.
 			o.rectangle(x as f64, y as f64, w as f64, h as f64);
 			o.clip();
 
 			// Set background.
-			if let Some(bg) = style.background() {
+			if let Some(bg) = cell.style().background() {
 				o.rgba(bg);
 			}
 			else {
@@ -194,16 +196,18 @@ impl Renderer {
 			o.paint();
 
 			// Set foreground.
-			if let Some(fg) = style.foreground() {
+			if let Some(fg) = cell.style().foreground() {
 				o.rgba(fg);
 			}
 			else {
 				o.rgba(c.style().foreground());
 			}
 
-			// Draw the glyph at the right point.
-			o.move_to(x as f64, y as f64);
-			o.text(l, ch);
+			if let &Cell::Char { ref value, .. } = cell {
+				// Draw the glyph at the right point.
+				o.move_to(x as f64, y as f64);
+				o.text(l, value);
+			}
 		}
 		o.restore();
 	}

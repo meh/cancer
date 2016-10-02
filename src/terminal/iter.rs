@@ -19,6 +19,7 @@ use picto::Area;
 use picto::iter::Coordinates;
 use terminal::{Terminal, Cell};
 
+#[derive(Debug)]
 pub struct Iter<'a> {
 	area:  Coordinates,
 	inner: &'a Terminal,
@@ -37,12 +38,17 @@ impl<'a> Iterator for Iter<'a> {
 	type Item = &'a Cell;
 
 	fn next(&mut self) -> Option<Self::Item> {
-		while let Some((x, y)) = self.area.next() {
-			if let Some(cell) = self.inner.get(x, y) {
-				return Some(cell);
-			}
-		}
+		if let Some((x, y)) = self.area.next() {
+			Some(match self.inner.get(x, y) {
+				&Cell::Reference { x, y } =>
+					self.inner.get(x, y),
 
-		None
+				cell =>
+					cell
+			})
+		}
+		else {
+			None
+		}
 	}
 }

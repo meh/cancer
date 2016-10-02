@@ -122,7 +122,7 @@ fn open(matches: &ArgMatches) -> error::Result<()> {
 							o.margin(&area);
 
 							for cell in terminal.area(o.damaged(&area)) {
-								o.cell(cell.x(), cell.y(), cell.as_ref(), cell.style());
+								o.cell(cell);
 							}
 						});
 
