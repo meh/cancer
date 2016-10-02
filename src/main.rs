@@ -21,6 +21,9 @@
 extern crate log;
 extern crate env_logger;
 
+#[macro_use]
+extern crate bitflags;
+
 extern crate xdg;
 extern crate toml;
 extern crate clap;

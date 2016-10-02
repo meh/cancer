@@ -17,13 +17,30 @@
 
 use picto::color::Rgba;
 
-#[derive(PartialEq, Copy, Clone, Default, Debug)]
+#[derive(PartialEq, Copy, Clone, Debug)]
 pub struct Style {
 	pub foreground: Option<Rgba<f64>>,
 	pub background: Option<Rgba<f64>>,
-	pub underline:  bool,
-	pub bold:       bool,
-	pub blink:      bool,
+	pub attributes: Attributes,
+}
+
+bitflags! {
+	pub flags Attributes: u8 {
+		const UNDERLINE = 0b0001,
+		const STRIKE    = 0b0010,
+		const BOLD      = 0b0100,
+		const BLINK     = 0b1000,
+	}
+}
+
+impl Default for Style {
+	fn default() -> Self {
+		Style {
+			foreground: None,
+			background: None,
+			attributes: Attributes::empty(),
+		}
+	}
 }
 
 impl Style {
@@ -33,5 +50,9 @@ impl Style {
 
 	pub fn background(&self) -> Option<&Rgba<f64>> {
 		self.background.as_ref()
+	}
+
+	pub fn attributes(&self) -> Attributes {
+		self.attributes
 	}
 }

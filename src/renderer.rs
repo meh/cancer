@@ -15,7 +15,7 @@
 // You should have received a copy of the GNU General Public License
 // along with cancer.  If not, see <http://www.gnu.org/licenses/>.
 
-use std::cmp;
+use std::iter;
 use std::sync::Arc;
 use std::ops::{Deref, DerefMut};
 
@@ -25,7 +25,7 @@ use config::Config;
 use sys::cairo;
 use sys::pango;
 use font::Font;
-use style::Style;
+use style;
 use terminal::Cell;
 
 /// Renderer for a `cairo::Surface`.
@@ -181,6 +181,8 @@ impl Renderer {
 		debug_assert!(match cell { &Cell::Reference { .. } => false, _ => true });
 
 		let (c, o, l, f) = (&self.config, &mut self.context, &mut self.layout, &self.font);
+		let fg = cell.style().foreground().unwrap_or_else(|| c.style().foreground());
+		let bg = cell.style().background().unwrap_or_else(|| c.style().background());
 
 		o.save();
 		{
@@ -194,26 +196,55 @@ impl Renderer {
 			o.clip();
 
 			// Set background.
-			if let Some(bg) = cell.style().background() {
-				o.rgba(bg);
-			}
-			else {
-				o.rgba(&c.style().background());
-			}
+			o.rgba(bg);
 			o.paint();
 
 			// Set foreground.
-			if let Some(fg) = cell.style().foreground() {
-				o.rgba(fg);
-			}
-			else {
-				o.rgba(c.style().foreground());
+			o.rgba(fg);
+
+			// Move to the cell position.
+			o.move_to(x as f64, y as f64);
+
+			// Prepare layout attributes.
+			{
+				let attrs = pango::Attributes::new();
+
+				// Set bold.
+				let attrs = if cell.style().attributes().contains(style::BOLD) {
+					attrs.weight(pango::Weight::Bold)
+				}
+				else {
+					attrs.weight(pango::Weight::Normal)
+				};
+
+				// Set underline.
+				let attrs = if cell.style().attributes().contains(style::UNDERLINE) {
+					attrs.underline(Some(c.style().underline().unwrap_or(fg)))
+				}
+				else {
+					attrs.underline(None)
+				};
+
+				// Set strikethrough.
+				let attrs = if cell.style().attributes().contains(style::STRIKE) {
+					attrs.strikethrough(Some(c.style().strike().unwrap_or(fg)))
+				}
+				else {
+					attrs.strikethrough(None)
+				};
+
+				l.attributes(attrs);
 			}
 
-			if let &Cell::Char { ref value, .. } = cell {
-				// Draw the glyph at the right point.
-				o.move_to(x as f64, y as f64);
-				o.text(l, value);
+			// Draw the cell character or space.
+			if cell.is_empty() {
+				o.text(l, " ");
+			}
+			else if cell.is_off() {
+				o.text(l, &iter::repeat(' ').take(cell.value().width()).collect::<String>());
+			}
+			else {
+				o.text(l, cell.value());
 			}
 		}
 		o.restore();
