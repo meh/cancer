@@ -35,6 +35,7 @@ pub enum Cell {
 
 		value: String,
 		style: Rc<Style>,
+		off:   bool,
 	},
 
 	Reference {
@@ -44,6 +45,24 @@ pub enum Cell {
 }
 
 impl Cell {
+	pub fn is_empty(&self) -> bool {
+		if let &Cell::Empty { .. } = self {
+			true
+		}
+		else {
+			false
+		}
+	}
+
+	pub fn value(&self) -> &str {
+		if let &Cell::Char { ref value, .. } = self {
+			value
+		}
+		else {
+			""
+		}
+	}
+
 	pub fn x(&self) -> u32 {
 		match self {
 			&Cell::Empty { x, .. } |
@@ -80,6 +99,19 @@ impl Cell {
 			&Cell::Empty { ref style, .. } |
 			&Cell::Char { ref style, .. } =>
 				style,
+
+			&Cell::Reference { .. } =>
+				unreachable!(),
+		}
+	}
+
+	pub fn is_off(&self) -> bool {
+		match self {
+			&Cell::Empty { .. } =>
+				false,
+
+			&Cell::Char { off, .. } =>
+				off,
 
 			&Cell::Reference { .. } =>
 				unreachable!(),

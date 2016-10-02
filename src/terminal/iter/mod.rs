@@ -15,40 +15,8 @@
 // You should have received a copy of the GNU General Public License
 // along with cancer.  If not, see <http://www.gnu.org/licenses/>.
 
-use picto::Area;
-use picto::iter::Coordinates;
-use terminal::{Terminal, Cell};
+mod area;
+pub use self::area::Area;
 
-#[derive(Debug)]
-pub struct Iter<'a> {
-	area:  Coordinates,
-	inner: &'a Terminal,
-}
-
-impl<'a> Iter<'a> {
-	pub fn new(inner: &Terminal, area: Area) -> Iter {
-		Iter {
-			area:  area.relative(),
-			inner: inner,
-		}
-	}
-}
-
-impl<'a> Iterator for Iter<'a> {
-	type Item = &'a Cell;
-
-	fn next(&mut self) -> Option<Self::Item> {
-		if let Some((x, y)) = self.area.next() {
-			Some(match self.inner.get(x, y) {
-				&Cell::Reference { x, y } =>
-					self.inner.get(x, y),
-
-				cell =>
-					cell
-			})
-		}
-		else {
-			None
-		}
-	}
-}
+mod filter;
+pub use self::filter::Filter;

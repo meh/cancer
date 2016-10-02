@@ -24,8 +24,10 @@ use std::sync::mpsc::{Receiver, sync_channel};
 use picto::Area;
 use error;
 use config::Config;
-use style::Style;
-use terminal::{Cell, Iter};
+use style::{self, Style};
+use terminal::{Cell, iter};
+
+use picto::color::Rgba;
 
 #[derive(Debug)]
 pub struct Terminal {
@@ -66,11 +68,46 @@ impl Terminal {
 		self.output.take().unwrap()
 	}
 
-	pub fn area(&self, area: Area) -> Iter {
-		Iter::new(&self, area)
+	pub fn resize(&mut self, width: u32, height: u32) {
+
+	}
+
+	pub fn columns(&self) -> u32 {
+		self.area.width
+	}
+
+	pub fn rows(&self) -> u32 {
+		self.area.height
+	}
+
+	pub fn area(&self, area: Area) -> iter::Area {
+		iter::Area::new(&self, area)
+	}
+
+	pub fn iter(&self) -> iter::Area {
+		iter::Area::new(&self, self.area)
 	}
 
 	pub fn get(&self, x: u32, y: u32) -> &Cell {
 		&self.cells[(y * self.area.width + x) as usize]
+	}
+
+	pub fn get_mut(&mut self, x: u32, y: u32) -> &mut Cell {
+		&mut self.cells[(y * self.area.width + x) as usize]
+	}
+
+	pub fn blink(&mut self, status: bool) -> iter::Filter {
+		let mut updated = Vec::new();
+
+		for cell in &mut self.cells {
+			if let &mut Cell::Char { x, y, ref style, ref mut off, .. } = cell {
+				if style.attributes().contains(style::BLINK) {
+					*off = status;
+					updated.push((x, y));
+				}
+			}
+		}
+
+		iter::Filter::new(self, updated)
 	}
 }
