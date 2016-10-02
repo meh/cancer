@@ -6,11 +6,13 @@ fps     = 30
 font    = "monospace 11px"
 margin  = 2
 spacing = 1
+blink   = 800
 
-blink      = 800
 cursor     = "#b21818"
 foreground = "#c6c6c6"
 background = "#000000"
+underline  = "#060"
+strike     = "#f00"
 
 [color]
 0  = "#000000"

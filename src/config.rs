@@ -50,6 +50,8 @@ pub struct Style {
 	cursor:     Option<Rgba<f64>>,
 	foreground: Option<Rgba<f64>>,
 	background: Option<Rgba<f64>>,
+	underline:  Option<Rgba<f64>>,
+	strike:     Option<Rgba<f64>>,
 }
 
 impl Default for Style {
@@ -58,11 +60,13 @@ impl Default for Style {
 			font:    None,
 			margin:  2,
 			spacing: 1,
+			blink:   800,
 
-			blink:      800,
 			cursor:     None,
 			foreground: None,
 			background: None,
+			underline:  None,
+			strike:     None,
 		}
 	}
 }
@@ -132,6 +136,14 @@ impl Style {
 
 	pub fn background(&self) -> &Rgba<f64> {
 		self.background.as_ref().unwrap()
+	}
+
+	pub fn underline(&self) -> Option<&Rgba<f64>> {
+		self.underline.as_ref()
+	}
+
+	pub fn strike(&self) -> Option<&Rgba<f64>> {
+		self.strike.as_ref()
 	}
 }
 
@@ -209,6 +221,14 @@ impl From<toml::Table> for Config {
 			}
 			else {
 				style.background = to_color("#000");
+			}
+
+			if let Some(value) = table.lookup("underline").and_then(|v| v.as_str()).and_then(|v| to_color(v)) {
+				style.underline = Some(value);
+			}
+
+			if let Some(value) = table.lookup("strike").and_then(|v| v.as_str()).and_then(|v| to_color(v)) {
+				style.strike = Some(value);
 			}
 
 			config.style = style;
