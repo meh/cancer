@@ -15,6 +15,7 @@
 // You should have received a copy of the GNU General Public License
 // along with cancer.  If not, see <http://www.gnu.org/licenses/>.
 
+use std::cmp;
 use std::sync::Arc;
 use std::ops::{Deref, DerefMut};
 
@@ -68,7 +69,47 @@ impl Renderer {
 	}
 
 	pub fn damaged(&self, area: &Area) -> Area {
-		Area::from(0, 0, self.columns(), self.rows())
+		let (c, f) = (&self.config, &self.font);
+		let m      = c.style().margin();
+		let s      = c.style().spacing();
+
+		// Check if the area falls exactly within a margin, if so bail out.
+		if (area.x < m && area.width <= m - area.x) ||
+		   (area.x >= self.width - m) ||
+		   (area.y < m && area.height <= m - area.y) ||
+		   (area.y >= self.height - m)
+		{
+			return Area::from(0, 0, 0, 0);
+		}
+
+		// Cache font dimensions.
+		let width  = f.width();
+		let height = f.height() + s;
+
+		// Cache terminal dimension.
+		let columns = self.width - (m * 2) / width;
+		let rows    = self.height - (m * 2) / height;
+
+		// Remove the margin from coordinates.
+		let x = area.x.saturating_sub(m);
+		let y = area.y.saturating_sub(m);
+
+		// Remove margins from width.
+		let w = area.width
+			.saturating_sub(m.saturating_sub(area.x))
+			.saturating_sub(m.saturating_sub(self.width - (area.x + area.width)));
+
+		// Remove margins from height.
+		let h = area.height
+			.saturating_sub(m.saturating_sub(area.y))
+			.saturating_sub(m.saturating_sub(self.height - (area.y + area.height)));
+
+		// Increase dimensions by one, and clamp to maximum dimensions.
+		Area::from(
+			cmp::min(columns,     (x as f32 / width as f32).floor() as u32),
+			cmp::min(rows,        (y as f32 / height as f32).floor() as u32),
+			cmp::min(columns, 1 + (w as f32 / width as f32).ceil() as u32),
+			cmp::min(rows,    1 + (h as f32 / height as f32).ceil() as u32))
 	}
 
 	pub fn update<T, F: FnOnce(&mut Self) -> T>(&mut self, func: F) -> T {
