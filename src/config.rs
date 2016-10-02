@@ -19,7 +19,7 @@ use std::fs::File;
 use std::io::Read;
 use std::path::Path;
 
-use toml;
+use toml::{self, Value};
 use xdg;
 use picto::color::Rgba;
 
@@ -46,6 +46,7 @@ pub struct Style {
 	margin:  u8,
 	spacing: u8,
 
+	blink:      u64,
 	cursor:     Option<Rgba<f64>>,
 	foreground: Option<Rgba<f64>>,
 	background: Option<Rgba<f64>>,
@@ -58,6 +59,7 @@ impl Default for Style {
 			margin:  2,
 			spacing: 1,
 
+			blink:      800,
 			cursor:     None,
 			foreground: None,
 			background: None,
@@ -116,6 +118,10 @@ impl Style {
 		self.spacing as u32
 	}
 
+	pub fn blink(&self) -> u64 {
+		self.blink
+	}
+
 	pub fn cursor(&self) -> &Rgba<f64> {
 		self.cursor.as_ref().unwrap()
 	}
@@ -170,6 +176,18 @@ impl From<toml::Table> for Config {
 
 			if let Some(value) = table.lookup("spacing").and_then(|v| v.as_integer()) {
 				style.spacing = value as u8;
+			}
+
+			if let Some(value) = table.lookup("blink") {
+				match value {
+					&Value::Boolean(false) =>
+						style.blink = 0,
+
+					&Value::Integer(value) =>
+						style.blink = value as u64,
+
+					_ => ()
+				}
 			}
 
 			if let Some(value) = table.lookup("cursor").and_then(|v| v.as_str()).and_then(|v| to_color(v)) {

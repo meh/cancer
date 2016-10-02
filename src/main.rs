@@ -48,11 +48,13 @@ use config::Config;
 mod font;
 use font::Font;
 
+mod timer;
+use timer::Timer;
+
 mod terminal;
 use terminal::Terminal;
 
 mod style;
-use style::Style;
 
 mod window;
 use window::Window;
@@ -92,18 +94,19 @@ fn open(matches: &ArgMatches) -> error::Result<()> {
 	use std::sync::Arc;
 
 	let     config   = Arc::new(Config::load(matches.value_of("config"))?);
-	let mut font     = Arc::new(Font::load(config.clone())?);
+	let     font     = Arc::new(Font::load(config.clone())?);
 	let mut window   = Window::open(config.clone(), font.clone())?;
 	let mut render   = Renderer::new(config.clone(), font.clone(), &window, window.width(), window.height());
 	let mut terminal = Terminal::open(config.clone(), render.columns(), render.rows())?;
+	let     timer    = Timer::spawn(config.clone());
 
 	let output = terminal.output();
 	let events = window.events();
 
 	loop {
 		select! {
-			output = output.recv() => {
-				// TODO: handle output
+			timer = timer.recv() => {
+
 			},
 
 			event = events.recv() => {
@@ -130,9 +133,11 @@ fn open(matches: &ArgMatches) -> error::Result<()> {
 						debug!("unhandled event: {:?}", e);
 					}
 				}
+			},
+
+			output = output.recv() => {
+				// TODO: handle output
 			}
 		}
 	}
-
-	Ok(())
 }
