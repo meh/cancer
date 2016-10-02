@@ -15,11 +15,16 @@
 // You should have received a copy of the GNU General Public License
 // along with cancer.  If not, see <http://www.gnu.org/licenses/>.
 
+pub use ffi::pango::PangoWeight as Weight;
+
 mod map;
 pub use self::map::Map;
 
 mod set;
 pub use self::set::Set;
+
+mod attributes;
+pub use self::attributes::Attributes;
 
 mod metrics;
 pub use self::metrics::Metrics;

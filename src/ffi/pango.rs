@@ -28,6 +28,28 @@ pub struct PangoLayout(c_void);
 pub struct PangoLanguage(c_void);
 
 #[repr(C)]
+pub struct PangoAttribute(c_void);
+
+#[repr(C)]
+pub struct PangoAttrList(c_void);
+
+#[repr(C)]
+pub enum PangoWeight {
+	Thin       = 100,
+	UltraLight = 200,
+	Light      = 300,
+	SemiLight  = 350,
+	Book       = 380,
+	Normal     = 400,
+	Medium     = 500,
+	SemiBold   = 600,
+	Bold       = 700,
+	UltraBold  = 800,
+	Heavy      = 900,
+	UltraHeavy = 1000,
+}
+
+#[repr(C)]
 pub struct PangoFontMap(c_void);
 
 #[repr(C)]
@@ -58,7 +80,18 @@ extern "C" {
 
 	pub fn pango_layout_set_font_description(layout: *mut PangoLayout, description: *mut PangoFontDescription);
 	pub fn pango_layout_set_text(layout: *mut PangoLayout, text: *const c_char, length: c_int);
-	pub fn pango_layout_get_size(layout: *mut PangoLayout, width: *mut c_int, height: *mut c_int);
+	pub fn pango_layout_set_attributes(layout: *mut PangoLayout, list: *mut PangoAttrList);
+
+	pub fn pango_attr_list_new() -> *mut PangoAttrList;
+	pub fn pango_attr_list_unref(list: *mut PangoAttrList);
+	pub fn pango_attr_list_insert(list: *mut PangoAttrList, attr: *mut PangoAttribute);
+
+	pub fn pango_attribute_destroy(attr: *mut PangoAttribute);
+	pub fn pango_attr_weight_new(weight: PangoWeight) -> *mut PangoAttribute;
+	pub fn pango_attr_strikethrough_new(strike: bool) -> *mut PangoAttribute;
+	pub fn pango_attr_strikethrough_color_new(red: u16, green: u16, blue: u16) -> *mut PangoAttribute;
+	pub fn pango_attr_underline_new(underline: bool) -> *mut PangoAttribute;
+	pub fn pango_attr_underline_color_new(red: u16, green: u16, blue: u16) -> *mut PangoAttribute;
 }
 
 #[link(name = "pangocairo-1.0")]

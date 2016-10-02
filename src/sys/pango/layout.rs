@@ -18,7 +18,7 @@
 use ffi::cairo::*;
 use ffi::pango::*;
 
-use super::Context;
+use super::{Context, Attributes};
 use sys::cairo;
 
 pub struct Layout(pub *mut PangoLayout);
@@ -27,6 +27,12 @@ impl Layout {
 	pub fn new<C: AsRef<Context>>(context: C) -> Self {
 		unsafe {
 			Layout(pango_layout_new(context.as_ref().0))
+		}
+	}
+
+	pub fn attributes(&mut self, list: Attributes) {
+		unsafe {
+			pango_layout_set_attributes(self.0, list.0)
 		}
 	}
 
