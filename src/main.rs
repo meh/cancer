@@ -98,10 +98,10 @@ fn open(matches: &ArgMatches) -> error::Result<()> {
 
 	let     config   = Arc::new(Config::load(matches.value_of("config"))?);
 	let     font     = Arc::new(Font::load(config.clone())?);
+	let     timer    = Timer::spawn(config.clone());
 	let mut window   = Window::open(config.clone(), font.clone())?;
 	let mut render   = Renderer::new(config.clone(), font.clone(), &window, window.width(), window.height());
 	let mut terminal = Terminal::open(config.clone(), render.columns(), render.rows())?;
-	let     timer    = Timer::spawn(config.clone());
 
 	let output = terminal.output();
 	let events = window.events();
@@ -109,7 +109,15 @@ fn open(matches: &ArgMatches) -> error::Result<()> {
 	loop {
 		select! {
 			timer = timer.recv() => {
-
+				match timer.unwrap() {
+					timer::Event::Blink(off) => {
+						render.update(|mut o| {
+							for cell in terminal.blink(off) {
+								o.cell(cell);
+							}
+						})
+					}
+				}
 			},
 
 			event = events.recv() => {

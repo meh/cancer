@@ -26,7 +26,7 @@ use config::Config;
 pub struct Timer(Receiver<Event>);
 
 pub enum Event {
-	Blink,
+	Blink(bool),
 }
 
 impl Timer {
@@ -34,11 +34,14 @@ impl Timer {
 		let (sender, receiver) = sync_channel(1);
 
 		thread::spawn(move || {
-			let blink = Duration::from_millis(config.style().blink());
+			let     blink    = Duration::from_millis(config.style().blink());
+			let mut blinking = false;
 
 			loop {
+				sender.send(Event::Blink(blinking)).unwrap();
+				blinking = !blinking;
+
 				thread::sleep(blink);
-				sender.send(Event::Blink).unwrap();
 			}
 		});
 
