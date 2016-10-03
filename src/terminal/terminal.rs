@@ -32,7 +32,6 @@ use picto::color::Rgba;
 #[derive(Debug)]
 pub struct Terminal {
 	config: Arc<Config>,
-	output: Option<Receiver<Vec<u8>>>,
 
 	area:     Area,
 	cells:    Vec<Cell>,
@@ -42,32 +41,19 @@ pub struct Terminal {
 
 impl Terminal {
 	pub fn open(config: Arc<Config>, width: u32, height: u32) -> error::Result<Self> {
-		let (sender, receiver) = sync_channel(1);
-		thread::spawn(move || {
-			loop {
-				sender.send(vec![]).unwrap();
-				thread::sleep(Duration::from_secs(10));
-			}
-		});
-
 		let area  = Area::from(0, 0, width, height);
 		let style = Rc::new(Style::default());
 		let cells = area.absolute().map(|(x, y)|
-			Cell::Empty { x: x, y: y, style: style.clone() });
+			Cell::Empty { x: x, y: y, style: style.clone() }).collect();
 
 		Ok(Terminal {
 			config: config,
-			output: Some(receiver),
 
 			area:     area,
-			cells:    cells.collect(),
-			cursor:   (2, 2),
+			cells:    cells,
+			cursor:   (0, 0),
 			blinking: false,
 		})
-	}
-
-	pub fn output(&mut self) -> Receiver<Vec<u8>> {
-		self.output.take().unwrap()
 	}
 
 	pub fn resize(&mut self, width: u32, height: u32) {

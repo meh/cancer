@@ -24,12 +24,14 @@ extern crate env_logger;
 #[macro_use]
 extern crate bitflags;
 extern crate fnv;
+extern crate shlex;
 
 extern crate xdg;
 extern crate toml;
 extern crate clap;
 use clap::{App, Arg, SubCommand, ArgMatches};
 
+extern crate libc;
 extern crate xcb;
 extern crate xcb_util as xcbu;
 extern crate xkbcommon;
@@ -39,9 +41,6 @@ use picto::Area;
 
 extern crate unicode_segmentation;
 extern crate unicode_width;
-
-extern crate libc;
-extern crate nix;
 
 mod error;
 mod ffi;
@@ -67,6 +66,9 @@ use platform::Window;
 mod renderer;
 use renderer::Renderer;
 
+mod tty;
+use tty::Tty;
+
 fn main() {
 	env_logger::init().unwrap();
 
@@ -83,8 +85,13 @@ fn main() {
 			.arg(Arg::with_name("display")
 				.short("d")
 				.long("display")
-				.help("The X11 display.")
-				.takes_value(true)))
+				.takes_value(true)
+				.help("The X11 display."))
+			.arg(Arg::with_name("execute")
+				.short("e")
+				.long("execute")
+				.takes_value(true)
+				.help("Program to execute.")))
 		.get_matches();
 
 	match matches.subcommand() {
@@ -105,8 +112,9 @@ fn open(matches: &ArgMatches) -> error::Result<()> {
 	let mut keyboard = window.keyboard()?;
 	let mut render   = Renderer::new(config.clone(), font.clone(), &window, window.width(), window.height());
 	let mut terminal = Terminal::open(config.clone(), render.columns(), render.rows())?;
+	let mut tty      = Tty::spawn(config.clone(), matches.value_of("execute").map(|s| s.into()), render.columns(), render.rows())?;
 
-	let output = terminal.output();
+	let output = tty.output();
 	let events = window.events();
 
 	loop {

@@ -15,6 +15,7 @@ env_logger = "0.3"
 
 bitflags = "0.7"
 fnv      = "1.0"
+shlex    = "0.1"
 
 clap  = "2"
 xdg   = "2"
@@ -24,9 +25,7 @@ picto = "0.3"
 unicode-segmentation = "0.1"
 unicode-width        = "0.1"
 
+libc      = "0.2"
 xcb       = { version = "0.7.5", features = ["thread"] }
 xcb-util  = { version = "0.1.5", features = ["icccm", "ewmh", "thread"] }
 xkbcommon = { version = "0.2",   features = ["x11"] }
-
-libc = "0.2"
-nix  = "0.7"
