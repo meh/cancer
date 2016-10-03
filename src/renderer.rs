@@ -176,6 +176,64 @@ impl Renderer {
 		o.restore();
 	}
 
+	pub fn cursor(&mut self, cell: &Cell, focus: bool) {
+		debug_assert!(match cell { &Cell::Reference { .. } => false, _ => true });
+
+		let (c, o, l, f) = (&self.config, &mut self.context, &mut self.layout, &self.font);
+		let fg = c.style().cursor().foreground();
+		let bg = c.style().cursor().background();
+
+		o.save();
+		{
+			let w = f.width() * cell.width();
+			let h = f.height() + c.style().spacing();
+			let x = c.style().margin() + (cell.x() * f.width());
+			let y = c.style().margin() + (cell.y() * h);
+
+			// Clip to the cell area.
+			o.rectangle(x as f64, y as f64, w as f64, h as f64);
+			o.clip();
+
+			// Draw the solid cursor in case of focus, or clear the area for
+			// rendering.
+			if focus {
+				o.rgba(if cell.is_empty() { bg } else { fg });
+			}
+			else {
+				o.rgba(c.style().color().background());
+			}
+			o.paint();
+
+			// Move to the cell position.
+			o.move_to(x as f64, y as f64);
+
+			// Set foreground color.
+			o.rgba(if cell.is_empty() { fg } else { bg });
+
+			// Set layout attributes.
+			l.attributes(attributes(c, cell));
+
+			// Draw the cell content.
+			if cell.is_empty() {
+				o.text(l, " ");
+			}
+			else if cell.is_off() {
+				o.text(l, &iter::repeat(' ').take(cell.value().width()).collect::<String>());
+			}
+			else {
+				o.text(l, cell.value());
+			}
+
+			// If not focused draw a cursor outline.
+			if !focus {
+				o.rgba(if cell.is_empty() { bg } else { fg });
+				o.rectangle(x as f64, y as f64, w as f64, h as f64);
+				o.stroke();
+			}
+		}
+		o.restore();
+	}
+
 	/// Update the given cell.
 	pub fn cell(&mut self, cell: &Cell) {
 		debug_assert!(match cell { &Cell::Reference { .. } => false, _ => true });

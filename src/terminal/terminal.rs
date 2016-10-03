@@ -80,6 +80,10 @@ impl Terminal {
 		self.area.height
 	}
 
+	pub fn cursor(&self) -> &Cell {
+		self.get(self.cursor.0, self.cursor.1)
+	}
+
 	pub fn area(&self, area: Area) -> iter::Area {
 		iter::Area::new(&self, area)
 	}

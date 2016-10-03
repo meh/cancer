@@ -137,7 +137,17 @@ fn open(matches: &ArgMatches) -> error::Result<()> {
 								o.cell(cell);
 							}
 
-							o.cursor(terminal.cursor());
+							o.cursor(terminal.cursor(), window.has_focus());
+						});
+
+						window.flush();
+					}
+
+					xcb::FOCUS_IN | xcb::FOCUS_OUT => {
+						window.focus(event.response_type() == xcb::FOCUS_IN);
+
+						render.update(|mut o| {
+							o.cursor(terminal.cursor(), window.has_focus());
 						});
 
 						window.flush();

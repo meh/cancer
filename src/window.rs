@@ -35,6 +35,7 @@ pub struct Window {
 
 	width:  u32,
 	height: u32,
+	focus:  bool,
 }
 
 impl Window {
@@ -64,6 +65,7 @@ impl Window {
 						xcb::EVENT_MASK_BUTTON_RELEASE |
 						xcb::EVENT_MASK_POINTER_MOTION |
 						xcb::EVENT_MASK_STRUCTURE_NOTIFY |
+						xcb::EVENT_MASK_FOCUS_CHANGE |
 						xcb::EVENT_MASK_EXPOSURE)]);
 
 			icccm::set_wm_class(&connection, window, "cancer", "Terminal");
@@ -102,6 +104,7 @@ impl Window {
 
 			width:  width,
 			height: height,
+			focus:  true,
 		})
 	}
 
@@ -120,6 +123,14 @@ impl Window {
 		self.width  = width;
 		self.height = height;
 		self.surface.resize(width, height);
+	}
+
+	pub fn focus(&mut self, value: bool) {
+		self.focus = value;
+	}
+
+	pub fn has_focus(&self) -> bool {
+		self.focus
 	}
 
 	/// Take the events sink.
