@@ -16,7 +16,7 @@
 // along with cancer.  If not, see <http://www.gnu.org/licenses/>.
 
 use ffi::pango::*;
-use super::Weight;
+use super::{Weight, Style};
 use picto::color::Rgb;
 
 pub struct Attributes(pub *mut PangoAttrList);
@@ -32,6 +32,15 @@ impl Attributes {
 		unsafe {
 			pango_attr_list_insert(self.0,
 				pango_attr_weight_new(weight));
+		}
+
+		self
+	}
+
+	pub fn style(self, style: Style) -> Self {
+		unsafe {
+			pango_attr_list_insert(self.0,
+				pango_attr_style_new(style));
 		}
 
 		self

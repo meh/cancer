@@ -339,6 +339,14 @@ fn attributes(config: &Config, cell: &Cell) -> pango::Attributes {
 		attrs.weight(pango::Weight::Normal)
 	};
 
+	// Set italic.
+	let attrs = if cell.style().attributes().contains(style::ITALIC) {
+		attrs.style(pango::Style::Italic)
+	}
+	else {
+		attrs.style(pango::Style::Normal)
+	};
+
 	// Set underline.
 	let attrs = if cell.style().attributes().contains(style::UNDERLINE) {
 		attrs.underline(Some(config.style().color().underline().unwrap_or(fg)))
@@ -348,7 +356,7 @@ fn attributes(config: &Config, cell: &Cell) -> pango::Attributes {
 	};
 
 	// Set strikethrough.
-	let attrs = if cell.style().attributes().contains(style::STRIKE) {
+	let attrs = if cell.style().attributes().contains(style::STRUCK) {
 		attrs.strikethrough(Some(config.style().color().strike().unwrap_or(fg)))
 	}
 	else {

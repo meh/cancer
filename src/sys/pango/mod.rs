@@ -16,6 +16,7 @@
 // along with cancer.  If not, see <http://www.gnu.org/licenses/>.
 
 pub use ffi::pango::PangoWeight as Weight;
+pub use ffi::pango::PangoStyle as Style;
 
 mod map;
 pub use self::map::Map;

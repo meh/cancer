@@ -26,10 +26,14 @@ pub struct Style {
 
 bitflags! {
 	pub flags Attributes: u8 {
-		const UNDERLINE = 0b0001,
-		const STRIKE    = 0b0010,
-		const BOLD      = 0b0100,
-		const BLINK     = 0b1000,
+		const BOLD      = 1 << 0,
+		const FAINT     = 1 << 1,
+		const ITALIC    = 1 << 2,
+		const UNDERLINE = 1 << 3,
+		const BLINK     = 1 << 4,
+		const REVERSE   = 1 << 5,
+		const INVISIBLE = 1 << 6,
+		const STRUCK    = 1 << 7,
 	}
 }
 

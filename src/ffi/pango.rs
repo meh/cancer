@@ -50,6 +50,13 @@ pub enum PangoWeight {
 }
 
 #[repr(C)]
+pub enum PangoStyle {
+	Normal,
+	Oblique,
+	Italic,
+}
+
+#[repr(C)]
 pub struct PangoFontMap(c_void);
 
 #[repr(C)]
@@ -92,6 +99,7 @@ extern "C" {
 
 	pub fn pango_attribute_destroy(attr: *mut PangoAttribute);
 	pub fn pango_attr_weight_new(weight: PangoWeight) -> *mut PangoAttribute;
+	pub fn pango_attr_style_new(style: PangoStyle) -> *mut PangoAttribute;
 	pub fn pango_attr_strikethrough_new(strike: bool) -> *mut PangoAttribute;
 	pub fn pango_attr_strikethrough_color_new(red: u16, green: u16, blue: u16) -> *mut PangoAttribute;
 	pub fn pango_attr_underline_new(underline: bool) -> *mut PangoAttribute;
