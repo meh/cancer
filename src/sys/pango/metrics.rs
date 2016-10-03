@@ -44,6 +44,23 @@ impl Metrics {
 			pixels(pango_font_metrics_get_approximate_digit_width(self.0))
 		}
 	}
+
+	pub fn underline(&self) -> (u32, u32) {
+		unsafe {
+			(pixels(pango_font_metrics_get_underline_thickness(self.0)),
+			 position(pango_font_metrics_get_underline_position(self.0),
+			          pango_font_metrics_get_ascent(self.0)))
+
+		}
+	}
+
+	pub fn strike(&self) -> (u32, u32) {
+		unsafe {
+			(pixels(pango_font_metrics_get_strikethrough_thickness(self.0)),
+			 position(pango_font_metrics_get_strikethrough_position(self.0),
+			          pango_font_metrics_get_ascent(self.0)))
+		}
+	}
 }
 
 impl Drop for Metrics {
@@ -56,5 +73,10 @@ impl Drop for Metrics {
 
 #[inline(always)]
 fn pixels(units: c_int) -> u32 {
-	(units as u32 + 512) >> 10
+	(units.abs() as u32 + 512) >> 10
+}
+
+#[inline(always)]
+fn position(units: c_int, ascent: c_int) -> u32 {
+	pixels(ascent - units)
 }

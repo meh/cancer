@@ -72,6 +72,10 @@ extern "C" {
 	pub fn pango_font_metrics_get_ascent(metrics: *mut PangoFontMetrics) -> c_int;
 	pub fn pango_font_metrics_get_descent(metrics: *mut PangoFontMetrics) -> c_int;
 	pub fn pango_font_metrics_get_approximate_digit_width(metrics: *mut PangoFontMetrics) -> c_int;
+	pub fn pango_font_metrics_get_underline_thickness(metrics: *mut PangoFontMetrics) -> c_int;
+	pub fn pango_font_metrics_get_underline_position(metrics: *mut PangoFontMetrics) -> c_int;
+	pub fn pango_font_metrics_get_strikethrough_thickness(metrics: *mut PangoFontMetrics) -> c_int;
+	pub fn pango_font_metrics_get_strikethrough_position(metrics: *mut PangoFontMetrics) -> c_int;
 
 	pub fn pango_layout_new(ctx: *mut PangoContext) -> *mut PangoLayout;
 

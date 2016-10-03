@@ -25,13 +25,13 @@ use picto::color::Rgba;
 
 use error;
 
-mod environment;
+pub mod environment;
 pub use self::environment::Environment;
 
-mod style;
+pub mod style;
 pub use self::style::Style;
 
-mod color;
+pub mod color;
 pub use self::color::Color;
 
 #[derive(PartialEq, Clone, Default, Debug)]

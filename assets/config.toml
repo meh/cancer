@@ -16,8 +16,8 @@ underline  = "#060"
 strike     = "#f00"
 
 [style.cursor]
-shape = "block"
-blink = false
+shape = "beam"
+blink = true
 
 foreground = "#fff"
 background = "#b21818"

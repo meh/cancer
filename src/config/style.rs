@@ -43,7 +43,8 @@ pub struct Color {
 #[derive(Eq, PartialEq, Copy, Clone, Debug)]
 pub enum Shape {
 	Block,
-	Snowman,
+	Line,
+	Beam,
 }
 
 #[derive(PartialEq, Clone, Debug)]
@@ -138,6 +139,25 @@ impl Style {
 		}
 
 		if let Some(table) = table.get("cursor").and_then(|v| v.as_table()) {
+			if let Some(value) = table.get("shape").and_then(|v| v.as_str()) {
+				match &*value.to_lowercase() {
+					"block" =>
+						self.cursor.shape = Shape::Block,
+
+					"beam" | "ibeam" =>
+						self.cursor.shape = Shape::Beam,
+
+					"underline" | "line" =>
+						self.cursor.shape = Shape::Line,
+
+					_ => ()
+				}
+			}
+
+			if let Some(true) = table.get("blink").and_then(|v| v.as_bool()) {
+				self.cursor.blink = true;
+			}
+
 			if let Some(value) = table.get("foreground").and_then(|v| v.as_str()).and_then(|v| to_color(v)) {
 				self.cursor.foreground = value;
 			}

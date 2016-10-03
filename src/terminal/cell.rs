@@ -35,7 +35,6 @@ pub enum Cell {
 
 		value: String,
 		style: Rc<Style>,
-		off:   bool,
 	},
 
 	Reference {
@@ -99,19 +98,6 @@ impl Cell {
 			&Cell::Empty { ref style, .. } |
 			&Cell::Char { ref style, .. } =>
 				style,
-
-			&Cell::Reference { .. } =>
-				unreachable!(),
-		}
-	}
-
-	pub fn is_off(&self) -> bool {
-		match self {
-			&Cell::Empty { .. } =>
-				false,
-
-			&Cell::Char { off, .. } =>
-				off,
 
 			&Cell::Reference { .. } =>
 				unreachable!(),

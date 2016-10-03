@@ -111,12 +111,20 @@ fn open(matches: &ArgMatches) -> error::Result<()> {
 		select! {
 			timer = timer.recv() => {
 				match timer.unwrap() {
-					timer::Event::Blink(off) => {
+					timer::Event::Blink(blinking) => {
+						terminal.blinking(blinking);
+
 						render.update(|mut o| {
-							for cell in terminal.blink(off) {
-								o.cell(cell);
+							for cell in terminal.iter() {
+								if cell.style().attributes().contains(style::BLINK) {
+									o.cell(cell, blinking);
+								}
 							}
-						})
+
+							o.cursor(terminal.cursor(), blinking, window.has_focus());
+						});
+
+						window.flush();
 					}
 				}
 			},
@@ -134,10 +142,10 @@ fn open(matches: &ArgMatches) -> error::Result<()> {
 							o.margin(&area);
 
 							for cell in terminal.area(o.damaged(&area)) {
-								o.cell(cell);
+								o.cell(cell, terminal.is_blinking());
 							}
 
-							o.cursor(terminal.cursor(), window.has_focus());
+							o.cursor(terminal.cursor(), terminal.is_blinking(), window.has_focus());
 						});
 
 						window.flush();
@@ -147,7 +155,7 @@ fn open(matches: &ArgMatches) -> error::Result<()> {
 						window.focus(event.response_type() == xcb::FOCUS_IN);
 
 						render.update(|mut o| {
-							o.cursor(terminal.cursor(), window.has_focus());
+							o.cursor(terminal.cursor(), terminal.is_blinking(), window.has_focus());
 						});
 
 						window.flush();

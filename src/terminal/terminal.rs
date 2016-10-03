@@ -34,9 +34,10 @@ pub struct Terminal {
 	config: Arc<Config>,
 	output: Option<Receiver<Vec<u8>>>,
 
-	area:   Area,
-	cells:  Vec<Cell>,
-	cursor: (u32, u32),
+	area:     Area,
+	cells:    Vec<Cell>,
+	cursor:   (u32, u32),
+	blinking: bool,
 }
 
 impl Terminal {
@@ -58,9 +59,10 @@ impl Terminal {
 			config: config,
 			output: Some(receiver),
 
-			area:   area,
-			cells:  cells.collect(),
-			cursor: (0, 0),
+			area:     area,
+			cells:    cells.collect(),
+			cursor:   (2, 2),
+			blinking: false,
 		})
 	}
 
@@ -78,6 +80,14 @@ impl Terminal {
 
 	pub fn rows(&self) -> u32 {
 		self.area.height
+	}
+
+	pub fn blinking(&mut self, value: bool) {
+		self.blinking = value;
+	}
+
+	pub fn is_blinking(&self) -> bool {
+		self.blinking
 	}
 
 	pub fn cursor(&self) -> &Cell {
@@ -98,20 +108,5 @@ impl Terminal {
 
 	pub fn get_mut(&mut self, x: u32, y: u32) -> &mut Cell {
 		&mut self.cells[(y * self.area.width + x) as usize]
-	}
-
-	pub fn blink(&mut self, status: bool) -> iter::Filter {
-		let mut updated = Vec::new();
-
-		for cell in &mut self.cells {
-			if let &mut Cell::Char { x, y, ref style, ref mut off, .. } = cell {
-				if style.attributes().contains(style::BLINK) {
-					*off = status;
-					updated.push((x, y));
-				}
-			}
-		}
-
-		iter::Filter::new(self, updated)
 	}
 }

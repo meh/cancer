@@ -22,6 +22,7 @@ use std::ops::{Deref, DerefMut};
 use unicode_width::UnicodeWidthStr;
 use picto::Area;
 use config::Config;
+use config::style::Shape;
 use sys::cairo;
 use sys::pango;
 use font::Font;
@@ -176,12 +177,18 @@ impl Renderer {
 		o.restore();
 	}
 
-	pub fn cursor(&mut self, cell: &Cell, focus: bool) {
+	pub fn cursor(&mut self, cell: &Cell, blinking: bool, focus: bool) {
 		debug_assert!(match cell { &Cell::Reference { .. } => false, _ => true });
 
+		// Cache needed values in various places.
+		//
+		// FIXME(meh): Find better names/and or ways to deal with this stuff.
 		let (c, o, l, f) = (&self.config, &mut self.context, &mut self.layout, &self.font);
-		let fg = c.style().cursor().foreground();
-		let bg = c.style().cursor().background();
+		let cb           = blinking && c.style().cursor().blink();
+		let fg           = cell.style().foreground().unwrap_or_else(|| c.style().color().foreground());
+		let bg           = cell.style().background().unwrap_or_else(|| c.style().color().background());
+		let cfg          = c.style().cursor().foreground();
+		let cbg          = c.style().cursor().background();
 
 		o.save();
 		{
@@ -194,53 +201,90 @@ impl Renderer {
 			o.rectangle(x as f64, y as f64, w as f64, h as f64);
 			o.clip();
 
-			// Draw the solid cursor in case of focus, or clear the area for
-			// rendering.
-			if focus {
-				o.rgba(if cell.is_empty() { bg } else { fg });
-			}
-			else {
-				o.rgba(c.style().color().background());
-			}
+			// Clear the area for rendering.
+			o.rgba(bg);
 			o.paint();
 
-			// Move to the cell position.
+			// Render cursors that require to be on the bottom.
+			match c.style().cursor().shape() {
+				// The block cursor only requires to be fully drawn when the window is
+				// focused or when the terminal is blinking.
+				//
+				// It also changes the foreground color to the appropriate value.
+				Shape::Block => {
+					if focus && !cb {
+						o.rgba(cbg);
+						o.paint();
+					}
+
+					o.rgba(cfg);
+				}
+
+				// Other cursors keep the foreground color normal.
+				Shape::Beam | Shape::Line => {
+					o.rgba(fg);
+				}
+			}
+
+			// Draw the text in the cell.
 			o.move_to(x as f64, y as f64);
-
-			// Set foreground color.
-			o.rgba(if cell.is_empty() { fg } else { bg });
-
-			// Set layout attributes.
 			l.attributes(attributes(c, cell));
 
-			// Draw the cell content.
 			if cell.is_empty() {
 				o.text(l, " ");
 			}
-			else if cell.is_off() {
+			else if blinking && cell.style().attributes().contains(style::BLINK) {
 				o.text(l, &iter::repeat(' ').take(cell.value().width()).collect::<String>());
 			}
 			else {
 				o.text(l, cell.value());
 			}
 
-			// If not focused draw a cursor outline.
-			if !focus {
-				o.rgba(if cell.is_empty() { bg } else { fg });
-				o.rectangle(x as f64, y as f64, w as f64, h as f64);
-				o.stroke();
+			// Render cursors that require to be on top.
+			match c.style().cursor().shape() {
+				// If the window is not focused or the terminal is blinking draw an
+				// outline of the cell.
+				Shape::Block => {
+					if !focus || cb {
+						o.rgba(cbg);
+						o.rectangle(x as f64, y as f64, w as f64, h as f64);
+						o.stroke();
+					}
+				}
+
+				// The line always covers any glyph underneath, unless it's blinking.
+				Shape::Line => {
+					if !(cb && focus) {
+						o.rgba(cbg);
+						o.move_to(x as f64, (y + f.underline().1) as f64 + 0.5);
+						o.line_to((x + w) as f64, (y + f.underline().1) as f64 + 0.5);
+						o.line_width(f.underline().0 as f64);
+						o.stroke();
+					}
+				}
+
+				// The beam always covers any glyph underneath, unless it's blinking.
+				Shape::Beam => {
+					if !(cb && focus) {
+						o.rgba(cbg);
+						o.move_to(x as f64 + 0.5, y as f64);
+						o.line_to(x as f64 + 0.5, (y + h) as f64);
+						o.line_width(f.underline().0 as f64);
+						o.stroke();
+					}
+				}
 			}
 		}
 		o.restore();
 	}
 
 	/// Update the given cell.
-	pub fn cell(&mut self, cell: &Cell) {
+	pub fn cell(&mut self, cell: &Cell, blinking: bool) {
 		debug_assert!(match cell { &Cell::Reference { .. } => false, _ => true });
 
 		let (c, o, l, f) = (&self.config, &mut self.context, &mut self.layout, &self.font);
-		let fg = cell.style().foreground().unwrap_or_else(|| c.style().color().foreground());
-		let bg = cell.style().background().unwrap_or_else(|| c.style().color().background());
+		let fg           = cell.style().foreground().unwrap_or_else(|| c.style().color().foreground());
+		let bg           = cell.style().background().unwrap_or_else(|| c.style().color().background());
 
 		o.save();
 		{
@@ -253,24 +297,19 @@ impl Renderer {
 			o.rectangle(x as f64, y as f64, w as f64, h as f64);
 			o.clip();
 
-			// Set background.
+			// Draw background.
 			o.rgba(bg);
 			o.paint();
 
-			// Set foreground.
+			// Draw text in the cell.
 			o.rgba(fg);
-
-			// Move to the cell position.
 			o.move_to(x as f64, y as f64);
-
-			// Set layout attributes.
 			l.attributes(attributes(c, cell));
 
-			// Draw the cell character or space.
 			if cell.is_empty() {
 				o.text(l, " ");
 			}
-			else if cell.is_off() {
+			else if blinking && cell.style().attributes().contains(style::BLINK) {
 				o.text(l, &iter::repeat(' ').take(cell.value().width()).collect::<String>());
 			}
 			else {
