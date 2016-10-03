@@ -33,6 +33,7 @@ use clap::{App, Arg, SubCommand, ArgMatches};
 extern crate xcb;
 extern crate xcb_util as xcbu;
 extern crate xkbcommon;
+
 extern crate picto;
 use picto::Area;
 
@@ -60,8 +61,8 @@ use terminal::Terminal;
 
 mod style;
 
-mod window;
-use window::Window;
+mod platform;
+use platform::Window;
 
 mod renderer;
 use renderer::Renderer;
@@ -101,6 +102,7 @@ fn open(matches: &ArgMatches) -> error::Result<()> {
 	let     font     = Arc::new(Font::load(config.clone())?);
 	let     timer    = Timer::spawn(config.clone());
 	let mut window   = Window::open(config.clone(), font.clone())?;
+	let mut keyboard = window.keyboard()?;
 	let mut render   = Renderer::new(config.clone(), font.clone(), &window, window.width(), window.height());
 	let mut terminal = Terminal::open(config.clone(), render.columns(), render.rows())?;
 
@@ -184,9 +186,22 @@ fn open(matches: &ArgMatches) -> error::Result<()> {
 						}
 					}
 
-					e => {
-						debug!("unhandled event: {:?}", e);
+					// Handle keyboard.
+					e if keyboard.owns_event(e) => {
+						keyboard.handle(&event);
 					}
+
+					xcb::KEY_PRESS => {
+						let event = xcb::cast_event::<xcb::KeyPressEvent>(&event);
+
+						match keyboard.symbol(event.detail()) {
+							sym => {
+								println!("key: {:?} {:?}", sym, keyboard.string(event.detail()));
+							}
+						}
+					}
+
+					_ => ()
 				}
 			},
 

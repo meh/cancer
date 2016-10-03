@@ -26,7 +26,9 @@ use error;
 use sys::cairo::Surface;
 use config::Config;
 use font::Font;
+use super::Keyboard;
 
+/// X11 window.
 pub struct Window {
 	connection: Arc<ewmh::Connection>,
 	window:     xcb::Window,
@@ -125,10 +127,12 @@ impl Window {
 		self.surface.resize(width, height);
 	}
 
+	/// Update window focus.
 	pub fn focus(&mut self, value: bool) {
 		self.focus = value;
 	}
 
+	/// Check if the window has focus.
 	pub fn has_focus(&self) -> bool {
 		self.focus
 	}
@@ -136,6 +140,11 @@ impl Window {
 	/// Take the events sink.
 	pub fn events(&mut self) -> Receiver<xcb::GenericEvent> {
 		self.events.take().unwrap()
+	}
+
+	/// Open the keyboard.
+	pub fn keyboard(&self) -> error::Result<Keyboard> {
+		Keyboard::new(self.connection.clone())
 	}
 
 	/// Flush the surface and connection.
