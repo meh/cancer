@@ -1,6 +1,6 @@
 [environment]
 display = ":0.0"
-fps     = 30
+program = "zsh"
 
 [style]
 font  = "monospace 11px"

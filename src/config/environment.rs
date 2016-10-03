@@ -20,14 +20,14 @@ use toml;
 #[derive(PartialEq, Clone, Debug)]
 pub struct Environment {
 	display: Option<String>,
-	fps:     u8,
+	program: Option<String>,
 }
 
 impl Default for Environment {
 	fn default() -> Self {
 		Environment {
 			display: None,
-			fps:     30,
+			program: None,
 		}
 	}
 }
@@ -38,8 +38,8 @@ impl Environment {
 			self.display = Some(value.into());
 		}
 
-		if let Some(value) = table.get("fps").and_then(|v| v.as_integer()) {
-			self.fps = value as u8;
+		if let Some(value) = table.get("program").and_then(|v| v.as_str()) {
+			self.program = Some(value.into());
 		}
 	}
 
@@ -47,8 +47,7 @@ impl Environment {
 		self.display.as_ref().map(AsRef::as_ref)
 	}
 
-	pub fn fps(&self) -> u64 {
-		self.fps as u64
+	pub fn program(&self) -> Option<&str> {
+		self.program.as_ref().map(AsRef::as_ref)
 	}
 }
-
