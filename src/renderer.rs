@@ -147,7 +147,7 @@ impl Renderer {
 
 		o.save();
 		{
-			o.rgba(c.style().background());
+			o.rgba(c.style().color().background());
 
 			// Left margin.
 			if area.x < m {
@@ -181,8 +181,8 @@ impl Renderer {
 		debug_assert!(match cell { &Cell::Reference { .. } => false, _ => true });
 
 		let (c, o, l, f) = (&self.config, &mut self.context, &mut self.layout, &self.font);
-		let fg = cell.style().foreground().unwrap_or_else(|| c.style().foreground());
-		let bg = cell.style().background().unwrap_or_else(|| c.style().background());
+		let fg = cell.style().foreground().unwrap_or_else(|| c.style().color().foreground());
+		let bg = cell.style().background().unwrap_or_else(|| c.style().color().background());
 
 		o.save();
 		{
@@ -205,36 +205,8 @@ impl Renderer {
 			// Move to the cell position.
 			o.move_to(x as f64, y as f64);
 
-			// Prepare layout attributes.
-			{
-				let attrs = pango::Attributes::new();
-
-				// Set bold.
-				let attrs = if cell.style().attributes().contains(style::BOLD) {
-					attrs.weight(pango::Weight::Bold)
-				}
-				else {
-					attrs.weight(pango::Weight::Normal)
-				};
-
-				// Set underline.
-				let attrs = if cell.style().attributes().contains(style::UNDERLINE) {
-					attrs.underline(Some(c.style().underline().unwrap_or(fg)))
-				}
-				else {
-					attrs.underline(None)
-				};
-
-				// Set strikethrough.
-				let attrs = if cell.style().attributes().contains(style::STRIKE) {
-					attrs.strikethrough(Some(c.style().strike().unwrap_or(fg)))
-				}
-				else {
-					attrs.strikethrough(None)
-				};
-
-				l.attributes(attrs);
-			}
+			// Set layout attributes.
+			l.attributes(attributes(c, cell));
 
 			// Draw the cell character or space.
 			if cell.is_empty() {
@@ -249,6 +221,38 @@ impl Renderer {
 		}
 		o.restore();
 	}
+}
+
+fn attributes(config: &Config, cell: &Cell) -> pango::Attributes {
+	let attrs = pango::Attributes::new();
+	let fg    = cell.style().foreground()
+		.unwrap_or_else(|| config.style().color().foreground());
+
+	// Set bold.
+	let attrs = if cell.style().attributes().contains(style::BOLD) {
+		attrs.weight(pango::Weight::Bold)
+	}
+	else {
+		attrs.weight(pango::Weight::Normal)
+	};
+
+	// Set underline.
+	let attrs = if cell.style().attributes().contains(style::UNDERLINE) {
+		attrs.underline(Some(config.style().color().underline().unwrap_or(fg)))
+	}
+	else {
+		attrs.underline(None)
+	};
+
+	// Set strikethrough.
+	let attrs = if cell.style().attributes().contains(style::STRIKE) {
+		attrs.strikethrough(Some(config.style().color().strike().unwrap_or(fg)))
+	}
+	else {
+		attrs.strikethrough(None)
+	};
+
+	attrs
 }
 
 impl Deref for Renderer {

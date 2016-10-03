@@ -3,16 +3,24 @@ display = ":0.0"
 fps     = 30
 
 [style]
-font    = "monospace 11px"
-margin  = 2
-spacing = 1
-blink   = 800
+font  = "monospace 11px"
+blink = 800
 
-cursor     = "#b21818"
+margin  = 0
+spacing = 0
+
+[style.color]
 foreground = "#c6c6c6"
 background = "#000000"
 underline  = "#060"
 strike     = "#f00"
+
+[style.cursor]
+shape = "block"
+blink = false
+
+foreground = "#fff"
+background = "#b21818"
 
 [color]
 0  = "#000000"
