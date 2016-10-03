@@ -82,8 +82,9 @@ impl Terminal {
 		self.area.height
 	}
 
-	pub fn blinking(&mut self, value: bool) {
+	pub fn blinking<'a>(&'a mut self, value: bool) -> impl Iterator<Item = &'a Cell> {
 		self.blinking = value;
+		self.iter().filter(|c| c.style().attributes().contains(style::BLINK))
 	}
 
 	pub fn is_blinking(&self) -> bool {

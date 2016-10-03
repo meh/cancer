@@ -15,7 +15,7 @@
 // You should have received a copy of the GNU General Public License
 // along with cancer.  If not, see <http://www.gnu.org/licenses/>.
 
-#![feature(question_mark, mpsc_select)]
+#![feature(question_mark, mpsc_select, conservative_impl_trait)]
 
 #[macro_use]
 extern crate log;
@@ -113,14 +113,10 @@ fn open(matches: &ArgMatches) -> error::Result<()> {
 				match timer.unwrap() {
 					// Handle blinking.
 					timer::Event::Blink(blinking) => {
-						terminal.blinking(blinking);
-
 						// Redraw the cells that blink and the cursor.
 						render.update(|mut o| {
-							for cell in terminal.iter() {
-								if cell.style().attributes().contains(style::BLINK) {
-									o.cell(cell, blinking);
-								}
+							for cell in terminal.blinking(blinking) {
+								o.cell(cell, blinking);
 							}
 
 							o.cursor(terminal.cursor(), blinking, window.has_focus());
