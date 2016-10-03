@@ -142,12 +142,14 @@ impl Renderer {
 		let (c, o) = (&self.config, &mut self.context);
 		let m      = c.style().margin();
 
+		// Bail out if there's no margin.
 		if m == 0 {
 			return;
 		}
 
 		o.save();
 		{
+			// Set to background color.
 			o.rgba(c.style().color().background());
 
 			// Left margin.
@@ -282,6 +284,9 @@ impl Renderer {
 	pub fn cell(&mut self, cell: &Cell, blinking: bool) {
 		debug_assert!(match cell { &Cell::Reference { .. } => false, _ => true });
 
+		// Cache needed values in various places.
+		//
+		// FIXME(meh): Find better names/and or ways to deal with this stuff.
 		let (c, o, l, f) = (&self.config, &mut self.context, &mut self.layout, &self.font);
 		let fg           = cell.style().foreground().unwrap_or_else(|| c.style().color().foreground());
 		let bg           = cell.style().background().unwrap_or_else(|| c.style().color().background());
@@ -320,6 +325,7 @@ impl Renderer {
 	}
 }
 
+/// Pango attribute builder from configuration and cell.
 fn attributes(config: &Config, cell: &Cell) -> pango::Attributes {
 	let attrs = pango::Attributes::new();
 	let fg    = cell.style().foreground()
