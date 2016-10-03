@@ -16,11 +16,13 @@
 // along with cancer.  If not, see <http://www.gnu.org/licenses/>.
 
 use std::iter;
+use std::mem;
 use std::sync::Arc;
 use std::ops::{Deref, DerefMut};
 
 use unicode_width::UnicodeWidthStr;
 use picto::Area;
+use picto::color::ComponentWise;
 use config::Config;
 use config::style::Shape;
 use sys::cairo;
@@ -137,7 +139,7 @@ impl Renderer {
 		out
 	}
 
-	/// Render the margins within the given area.
+	/// Draw the margins within the given area.
 	pub fn margin(&mut self, area: &Area) {
 		let (c, o) = (&self.config, &mut self.context);
 		let m      = c.style().margin();
@@ -179,6 +181,7 @@ impl Renderer {
 		o.restore();
 	}
 
+	/// Draw the cursor.
 	pub fn cursor(&mut self, cell: &Cell, blinking: bool, focus: bool) {
 		debug_assert!(match cell { &Cell::Reference { .. } => false, _ => true });
 
@@ -186,11 +189,20 @@ impl Renderer {
 		//
 		// FIXME(meh): Find better names/and or ways to deal with this stuff.
 		let (c, o, l, f) = (&self.config, &mut self.context, &mut self.layout, &self.font);
-		let cb           = blinking && c.style().cursor().blink();
-		let fg           = cell.style().foreground().unwrap_or_else(|| c.style().color().foreground());
-		let bg           = cell.style().background().unwrap_or_else(|| c.style().color().background());
-		let cfg          = c.style().cursor().foreground();
-		let cbg          = c.style().cursor().background();
+		let     cb       = blinking && c.style().cursor().blink();
+		let     bc       = blinking && cell.style().attributes().contains(style::BLINK);
+		let mut fg       = *cell.style().foreground().unwrap_or_else(|| c.style().color().foreground());
+		let mut bg       = *cell.style().background().unwrap_or_else(|| c.style().color().background());
+		let     cfg      = c.style().cursor().foreground();
+		let     cbg      = c.style().cursor().background();
+
+		if cell.style().attributes().contains(style::FAINT) {
+			fg = fg.component_wise_self(|c| c / 2.0);
+		}
+
+		if cell.style().attributes().contains(style::REVERSE) {
+			mem::swap(&mut fg, &mut bg);
+		}
 
 		o.save();
 		{
@@ -204,7 +216,7 @@ impl Renderer {
 			o.clip();
 
 			// Clear the area for rendering.
-			o.rgba(bg);
+			o.rgba(&bg);
 			o.paint();
 
 			// Render cursors that require to be on the bottom.
@@ -224,7 +236,7 @@ impl Renderer {
 
 				// Other cursors keep the foreground color normal.
 				Shape::Beam | Shape::Line => {
-					o.rgba(fg);
+					o.rgba(&fg);
 				}
 			}
 
@@ -235,7 +247,7 @@ impl Renderer {
 			if cell.is_empty() {
 				o.text(l, " ");
 			}
-			else if blinking && cell.style().attributes().contains(style::BLINK) {
+			else if bc || cell.style().attributes().contains(style::INVISIBLE) {
 				o.text(l, &iter::repeat(' ').take(cell.value().width()).collect::<String>());
 			}
 			else {
@@ -280,7 +292,7 @@ impl Renderer {
 		o.restore();
 	}
 
-	/// Update the given cell.
+	/// Draw the given cell.
 	pub fn cell(&mut self, cell: &Cell, blinking: bool) {
 		debug_assert!(match cell { &Cell::Reference { .. } => false, _ => true });
 
@@ -288,8 +300,17 @@ impl Renderer {
 		//
 		// FIXME(meh): Find better names/and or ways to deal with this stuff.
 		let (c, o, l, f) = (&self.config, &mut self.context, &mut self.layout, &self.font);
-		let fg           = cell.style().foreground().unwrap_or_else(|| c.style().color().foreground());
-		let bg           = cell.style().background().unwrap_or_else(|| c.style().color().background());
+		let mut fg       = *cell.style().foreground().unwrap_or_else(|| c.style().color().foreground());
+		let mut bg       = *cell.style().background().unwrap_or_else(|| c.style().color().background());
+		let     bc       = blinking && cell.style().attributes().contains(style::BLINK);
+
+		if cell.style().attributes().contains(style::FAINT) {
+			fg = fg.component_wise_self(|c| c / 2.0);
+		}
+
+		if cell.style().attributes().contains(style::REVERSE) {
+			mem::swap(&mut fg, &mut bg);
+		}
 
 		o.save();
 		{
@@ -303,18 +324,18 @@ impl Renderer {
 			o.clip();
 
 			// Draw background.
-			o.rgba(bg);
+			o.rgba(&bg);
 			o.paint();
 
 			// Draw text in the cell.
-			o.rgba(fg);
+			o.rgba(&fg);
 			o.move_to(x as f64, y as f64);
 			l.attributes(attributes(c, cell));
 
 			if cell.is_empty() {
 				o.text(l, " ");
 			}
-			else if blinking && cell.style().attributes().contains(style::BLINK) {
+			else if bc || cell.style().attributes().contains(style::INVISIBLE) {
 				o.text(l, &iter::repeat(' ').take(cell.value().width()).collect::<String>());
 			}
 			else {
