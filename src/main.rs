@@ -111,9 +111,11 @@ fn open(matches: &ArgMatches) -> error::Result<()> {
 		select! {
 			timer = timer.recv() => {
 				match timer.unwrap() {
+					// Handle blinking.
 					timer::Event::Blink(blinking) => {
 						terminal.blinking(blinking);
 
+						// Redraw the cells that blink and the cursor.
 						render.update(|mut o| {
 							for cell in terminal.iter() {
 								if cell.style().attributes().contains(style::BLINK) {
@@ -133,27 +135,33 @@ fn open(matches: &ArgMatches) -> error::Result<()> {
 				let event = event.unwrap();
 
 				match event.response_type() {
+					// Redraw the areas that have been damaged.
 					xcb::EXPOSE => {
 						let event  = xcb::cast_event::<xcb::ExposeEvent>(&event);
 						let area   = Area::from(event.x() as u32, event.y() as u32,
 							event.width() as u32, event.height() as u32);
 
 						render.update(|mut o| {
+							// Redraw margins.
 							o.margin(&area);
 
+							// Redraw the cells that fall within the damaged area.
 							for cell in terminal.area(o.damaged(&area)) {
 								o.cell(cell, terminal.is_blinking());
 							}
 
+							// Redraw the cursor.
 							o.cursor(terminal.cursor(), terminal.is_blinking(), window.has_focus());
 						});
 
 						window.flush();
 					}
 
+					// Handle focus changes.
 					xcb::FOCUS_IN | xcb::FOCUS_OUT => {
 						window.focus(event.response_type() == xcb::FOCUS_IN);
 
+						// Redraw the cursor.
 						render.update(|mut o| {
 							o.cursor(terminal.cursor(), terminal.is_blinking(), window.has_focus());
 						});
@@ -161,6 +169,7 @@ fn open(matches: &ArgMatches) -> error::Result<()> {
 						window.flush();
 					}
 
+					// Handle resizes.
 					xcb::CONFIGURE_NOTIFY => {
 						let event  = xcb::cast_event::<xcb::ConfigureNotifyEvent>(&event);
 						let width  = event.width() as u32;
