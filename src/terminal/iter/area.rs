@@ -17,7 +17,7 @@
 
 use picto;
 use picto::iter::Coordinates;
-use terminal::{Terminal, Cell};
+use terminal::{Terminal, Cell, cell};
 
 #[derive(Debug)]
 pub struct Area<'a> {
@@ -39,13 +39,15 @@ impl<'a> Iterator for Area<'a> {
 
 	fn next(&mut self) -> Option<Self::Item> {
 		if let Some((x, y)) = self.iter.next() {
-			Some(match self.inner.get(x, y) {
-				&Cell::Reference { x, y } =>
-					self.inner.get(x, y),
+			let cell = self.inner.get(x, y);
 
-				cell =>
-					cell
-			})
+			match cell.state() {
+				&cell::State::Reference { x, y, .. } =>
+					Some(self.inner.get(x, y)),
+
+				_ =>
+					Some(cell)
+			}
 		}
 		else {
 			None

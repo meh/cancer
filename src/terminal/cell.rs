@@ -21,31 +21,60 @@ use unicode_width::UnicodeWidthStr;
 use style::Style;
 
 #[derive(PartialEq, Clone, Debug)]
-pub enum Cell {
-	Empty {
-		x: u32,
-		y: u32,
+pub struct Cell {
+	x: u32,
+	y: u32,
 
-		style: Rc<Style>,
-	},
+	style: Rc<Style>,
+	state: State,
+}
 
-	Char {
-		x: u32,
-		y: u32,
-
-		value: String,
-		style: Rc<Style>,
-	},
+#[derive(PartialEq, Clone, Debug)]
+pub enum State {
+	Empty,
 
 	Reference {
 		x: u32,
 		y: u32,
 	},
+
+	Char {
+		value: String,
+		wrap:  bool,
+	}
 }
 
 impl Cell {
+	pub fn new(x: u32, y: u32, style: Rc<Style>) -> Self {
+		Cell {
+			x: x,
+			y: y,
+
+			style: style,
+			state: State::Empty
+		}
+	}
+
+	pub fn x(&self) -> u32 {
+		self.x
+	}
+
+	pub fn y(&self) -> u32 {
+		self.y
+	}
+
+	pub fn wrap(&self) -> bool {
+		match &self.state {
+			&State::Char { wrap, .. } =>
+				wrap,
+
+			_ =>
+				false
+		}
+	}
+
 	pub fn is_empty(&self) -> bool {
-		if let &Cell::Empty { .. } = self {
+		if let &State::Empty = &self.state {
 			true
 		}
 		else {
@@ -53,54 +82,66 @@ impl Cell {
 		}
 	}
 
-	pub fn value(&self) -> &str {
-		if let &Cell::Char { ref value, .. } = self {
-			value
+	pub fn is_reference(&self) -> bool {
+		if let &State::Reference { .. } = &self.state {
+			true
 		}
 		else {
-			""
+			false
 		}
 	}
 
-	pub fn x(&self) -> u32 {
-		match self {
-			&Cell::Empty { x, .. } |
-			&Cell::Char { x, .. } |
-			&Cell::Reference { x, .. } =>
-				x
+	pub fn is_character(&self) -> bool {
+		if let &State::Char { .. } = &self.state {
+			true
+		}
+		else {
+			false
 		}
 	}
 
-	pub fn y(&self) -> u32 {
-		match self {
-			&Cell::Empty { y, .. } |
-			&Cell::Char { y, .. } |
-			&Cell::Reference { y, .. } =>
-				y
+	pub fn make_char(&mut self, ch: String, wrap: bool) {
+		self.state = State::Char {
+			value: ch,
+			wrap:  wrap,
 		}
 	}
 
-	pub fn width(&self) -> u32 {
-		match self {
-			&Cell::Empty { .. } =>
-				1,
-
-			&Cell::Char { ref value, .. } =>
-				value.width() as u32,
-
-			&Cell::Reference { .. } =>
-				unreachable!(),
+	pub fn make_reference(&mut self, x: u32, y: u32) {
+		self.state = State::Reference {
+			x: x,
+			y: y,
 		}
 	}
 
 	pub fn style(&self) -> &Style {
-		match self {
-			&Cell::Empty { ref style, .. } |
-			&Cell::Char { ref style, .. } =>
-				style,
+		&self.style
+	}
+	
+	pub fn state(&self) -> &State {
+		&self.state
+	}
 
-			&Cell::Reference { .. } =>
-				unreachable!(),
+	pub fn char(&self) -> Option<&str> {
+		match &self.state {
+			&State::Char { ref value, .. } =>
+				Some(value),
+
+			_ =>
+				None
+		}
+	}
+
+	pub fn width(&self) -> u32 {
+		match &self.state {
+			&State::Empty =>
+				1,
+
+			&State::Char { ref value, .. } =>
+				value.width() as u32,
+
+			&State::Reference { .. } =>
+				0,
 		}
 	}
 }

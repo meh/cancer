@@ -20,7 +20,6 @@ use std::mem;
 use std::sync::Arc;
 use std::ops::{Deref, DerefMut};
 
-use unicode_width::UnicodeWidthStr;
 use picto::Area;
 use picto::color::ComponentWise;
 use config::Config;
@@ -183,7 +182,7 @@ impl Renderer {
 
 	/// Draw the cursor.
 	pub fn cursor(&mut self, cell: &Cell, blinking: bool, focus: bool) {
-		debug_assert!(match cell { &Cell::Reference { .. } => false, _ => true });
+		debug_assert!(!cell.is_reference());
 
 		// Cache needed values in various places.
 		//
@@ -248,10 +247,10 @@ impl Renderer {
 				o.text(l, " ");
 			}
 			else if bc || cell.style().attributes().contains(style::INVISIBLE) {
-				o.text(l, &iter::repeat(' ').take(cell.value().width()).collect::<String>());
+				o.text(l, &iter::repeat(' ').take(cell.width() as usize).collect::<String>());
 			}
 			else {
-				o.text(l, cell.value());
+				o.text(l, cell.char().unwrap());
 			}
 
 			// Render cursors that require to be on top.
@@ -294,7 +293,7 @@ impl Renderer {
 
 	/// Draw the given cell.
 	pub fn cell(&mut self, cell: &Cell, blinking: bool) {
-		debug_assert!(match cell { &Cell::Reference { .. } => false, _ => true });
+		debug_assert!(!cell.is_reference());
 
 		// Cache needed values in various places.
 		//
@@ -336,10 +335,10 @@ impl Renderer {
 				o.text(l, " ");
 			}
 			else if bc || cell.style().attributes().contains(style::INVISIBLE) {
-				o.text(l, &iter::repeat(' ').take(cell.value().width()).collect::<String>());
+				o.text(l, &iter::repeat(' ').take(cell.width() as usize).collect::<String>());
 			}
 			else {
-				o.text(l, cell.value());
+				o.text(l, cell.char().unwrap());
 			}
 		}
 		o.restore();

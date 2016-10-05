@@ -18,5 +18,5 @@
 mod area;
 pub use self::area::Area;
 
-mod filter;
-pub use self::filter::Filter;
+mod indexed;
+pub use self::indexed::Indexed;

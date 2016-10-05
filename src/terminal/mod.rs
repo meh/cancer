@@ -18,7 +18,7 @@
 mod terminal;
 pub use self::terminal::Terminal;
 
-mod cell;
+pub mod cell;
 pub use self::cell::Cell;
 
 pub mod iter;

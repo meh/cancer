@@ -15,7 +15,9 @@
 // You should have received a copy of the GNU General Public License
 // along with cancer.  If not, see <http://www.gnu.org/licenses/>.
 
-#![feature(question_mark, mpsc_select, conservative_impl_trait)]
+#![feature(question_mark, mpsc_select, conservative_impl_trait, slice_patterns)]
+#![feature(static_in_const, trace_macros)]
+#![recursion_limit="100"]
 
 #[macro_use]
 extern crate log;

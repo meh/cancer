@@ -16,35 +16,37 @@
 // along with cancer.  If not, see <http://www.gnu.org/licenses/>.
 
 use std::vec;
-use terminal::{Terminal, Cell};
+use terminal::{Terminal, Cell, cell};
 
 #[derive(Debug)]
-pub struct Filter<'a> {
+pub struct Indexed<'a> {
 	iter:  vec::IntoIter<(u32, u32)>,
 	inner: &'a Terminal,
 }
 
-impl<'a> Filter<'a> {
-	pub fn new(inner: &Terminal, list: Vec<(u32, u32)>) -> Filter {
-		Filter {
+impl<'a> Indexed<'a> {
+	pub fn new(inner: &Terminal, list: Vec<(u32, u32)>) -> Indexed {
+		Indexed {
 			iter:  list.into_iter(),
 			inner: inner,
 		}
 	}
 }
 
-impl<'a> Iterator for Filter<'a> {
+impl<'a> Iterator for Indexed<'a> {
 	type Item = &'a Cell;
 
 	fn next(&mut self) -> Option<Self::Item> {
 		if let Some((x, y)) = self.iter.next() {
-			Some(match self.inner.get(x, y) {
-				&Cell::Reference { x, y } =>
-					self.inner.get(x, y),
+			let cell = self.inner.get(x, y);
 
-				cell =>
-					cell
-			})
+			match cell.state() {
+				&cell::State::Reference { x, y, .. } =>
+					Some(self.inner.get(x, y)),
+
+				_ =>
+					Some(cell)
+			}
 		}
 		else {
 			None
