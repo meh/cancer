@@ -20,12 +20,10 @@
 use std::str;
 use nom::{IResult, rest};
 
-#[derive(Eq, PartialEq, Copy, Clone, Debug)]
+#[derive(Eq, PartialEq, Clone, Debug)]
 pub enum Item<'a> {
 	Insert(&'a str),
 
-	CSI(CSI::T),
-	SGR(SGR::T),
 	C0(C0::T),
 	C1(C1::T),
 }
@@ -38,15 +36,8 @@ named!(insert<Item>,
 
 named!(pub control<Item>,
 	alt!(
-		map!(CSI::parse, |c| match c {
-			CSI::SelectGraphicalRendition(value) =>
-				Item::SGR(value),
-
-			value =>
-				Item::CSI(value)
-		})
-		| map!(C0::parse, |c| Item::C0(c))
-		| map!(C1::parse, |c| Item::C1(c))));
+		map!(C1::parse, |c| Item::C1(c)) |
+		map!(C0::parse, |c| Item::C0(c))));
 
 macro_rules! arg {
 	($args:ident[$index:tt] => $default:tt) => (
@@ -90,127 +81,165 @@ pub mod SGR {
 		Rgb(u8, u8, u8),
 	}
 
-	impl Color {
-		fn from<'a>(args: &[Option<u32>]) -> Result<Color, nom::Err<&'a [u8]>> {
-			Ok(match arg!(args[0] => 0) {
+	macro_rules! pop {
+		($args:ident, $n:expr) => ({
+			let count = $n;
+
+			if $args.len() >= count {
+				$args = &$args[count..];
+			}
+			else {
+				$args = &[];
+			}
+		});
+	}
+
+	macro_rules! color {
+		($args:ident) => ({
+			let id = arg!($args[0] => 0);
+			pop!($args, 1);
+
+			match id {
 				0 =>
 					Color::Default,
 
 				1 =>
 					Color::Transparent,
 
-				2 =>
-					Color::Rgb(
-						arg!(args[1] => 0) as u8,
-						arg!(args[2] => 0) as u8,
-						arg!(args[3] => 0) as u8),
+				2 => {
+					let r = arg!($args[0] => 0) as u8;
+					let g = arg!($args[1] => 0) as u8;
+					let b = arg!($args[2] => 0) as u8;
+					pop!($args, 3);
 
-				3 =>
-					Color::Cmy(
-						arg!(args[1] => 0) as u8,
-						arg!(args[2] => 0) as u8,
-						arg!(args[3] => 0) as u8),
+					Color::Rgb(r, g, b)
+				}
 
-				4 =>
-					Color::Cmyk(
-						arg!(args[1] => 0) as u8,
-						arg!(args[2] => 0) as u8,
-						arg!(args[3] => 0) as u8,
-						arg!(args[4] => 0) as u8),
+				3 => {
+					let c = arg!($args[0] => 0) as u8;
+					let m = arg!($args[1] => 0) as u8;
+					let y = arg!($args[2] => 0) as u8;
+					pop!($args, 3);
 
-				5 =>
-					Color::Index(arg!(args[1] => 0) as u8),
+					Color::Cmy(c, m, y)
+				}
+
+				4 => {
+					let c = arg!($args[0] => 0) as u8;
+					let m = arg!($args[1] => 0) as u8;
+					let y = arg!($args[2] => 0) as u8;
+					let k = arg!($args[3] => 0) as u8;
+					pop!($args, 4);
+
+					Color::Cmyk(c, m, y, k)
+				}
+
+				5 => {
+					let index = arg!($args[0] => 0) as u8;
+					pop!($args, 1);
+
+					Color::Index(index)
+				}
 
 				_ =>
 					return Err(nom::Err::Code(ErrorKind::Custom(9006)))
-			})
-		}
+			}
+		})
 	}
 
-	pub fn parse<'a, 'b>(args: &'b [Option<u32>]) -> Result<T, nom::Err<&'a [u8]>> {
+	pub fn parse<'a, 'b>(args: &'b [Option<u32>]) -> Result<Vec<T>, nom::Err<&'a [u8]>> {
 		if args.is_empty() {
-			return Ok(Reset);
+			return Ok(vec![Reset]);
 		}
 
-		let id   = arg!(args[0] => 0);
-		let args = &args[1..];
+		let mut result = Vec::new();
+		let mut args   = args;
 
-		Ok(match id {
-			0 =>
-				Reset,
+		while !args.is_empty() {
+			let id = arg!(args[0] => 0);
+			pop!(args, 1);
 
-			1 =>
-				Font(Weight::Bold),
+			result.push(match id {
+				0 =>
+					Reset,
 
-			2 =>
-				Font(Weight::Faint),
+				1 =>
+					Font(Weight::Bold),
 
-			3 =>
-				Italic(true),
+				2 =>
+					Font(Weight::Faint),
 
-			4 =>
-				Underline(true),
+				3 =>
+					Italic(true),
 
-			5 | 6 =>
-				Blink(true),
+				4 =>
+					Underline(true),
 
-			7 =>
-				Reverse(true),
+				5 | 6 =>
+					Blink(true),
 
-			8 =>
-				Invisible(true),
+				7 =>
+					Reverse(true),
 
-			9 =>
-				Struck(true),
+				8 =>
+					Invisible(true),
 
-			22 =>
-				Font(Weight::Normal),
+				9 =>
+					Struck(true),
 
-			23 =>
-				Italic(false),
+				22 =>
+					Font(Weight::Normal),
 
-			24 =>
-				Underline(false),
+				23 =>
+					Italic(false),
 
-			25 =>
-				Blink(false),
+				24 =>
+					Underline(false),
 
-			27 =>
-				Reverse(false),
+				25 =>
+					Blink(false),
 
-			28 =>
-				Invisible(false),
+				27 =>
+					Reverse(false),
 
-			29 =>
-				Struck(false),
+				28 =>
+					Invisible(false),
 
-			c if c >= 30 && c <= 37 =>
-				Foreground(Color::Index(c as u8 - 30)),
+				29 =>
+					Struck(false),
 
-			38 =>
-				Foreground(Color::from(args)?),
+				c if c >= 30 && c <= 37 =>
+					Foreground(Color::Index(c as u8 - 30)),
 
-			39 =>
-				Foreground(Color::Default),
+				38 =>
+					Foreground(color!(args)),
 
-			c if c >= 40 && c <= 47 =>
-				Background(Color::Index(c as u8 - 40)),
+				39 =>
+					Foreground(Color::Default),
 
-			48 =>
-				Background(Color::from(args)?),
+				c if c >= 40 && c <= 47 =>
+					Background(Color::Index(c as u8 - 40)),
 
-			49 =>
-				Background(Color::Default),
+				48 =>
+					Background(color!(args)),
 
-			c if c >= 90 && c <= 97 =>
-				Foreground(Color::Index(c as u8 - 90 + 8)),
+				49 =>
+					Background(Color::Default),
 
-			c if c >= 100 && c <= 107 =>
-				Background(Color::Index(c as u8 - 100 + 8)),
+				c if c >= 90 && c <= 97 =>
+					Foreground(Color::Index(c as u8 - 90 + 8)),
 
-			_ =>
-				return Err(nom::Err::Code(ErrorKind::Custom(9001)))
-		})
+				c if c >= 100 && c <= 107 =>
+					Background(Color::Index(c as u8 - 100 + 8)),
+
+				_ => {
+					panic!("ree");
+					return Err(nom::Err::Code(ErrorKind::Custom(9001)))
+				}
+			});
+		}
+
+		Ok(result)
 	}
 }
 
@@ -219,7 +248,7 @@ pub mod CSI {
 	use std::u32;
 	use nom::{self, ErrorKind, is_digit};
 
-	#[derive(Eq, PartialEq, Copy, Clone, Debug)]
+	#[derive(Eq, PartialEq, Clone, Debug)]
 	pub enum T {
 		CursorUp(u32),
 		CursorDown(u32),
@@ -234,7 +263,7 @@ pub mod CSI {
 		ScrollUp(u32),
 		ScrollDown(u32),
 		MoveTo(u32, u32),
-		SelectGraphicalRendition(super::SGR::T),
+		SelectGraphicalRendition(Vec<super::SGR::T>),
 		AuxPort(bool),
 		DeviceStatusReport,
 		SaveCursorPosition,
@@ -266,7 +295,6 @@ pub mod CSI {
 
 	named!(pub parse<T>,
 		chain!(
-			tag!(b"\x1B[") ~
 			args: parameters ~
 			res:  alt!(apply!(CUU, &args) |
 			           apply!(CUD, &args) |
@@ -311,6 +339,12 @@ pub mod CSI {
 				else {
 					nom::IResult::Error(nom::Err::Code(ErrorKind::Custom(9001)))
 				}
+			}
+		);
+
+		($name:ident<$params:ident>, $submac:ident!( $($args:tt)* )) => (
+			fn $name<'a, 'b>(i: &'a [u8], $params: &'b [Option<u32>]) -> nom::IResult<&'a [u8], T, u32> {
+				$submac!(i, $($args)*)
 			}
 		);
 	
@@ -378,7 +412,7 @@ pub mod CSI {
 		map!(char!('f'), |_|
 			MoveTo(arg!(args[0] => 1) - 1, arg!(args[1] => 1) - 1)));
 
-	with_args!(SGR<9, args>,
+	with_args!(SGR<args>,
 		map_res!(char!('m'), |_|
 			super::SGR::parse(args).map(|v| SelectGraphicalRendition(v))));
 
@@ -555,8 +589,8 @@ pub mod C0 {
 		value!(UnitSeparator, char!(0x1F)));
 }
 
-mod C1 {
-	#[derive(Eq, PartialEq, Copy, Clone, Debug)]
+pub mod C1 {
+	#[derive(Eq, PartialEq, Clone, Debug)]
 	pub enum T {
 		Delete,
 		PaddingCharacter,
@@ -593,7 +627,7 @@ mod C1 {
 		// TODO: To be followed by a single printable character (0x20 through 0x7E)
 		//       or format effector (0x08 through 0x0D).
 		SingleCharacterIntroducer,
-		ControlSequenceIntroducer,
+		ControlSequenceIntroducer(super::CSI::T),
 		StringTerminator,
 		// TODO: Followed by a string of printable characters (0x20 through 0x7E) and
 		//       format effectors (0x08 through 0x0D), terminated by ST (0x9C). 
@@ -696,9 +730,13 @@ mod C1 {
 	
 	named!(SCI<T>,
 		value!(SingleCharacterIntroducer, char!(0x9A)));
-	
+
 	named!(CSI<T>,
-		value!(ControlSequenceIntroducer, char!(0x9B)));
+		chain!(
+			alt!(tag!(b"\x9B") | tag!(b"\x1B\x5B")) ~
+			res: call!(super::CSI::parse),
+
+			|| ControlSequenceIntroducer(res)));
 	
 	named!(ST<T>,
 		value!(StringTerminator, char!(0x9C)));
@@ -716,322 +754,569 @@ mod C1 {
 #[cfg(test)]
 mod test {
 	mod sgr {
-		pub use super::super::*;
+		pub use terminal::escape::*;
 
 		#[test]
 		fn reset() {
-			assert_eq!(Item::SGR(SGR::Reset),
+			assert_eq!(Item::C1(C1::ControlSequenceIntroducer(CSI::SelectGraphicalRendition(vec![
+				SGR::Reset]))),
 				parse(b"\x1B[0m").unwrap().1);
 
-			assert_eq!(Item::SGR(SGR::Reset),
+			assert_eq!(Item::C1(C1::ControlSequenceIntroducer(CSI::SelectGraphicalRendition(vec![
+				SGR::Reset]))),
 				parse(b"\x1B[m").unwrap().1);
 		}
 
 		#[test]
 		fn font() {
-			assert_eq!(Item::SGR(SGR::Font(SGR::Weight::Bold)),
+			assert_eq!(Item::C1(C1::ControlSequenceIntroducer(CSI::SelectGraphicalRendition(vec![
+				SGR::Font(SGR::Weight::Bold)]))),
 				parse(b"\x1B[1m").unwrap().1);
 
-			assert_eq!(Item::SGR(SGR::Font(SGR::Weight::Faint)),
+			assert_eq!(Item::C1(C1::ControlSequenceIntroducer(CSI::SelectGraphicalRendition(vec![
+				SGR::Font(SGR::Weight::Faint)]))),
 				parse(b"\x1B[2m").unwrap().1);
 
-			assert_eq!(Item::SGR(SGR::Font(SGR::Weight::Normal)),
+			assert_eq!(Item::C1(C1::ControlSequenceIntroducer(CSI::SelectGraphicalRendition(vec![
+				SGR::Font(SGR::Weight::Normal)]))),
 				parse(b"\x1B[22m").unwrap().1);
 		}
 
 		#[test]
 		fn italic() {
-			assert_eq!(Item::SGR(SGR::Italic(true)),
+			assert_eq!(Item::C1(C1::ControlSequenceIntroducer(CSI::SelectGraphicalRendition(vec![
+				SGR::Italic(true)]))),
 				parse(b"\x1B[3m").unwrap().1);
 
-			assert_eq!(Item::SGR(SGR::Italic(false)),
+			assert_eq!(Item::C1(C1::ControlSequenceIntroducer(CSI::SelectGraphicalRendition(vec![
+				SGR::Italic(false)]))),
 				parse(b"\x1B[23m").unwrap().1);
 		}
 
 		#[test]
 		fn underline() {
-			assert_eq!(Item::SGR(SGR::Underline(true)),
+			assert_eq!(Item::C1(C1::ControlSequenceIntroducer(CSI::SelectGraphicalRendition(vec![
+				SGR::Underline(true)]))),
 				parse(b"\x1B[4m").unwrap().1);
 
-			assert_eq!(Item::SGR(SGR::Underline(false)),
+			assert_eq!(Item::C1(C1::ControlSequenceIntroducer(CSI::SelectGraphicalRendition(vec![
+				SGR::Underline(false)]))),
 				parse(b"\x1B[24m").unwrap().1);
 		}
 
 		#[test]
 		fn blink() {
-			assert_eq!(Item::SGR(SGR::Blink(true)),
+			assert_eq!(Item::C1(C1::ControlSequenceIntroducer(CSI::SelectGraphicalRendition(vec![
+				SGR::Blink(true)]))),
 				parse(b"\x1B[5m").unwrap().1);
 
-			assert_eq!(Item::SGR(SGR::Blink(true)),
+			assert_eq!(Item::C1(C1::ControlSequenceIntroducer(CSI::SelectGraphicalRendition(vec![
+				SGR::Blink(true)]))),
 				parse(b"\x1B[6m").unwrap().1);
 
-			assert_eq!(Item::SGR(SGR::Blink(false)),
+			assert_eq!(Item::C1(C1::ControlSequenceIntroducer(CSI::SelectGraphicalRendition(vec![
+				SGR::Blink(false)]))),
 				parse(b"\x1B[25m").unwrap().1);
 		}
 
 		#[test]
 		fn reverse() {
-			assert_eq!(Item::SGR(SGR::Reverse(true)),
+			assert_eq!(Item::C1(C1::ControlSequenceIntroducer(CSI::SelectGraphicalRendition(vec![
+				SGR::Reverse(true)]))),
 				parse(b"\x1B[7m").unwrap().1);
 
-			assert_eq!(Item::SGR(SGR::Reverse(false)),
+			assert_eq!(Item::C1(C1::ControlSequenceIntroducer(CSI::SelectGraphicalRendition(vec![
+				SGR::Reverse(false)]))),
 				parse(b"\x1B[27m").unwrap().1);
 		}
 
 		#[test]
 		fn invisible() {
-			assert_eq!(Item::SGR(SGR::Invisible(true)),
+			assert_eq!(Item::C1(C1::ControlSequenceIntroducer(CSI::SelectGraphicalRendition(vec![
+				SGR::Invisible(true)]))),
 				parse(b"\x1B[8m").unwrap().1);
 
-			assert_eq!(Item::SGR(SGR::Invisible(false)),
+			assert_eq!(Item::C1(C1::ControlSequenceIntroducer(CSI::SelectGraphicalRendition(vec![
+				SGR::Invisible(false)]))),
 				parse(b"\x1B[28m").unwrap().1);
 		}
 
 		#[test]
 		fn struck() {
-			assert_eq!(Item::SGR(SGR::Struck(true)),
+			assert_eq!(Item::C1(C1::ControlSequenceIntroducer(CSI::SelectGraphicalRendition(vec![
+				SGR::Struck(true)]))),
 				parse(b"\x1B[9m").unwrap().1);
 
-			assert_eq!(Item::SGR(SGR::Struck(false)),
+			assert_eq!(Item::C1(C1::ControlSequenceIntroducer(CSI::SelectGraphicalRendition(vec![
+				SGR::Struck(false)]))),
 				parse(b"\x1B[29m").unwrap().1);
 		}
 
 		#[test]
 		fn foreground() {
-			assert_eq!(Item::SGR(SGR::Foreground(SGR::Color::Default)),
+			assert_eq!(Item::C1(C1::ControlSequenceIntroducer(CSI::SelectGraphicalRendition(vec![
+				SGR::Foreground(SGR::Color::Default)]))),
 				parse(b"\x1B[38;0m").unwrap().1);
 
-			assert_eq!(Item::SGR(SGR::Foreground(SGR::Color::Default)),
+			assert_eq!(Item::C1(C1::ControlSequenceIntroducer(CSI::SelectGraphicalRendition(vec![
+				SGR::Foreground(SGR::Color::Default)]))),
 				parse(b"\x1B[39m").unwrap().1);
 
-			assert_eq!(Item::SGR(SGR::Foreground(SGR::Color::Transparent)),
+			assert_eq!(Item::C1(C1::ControlSequenceIntroducer(CSI::SelectGraphicalRendition(vec![
+				SGR::Foreground(SGR::Color::Transparent)]))),
 				parse(b"\x1B[38;1m").unwrap().1);
 
-			assert_eq!(Item::SGR(SGR::Foreground(SGR::Color::Index(0))),
+			assert_eq!(Item::C1(C1::ControlSequenceIntroducer(CSI::SelectGraphicalRendition(vec![
+				SGR::Foreground(SGR::Color::Index(0))]))),
 				parse(b"\x1B[30m").unwrap().1);
 
-			assert_eq!(Item::SGR(SGR::Foreground(SGR::Color::Index(7))),
+			assert_eq!(Item::C1(C1::ControlSequenceIntroducer(CSI::SelectGraphicalRendition(vec![
+				SGR::Foreground(SGR::Color::Index(7))]))),
 				parse(b"\x1B[37m").unwrap().1);
 
-			assert_eq!(Item::SGR(SGR::Foreground(SGR::Color::Rgb(255, 0, 127))),
+			assert_eq!(Item::C1(C1::ControlSequenceIntroducer(CSI::SelectGraphicalRendition(vec![
+				SGR::Foreground(SGR::Color::Rgb(255, 0, 127))]))),
 				parse(b"\x1B[38;2;255;;127m").unwrap().1);
 
-			assert_eq!(Item::SGR(SGR::Foreground(SGR::Color::Index(235))),
+			assert_eq!(Item::C1(C1::ControlSequenceIntroducer(CSI::SelectGraphicalRendition(vec![
+				SGR::Foreground(SGR::Color::Index(235))]))),
 				parse(b"\x1B[38;5;235m").unwrap().1);
 
-			assert_eq!(Item::SGR(SGR::Foreground(SGR::Color::Index(8))),
+			assert_eq!(Item::C1(C1::ControlSequenceIntroducer(CSI::SelectGraphicalRendition(vec![
+				SGR::Foreground(SGR::Color::Index(8))]))),
 				parse(b"\x1B[90m").unwrap().1);
 
-			assert_eq!(Item::SGR(SGR::Foreground(SGR::Color::Index(15))),
+			assert_eq!(Item::C1(C1::ControlSequenceIntroducer(CSI::SelectGraphicalRendition(vec![
+				SGR::Foreground(SGR::Color::Index(15))]))),
 				parse(b"\x1B[97m").unwrap().1);
 		}
 
 		#[test]
 		fn background() {
-			assert_eq!(Item::SGR(SGR::Background(SGR::Color::Default)),
+			assert_eq!(Item::C1(C1::ControlSequenceIntroducer(CSI::SelectGraphicalRendition(vec![
+				SGR::Background(SGR::Color::Default)]))),
 				parse(b"\x1B[48;0m").unwrap().1);
 
-			assert_eq!(Item::SGR(SGR::Background(SGR::Color::Default)),
+			assert_eq!(Item::C1(C1::ControlSequenceIntroducer(CSI::SelectGraphicalRendition(vec![
+				SGR::Background(SGR::Color::Default)]))),
 				parse(b"\x1B[49m").unwrap().1);
 
-			assert_eq!(Item::SGR(SGR::Background(SGR::Color::Transparent)),
+			assert_eq!(Item::C1(C1::ControlSequenceIntroducer(CSI::SelectGraphicalRendition(vec![
+				SGR::Background(SGR::Color::Transparent)]))),
 				parse(b"\x1B[48;1m").unwrap().1);
 
-			assert_eq!(Item::SGR(SGR::Background(SGR::Color::Index(0))),
+			assert_eq!(Item::C1(C1::ControlSequenceIntroducer(CSI::SelectGraphicalRendition(vec![
+				SGR::Background(SGR::Color::Index(0))]))),
 				parse(b"\x1B[40m").unwrap().1);
 
-			assert_eq!(Item::SGR(SGR::Background(SGR::Color::Index(7))),
+			assert_eq!(Item::C1(C1::ControlSequenceIntroducer(CSI::SelectGraphicalRendition(vec![
+				SGR::Background(SGR::Color::Index(7))]))),
 				parse(b"\x1B[47m").unwrap().1);
 
-			assert_eq!(Item::SGR(SGR::Background(SGR::Color::Rgb(255, 0, 127))),
+			assert_eq!(Item::C1(C1::ControlSequenceIntroducer(CSI::SelectGraphicalRendition(vec![
+				SGR::Background(SGR::Color::Rgb(255, 0, 127))]))),
 				parse(b"\x1B[48;2;255;;127m").unwrap().1);
 
-			assert_eq!(Item::SGR(SGR::Background(SGR::Color::Index(235))),
+			assert_eq!(Item::C1(C1::ControlSequenceIntroducer(CSI::SelectGraphicalRendition(vec![
+				SGR::Background(SGR::Color::Index(235))]))),
 				parse(b"\x1B[48;5;235m").unwrap().1);
 
-			assert_eq!(Item::SGR(SGR::Background(SGR::Color::Index(8))),
+			assert_eq!(Item::C1(C1::ControlSequenceIntroducer(CSI::SelectGraphicalRendition(vec![
+				SGR::Background(SGR::Color::Index(8))]))),
 				parse(b"\x1B[100m").unwrap().1);
 
-			assert_eq!(Item::SGR(SGR::Background(SGR::Color::Index(15))),
+			assert_eq!(Item::C1(C1::ControlSequenceIntroducer(CSI::SelectGraphicalRendition(vec![
+				SGR::Background(SGR::Color::Index(15))]))),
 				parse(b"\x1B[107m").unwrap().1);
+		}
+
+		#[test]
+		fn sequence() {
+			assert_eq!(Item::C1(C1::ControlSequenceIntroducer(CSI::SelectGraphicalRendition(vec![
+				SGR::Foreground(SGR::Color::Rgb(0, 255, 127)),
+				SGR::Background(SGR::Color::Rgb(127, 255, 0))
+			]))),
+
+			parse(b"\x1B[38;2;0;255;127;48;2;127;255;0m").unwrap().1);
 		}
 	}
 
 	mod csi {
-		pub use super::super::*;
+		pub use terminal::escape::*;
 
 		#[test]
 		fn cuu() {
-			assert_eq!(Item::CSI(CSI::CursorUp(1)),
+			assert_eq!(Item::C1(C1::ControlSequenceIntroducer(
+				CSI::CursorUp(1))),
 				parse(b"\x1B[A").unwrap().1);
 
-			assert_eq!(Item::CSI(CSI::CursorUp(23)),
+			assert_eq!(Item::C1(C1::ControlSequenceIntroducer(
+				CSI::CursorUp(23))),
 				parse(b"\x1B[23A").unwrap().1);
 		}
 
 		#[test]
 		fn cud() {
-			assert_eq!(Item::CSI(CSI::CursorDown(1)),
+			assert_eq!(Item::C1(C1::ControlSequenceIntroducer(
+				CSI::CursorDown(1))),
 				parse(b"\x1B[B").unwrap().1);
 
-			assert_eq!(Item::CSI(CSI::CursorDown(42)),
+			assert_eq!(Item::C1(C1::ControlSequenceIntroducer(
+				CSI::CursorDown(42))),
 				parse(b"\x1B[42B").unwrap().1);
 		}
 
 		#[test]
 		fn cuf() {
-			assert_eq!(Item::CSI(CSI::CursorForward(1)),
+			assert_eq!(Item::C1(C1::ControlSequenceIntroducer(
+				CSI::CursorForward(1))),
 				parse(b"\x1B[C").unwrap().1);
 
-			assert_eq!(Item::CSI(CSI::CursorForward(13)),
+			assert_eq!(Item::C1(C1::ControlSequenceIntroducer(
+				CSI::CursorForward(13))),
 				parse(b"\x1B[13C").unwrap().1);
 		}
 
 		#[test]
 		fn cub() {
-			assert_eq!(Item::CSI(CSI::CursorBack(1)),
+			assert_eq!(Item::C1(C1::ControlSequenceIntroducer(
+				CSI::CursorBack(1))),
 				parse(b"\x1B[D").unwrap().1);
 
-			assert_eq!(Item::CSI(CSI::CursorBack(37)),
+			assert_eq!(Item::C1(C1::ControlSequenceIntroducer(
+				CSI::CursorBack(37))),
 				parse(b"\x1B[37D").unwrap().1);
 		}
 
 		#[test]
 		fn cnl() {
-			assert_eq!(Item::CSI(CSI::CursorNextLine(1)),
+			assert_eq!(Item::C1(C1::ControlSequenceIntroducer(
+				CSI::CursorNextLine(1))),
 				parse(b"\x1B[E").unwrap().1);
 
-			assert_eq!(Item::CSI(CSI::CursorNextLine(12)),
+			assert_eq!(Item::C1(C1::ControlSequenceIntroducer(
+				CSI::CursorNextLine(12))),
 				parse(b"\x1B[12E").unwrap().1);
 		}
 
 		#[test]
 		fn cpl() {
-			assert_eq!(Item::CSI(CSI::CursorPreviousLine(1)),
+			assert_eq!(Item::C1(C1::ControlSequenceIntroducer(
+				CSI::CursorPreviousLine(1))),
 				parse(b"\x1B[F").unwrap().1);
 
-			assert_eq!(Item::CSI(CSI::CursorPreviousLine(43)),
+			assert_eq!(Item::C1(C1::ControlSequenceIntroducer(
+				CSI::CursorPreviousLine(43))),
 				parse(b"\x1B[43F").unwrap().1);
 		}
 
 		#[test]
 		fn cha() {
-			assert_eq!(Item::CSI(CSI::CursorHorizontalPosition(0)),
+			assert_eq!(Item::C1(C1::ControlSequenceIntroducer(
+				CSI::CursorHorizontalPosition(0))),
 				parse(b"\x1B[G").unwrap().1);
 
-			assert_eq!(Item::CSI(CSI::CursorHorizontalPosition(42)),
+			assert_eq!(Item::C1(C1::ControlSequenceIntroducer(
+				CSI::CursorHorizontalPosition(42))),
 				parse(b"\x1B[43G").unwrap().1);
 		}
 
 		#[test]
 		fn cup() {
-			assert_eq!(Item::CSI(CSI::CursorPosition(0, 0)),
+			assert_eq!(Item::C1(C1::ControlSequenceIntroducer(
+				CSI::CursorPosition(0, 0))),
 				parse(b"\x1B[H").unwrap().1);
 
-			assert_eq!(Item::CSI(CSI::CursorPosition(1, 2)),
+			assert_eq!(Item::C1(C1::ControlSequenceIntroducer(
+				CSI::CursorPosition(1, 2))),
 				parse(b"\x1B[2;3H").unwrap().1);
 
-			assert_eq!(Item::CSI(CSI::CursorPosition(0, 2)),
+			assert_eq!(Item::C1(C1::ControlSequenceIntroducer(
+				CSI::CursorPosition(0, 2))),
 				parse(b"\x1B[;3H").unwrap().1);
 
-			assert_eq!(Item::CSI(CSI::CursorPosition(1, 0)),
+			assert_eq!(Item::C1(C1::ControlSequenceIntroducer(
+				CSI::CursorPosition(1, 0))),
 				parse(b"\x1B[2;H").unwrap().1);
 
-			assert_eq!(Item::CSI(CSI::CursorPosition(0, 0)),
+			assert_eq!(Item::C1(C1::ControlSequenceIntroducer(
+				CSI::CursorPosition(0, 0))),
 				parse(b"\x1B[;H").unwrap().1);
 		}
 
 		#[test]
 		fn ed() {
-			assert_eq!(Item::CSI(CSI::EraseDisplay(CSI::Erase::ToEnd)),
+			assert_eq!(Item::C1(C1::ControlSequenceIntroducer(
+				CSI::EraseDisplay(CSI::Erase::ToEnd))),
 				parse(b"\x1B[J").unwrap().1);
 
-			assert_eq!(Item::CSI(CSI::EraseDisplay(CSI::Erase::ToEnd)),
+			assert_eq!(Item::C1(C1::ControlSequenceIntroducer(
+				CSI::EraseDisplay(CSI::Erase::ToEnd))),
 				parse(b"\x1B[0J").unwrap().1);
 
-			assert_eq!(Item::CSI(CSI::EraseDisplay(CSI::Erase::ToStart)),
+			assert_eq!(Item::C1(C1::ControlSequenceIntroducer(
+				CSI::EraseDisplay(CSI::Erase::ToStart))),
 				parse(b"\x1B[1J").unwrap().1);
 
-			assert_eq!(Item::CSI(CSI::EraseDisplay(CSI::Erase::All)),
+			assert_eq!(Item::C1(C1::ControlSequenceIntroducer(
+				CSI::EraseDisplay(CSI::Erase::All))),
 				parse(b"\x1B[2J").unwrap().1);
 		}
 
 		#[test]
 		fn el() {
-			assert_eq!(Item::CSI(CSI::EraseLine(CSI::Erase::ToEnd)),
+			assert_eq!(Item::C1(C1::ControlSequenceIntroducer(
+				CSI::EraseLine(CSI::Erase::ToEnd))),
 				parse(b"\x1B[K").unwrap().1);
 
-			assert_eq!(Item::CSI(CSI::EraseLine(CSI::Erase::ToEnd)),
+			assert_eq!(Item::C1(C1::ControlSequenceIntroducer(
+				CSI::EraseLine(CSI::Erase::ToEnd))),
 				parse(b"\x1B[0K").unwrap().1);
 
-			assert_eq!(Item::CSI(CSI::EraseLine(CSI::Erase::ToStart)),
+			assert_eq!(Item::C1(C1::ControlSequenceIntroducer(
+				CSI::EraseLine(CSI::Erase::ToStart))),
 				parse(b"\x1B[1K").unwrap().1);
 
-			assert_eq!(Item::CSI(CSI::EraseLine(CSI::Erase::All)),
+			assert_eq!(Item::C1(C1::ControlSequenceIntroducer(
+				CSI::EraseLine(CSI::Erase::All))),
 				parse(b"\x1B[2K").unwrap().1);
 		}
 
 		#[test]
 		fn su() {
-			assert_eq!(Item::CSI(CSI::ScrollUp(1)),
+			assert_eq!(Item::C1(C1::ControlSequenceIntroducer(
+				CSI::ScrollUp(1))),
 				parse(b"\x1B[S").unwrap().1);
 
-			assert_eq!(Item::CSI(CSI::ScrollUp(37)),
+			assert_eq!(Item::C1(C1::ControlSequenceIntroducer(
+				CSI::ScrollUp(37))),
 				parse(b"\x1B[37S").unwrap().1);
 		}
 
 		#[test]
 		fn sd() {
-			assert_eq!(Item::CSI(CSI::ScrollDown(1)),
+			assert_eq!(Item::C1(C1::ControlSequenceIntroducer(
+				CSI::ScrollDown(1))),
 				parse(b"\x1B[T").unwrap().1);
 
-			assert_eq!(Item::CSI(CSI::ScrollDown(73)),
+			assert_eq!(Item::C1(C1::ControlSequenceIntroducer(
+				CSI::ScrollDown(73))),
 				parse(b"\x1B[73T").unwrap().1);
 		}
 
 		#[test]
 		fn hsv() {
-			assert_eq!(Item::CSI(CSI::MoveTo(0, 0)),
+			assert_eq!(Item::C1(C1::ControlSequenceIntroducer(
+				CSI::MoveTo(0, 0))),
 				parse(b"\x1B[f").unwrap().1);
 
-			assert_eq!(Item::CSI(CSI::MoveTo(1, 2)),
+			assert_eq!(Item::C1(C1::ControlSequenceIntroducer(
+				CSI::MoveTo(1, 2))),
 				parse(b"\x1B[2;3f").unwrap().1);
 
-			assert_eq!(Item::CSI(CSI::MoveTo(0, 2)),
+			assert_eq!(Item::C1(C1::ControlSequenceIntroducer(
+				CSI::MoveTo(0, 2))),
 				parse(b"\x1B[;3f").unwrap().1);
 
-			assert_eq!(Item::CSI(CSI::MoveTo(1, 0)),
+			assert_eq!(Item::C1(C1::ControlSequenceIntroducer(
+				CSI::MoveTo(1, 0))),
 				parse(b"\x1B[2;f").unwrap().1);
 
-			assert_eq!(Item::CSI(CSI::MoveTo(0, 0)),
+			assert_eq!(Item::C1(C1::ControlSequenceIntroducer(
+				CSI::MoveTo(0, 0))),
 				parse(b"\x1B[;f").unwrap().1);
 		}
 
 		#[test]
 		fn aux() {
-			assert_eq!(Item::CSI(CSI::AuxPort(true)),
+			assert_eq!(Item::C1(C1::ControlSequenceIntroducer(
+				CSI::AuxPort(true))),
 				parse(b"\x1B[5i").unwrap().1);
 
-			assert_eq!(Item::CSI(CSI::AuxPort(false)),
+			assert_eq!(Item::C1(C1::ControlSequenceIntroducer(
+				CSI::AuxPort(false))),
 				parse(b"\x1B[6i").unwrap().1);
 		}
 
 		#[test]
 		fn dsr() {
-			assert_eq!(Item::CSI(CSI::DeviceStatusReport),
+			assert_eq!(Item::C1(C1::ControlSequenceIntroducer(
+				CSI::DeviceStatusReport)),
 				parse(b"\x1B[6n").unwrap().1);
 		}
 
 		#[test]
 		fn scp() {
-			assert_eq!(Item::CSI(CSI::SaveCursorPosition),
+			assert_eq!(Item::C1(C1::ControlSequenceIntroducer(
+				CSI::SaveCursorPosition)),
 				parse(b"\x1B[s").unwrap().1);
 		}
 
 		#[test]
 		fn rcp() {
-			assert_eq!(Item::CSI(CSI::RestoreCursorPosition),
+			assert_eq!(Item::C1(C1::ControlSequenceIntroducer(
+				CSI::RestoreCursorPosition)),
 				parse(b"\x1B[u").unwrap().1);
+		}
+	}
+
+	mod c0 {
+		pub use terminal::escape::*;
+
+		#[test]
+		fn nul() {
+			assert_eq!(Item::C0(C0::Null),
+				parse(b"\x00").unwrap().1);
+		}
+
+		#[test]
+		fn soh() {
+			assert_eq!(Item::C0(C0::StartHeading),
+				parse(b"\x01").unwrap().1);
+		}
+
+		#[test]
+		fn stx() {
+			assert_eq!(Item::C0(C0::StartText),
+				parse(b"\x02").unwrap().1);
+		}
+
+		#[test]
+		fn etx() {
+			assert_eq!(Item::C0(C0::EndText),
+				parse(b"\x03").unwrap().1);
+		}
+
+		#[test]
+		fn eot() {
+			assert_eq!(Item::C0(C0::EndTransmission),
+				parse(b"\x04").unwrap().1);
+		}
+
+		#[test]
+		fn enq() {
+			assert_eq!(Item::C0(C0::Enquiry),
+				parse(b"\x05").unwrap().1);
+		}
+
+		#[test]
+		fn ack() {
+			assert_eq!(Item::C0(C0::Acknowledge),
+				parse(b"\x06").unwrap().1);
+		}
+
+		#[test]
+		fn bel() {
+			assert_eq!(Item::C0(C0::Bell),
+				parse(b"\x07").unwrap().1);
+		}
+
+		#[test]
+		fn bs() {
+			assert_eq!(Item::C0(C0::Backspace),
+				parse(b"\x08").unwrap().1);
+		}
+
+		#[test]
+		fn ht() {
+			assert_eq!(Item::C0(C0::HorizontalTabulation),
+				parse(b"\x09").unwrap().1);
+		}
+
+		#[test]
+		fn lf() {
+			assert_eq!(Item::C0(C0::LineFeed),
+				parse(b"\x0A").unwrap().1);
+		}
+
+		#[test]
+		fn vf() {
+			assert_eq!(Item::C0(C0::VerticalTabulation),
+				parse(b"\x0B").unwrap().1);
+		}
+
+		#[test]
+		fn ff() {
+			assert_eq!(Item::C0(C0::FormFeed),
+				parse(b"\x0C").unwrap().1);
+		}
+
+		#[test]
+		fn cr() {
+			assert_eq!(Item::C0(C0::CarriageReturn),
+				parse(b"\x0D").unwrap().1);
+		}
+
+		#[test]
+		fn ss() {
+			assert_eq!(Item::C0(C0::ShiftOut),
+				parse(b"\x0E").unwrap().1);
+		}
+
+		#[test]
+		fn si() {
+			assert_eq!(Item::C0(C0::ShiftIn),
+				parse(b"\x0F").unwrap().1);
+		}
+
+		#[test]
+		fn dle() {
+			assert_eq!(Item::C0(C0::DataLinkEscape),
+				parse(b"\x10").unwrap().1);
+		}
+
+		#[test]
+		fn dc1() {
+			assert_eq!(Item::C0(C0::DeviceControlOne),
+				parse(b"\x11").unwrap().1);
+		}
+
+		#[test]
+		fn dc2() {
+			assert_eq!(Item::C0(C0::DeviceControlTwo),
+				parse(b"\x12").unwrap().1);
+		}
+
+		#[test]
+		fn dc3() {
+			assert_eq!(Item::C0(C0::DeviceControlThree),
+				parse(b"\x13").unwrap().1);
+		}
+
+		#[test]
+		fn dc4() {
+			assert_eq!(Item::C0(C0::DeviceControlFour),
+				parse(b"\x14").unwrap().1);
+		}
+
+		#[test]
+		fn nak() {
+			assert_eq!(Item::C0(C0::NegativeAcknowledge),
+				parse(b"\x15").unwrap().1);
+		}
+
+		#[test]
+		fn syn() {
+			assert_eq!(Item::C0(C0::SynchronousIdle),
+				parse(b"\x16").unwrap().1);
+		}
+
+		#[test]
+		fn etb() {
+			assert_eq!(Item::C0(C0::EndTransmissionBlock),
+				parse(b"\x17").unwrap().1);
+		}
+
+		#[test]
+		fn can() {
+			assert_eq!(Item::C0(C0::Cancel),
+				parse(b"\x18").unwrap().1);
+		}
+
+		#[test]
+		fn em() {
+			assert_eq!(Item::C0(C0::EndMedium),
+				parse(b"\x19").unwrap().1);
 		}
 	}
 }
