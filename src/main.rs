@@ -119,22 +119,63 @@ fn open(matches: &ArgMatches) -> error::Result<()> {
 	let input  = tty.output();
 	let events = window.events();
 
+	macro_rules! render {
+		(cursor) => ({
+			let blinking = terminal.is_blinking();
+			let focused  = window.has_focus();
+
+			// Redraw the cursor.
+			render.update(|mut o| {
+				o.cursor(terminal.cursor(), blinking, focused);
+			});
+
+			window.flush();
+		});
+
+		(damaged $area:expr) => ({
+			let area     = $area;
+			let blinking = terminal.is_blinking();
+			let focused  = window.has_focus();
+
+			render.update(|mut o| {
+				// Redraw margins.
+				o.margin(&area);
+
+				// Redraw the cells that fall within the damaged area.
+				for cell in terminal.area(o.damaged(&area)) {
+					o.cell(cell, blinking);
+				}
+
+				// Redraw the cursor.
+				o.cursor(terminal.cursor(), blinking, focused);
+			});
+
+			window.flush();
+		});
+
+		($iter:expr) => ({
+			let blinking = terminal.is_blinking();
+			let focused  = window.has_focus();
+
+			render.update(|mut o| {
+				for cell in $iter {
+					o.cell(cell, blinking);
+				}
+
+				o.cursor(terminal.cursor(), blinking, focused);
+			});
+
+			window.flush();
+		});
+	}
+
 	loop {
 		select! {
 			timer = timer.recv() => {
 				match timer.unwrap() {
 					// Handle blinking.
 					timer::Event::Blink(blinking) => {
-						// Redraw the cells that blink and the cursor.
-						render.update(|mut o| {
-							for cell in terminal.blinking(blinking) {
-								o.cell(cell, blinking);
-							}
-
-							o.cursor(terminal.cursor(), blinking, window.has_focus());
-						});
-
-						window.flush();
+						render!(terminal.blinking(blinking));
 					}
 				}
 			},
@@ -145,36 +186,17 @@ fn open(matches: &ArgMatches) -> error::Result<()> {
 				match event.response_type() {
 					// Redraw the areas that have been damaged.
 					xcb::EXPOSE => {
-						let event  = xcb::cast_event::<xcb::ExposeEvent>(&event);
-						let area   = Area::from(event.x() as u32, event.y() as u32,
-							event.width() as u32, event.height() as u32);
+						let event = xcb::cast_event::<xcb::ExposeEvent>(&event);
 
-						render.update(|mut o| {
-							// Redraw margins.
-							o.margin(&area);
-
-							// Redraw the cells that fall within the damaged area.
-							for cell in terminal.area(o.damaged(&area)) {
-								o.cell(cell, terminal.is_blinking());
-							}
-
-							// Redraw the cursor.
-							o.cursor(terminal.cursor(), terminal.is_blinking(), window.has_focus());
-						});
-
-						window.flush();
+						render!(damaged Area::from(event.x() as u32, event.y() as u32,
+							event.width() as u32, event.height() as u32));
 					}
 
 					// Handle focus changes.
 					xcb::FOCUS_IN | xcb::FOCUS_OUT => {
 						window.focus(event.response_type() == xcb::FOCUS_IN);
 
-						// Redraw the cursor.
-						render.update(|mut o| {
-							o.cursor(terminal.cursor(), terminal.is_blinking(), window.has_focus());
-						});
-
-						window.flush();
+						render!(cursor);
 					}
 
 					// Handle resizes.
@@ -191,7 +213,7 @@ fn open(matches: &ArgMatches) -> error::Result<()> {
 							let columns = render.columns();
 
 							if terminal.columns() != columns || terminal.rows() != rows {
-								terminal.resize(columns, rows);
+								render!(terminal.resize(columns, rows));
 							}
 						}
 					}
@@ -216,6 +238,9 @@ fn open(matches: &ArgMatches) -> error::Result<()> {
 			},
 
 			input = input.recv() => {
+				let input = input.unwrap();
+
+				render!(terminal.handle(&input, &mut tty).unwrap());
 			}
 		}
 	}
