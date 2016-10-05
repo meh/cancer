@@ -18,7 +18,7 @@
 use std::sync::Arc;
 
 use xcb;
-use xcbu::{icccm, ewmh};
+use xcbu::ewmh;
 use xkbcommon::xkb;
 
 use error;

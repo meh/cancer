@@ -18,7 +18,6 @@
 use libc::c_int;
 
 use ffi::pango::*;
-use ffi::glib::*;
 
 pub struct Metrics(pub *mut PangoFontMetrics);
 
