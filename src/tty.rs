@@ -16,22 +16,29 @@
 // along with cancer.  If not, see <http://www.gnu.org/licenses/>.
 
 use std::ptr;
-use std::mem;
 use std::fs::File;
-use std::os::unix::io::{RawFd, FromRawFd, AsRawFd};
-use std::io::{Read, Write, BufRead, BufReader};
+use std::os::unix::io::{RawFd, FromRawFd};
+use std::io::{self, Read, Write};
 use std::thread;
 use std::sync::Arc;
-use std::sync::mpsc::{Receiver, sync_channel};
+use std::sync::mpsc::{Sender, Receiver, channel};
 
 use libc::{c_void, c_char, c_ushort, c_int, winsize};
 use libc::{SIGCHLD, SIGHUP, SIGINT, SIGQUIT, SIGTERM, SIGALRM, SIG_DFL, TIOCSCTTY};
-use libc::{open, close, openpty, fork, setsid, dup2, signal, ioctl, getpwuid, getuid, execvp};
+use libc::{close, openpty, fork, setsid, dup2, signal, ioctl, getpwuid, getuid, execvp};
 
 use config::Config;
 use error::{self, Error};
 
-pub struct Tty(File);
+#[derive(Debug)]
+pub struct Tty {
+	id: c_int,
+	fd: RawFd,
+
+	input:  Sender<Vec<u8>>,
+	output: Option<Receiver<Vec<u8>>>,
+	buffer: Option<Vec<u8>>,
+}
 
 impl Tty {
 	pub fn spawn(config: Arc<Config>, program: Option<String>, width: u32, height: u32) -> error::Result<Self> {
@@ -81,37 +88,76 @@ impl Tty {
 				// From our process.
 				id => {
 					close(slave);
-					Ok(Tty(File::from_raw_fd(master)))
+
+					let (i_sender, i_receiver) = channel::<Vec<u8>>();
+					let (o_sender, o_receiver) = channel::<Vec<u8>>();
+
+					// Spawn the reader.
+					thread::spawn(move || {
+						let mut stream = File::from_raw_fd(master);
+
+						loop {
+							let mut buffer = vec![0; 4096];
+
+							let read = stream.read(&mut buffer).unwrap();
+							buffer.set_len(read);
+							buffer.shrink_to_fit();
+
+							o_sender.send(buffer).unwrap();
+						}
+					});
+
+					// Spawn writer.
+					thread::spawn(move || {
+						let mut stream = File::from_raw_fd(master);
+
+						while let Ok(buffer) = i_receiver.recv() {
+							stream.write_all(&buffer).unwrap();
+						}
+					});
+
+					Ok(Tty {
+						id: id,
+						fd: master,
+
+						input:  i_sender,
+						output: Some(o_receiver),
+						buffer: None,
+					})
 				}
 			}
 		}
 	}
 
 	pub fn output(&mut self) -> Receiver<Vec<u8>> {
-		let     (sender, receiver) = sync_channel(1);
-		let mut stream             = BufReader::new(unsafe { File::from_raw_fd(self.0.as_raw_fd()) });
+		self.output.take().unwrap()
+	}
+}
 
-		thread::spawn(move || {
-			loop {
-				let consumed = {
-					let buffer = stream.fill_buf().unwrap();
-					sender.send(buffer.to_vec()).unwrap();
+impl Write for Tty {
+	fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
+		if self.buffer.is_none() {
+			self.buffer = Some(Vec::with_capacity(buf.len()));
+		}
 
-					buffer.len()
-				};
+		self.buffer.as_mut().unwrap().extend_from_slice(buf);
 
-				stream.consume(consumed);
-			}
-
-			while let Ok(buffer) = stream.fill_buf() {
-			}
-		});
-
-		receiver
+		Ok(buf.len())
 	}
 
-	pub fn write(&mut self, value: &[u8]) -> error::Result<()> {
-		Ok(try!(self.0.write_all(value)))
+	fn flush(&mut self) -> io::Result<()> {
+		if let Some(buffer) = self.buffer.take() {
+			match self.input.send(buffer) {
+				Ok(_) =>
+					Ok(()),
+
+				Err(e) =>
+					Err(io::Error::new(io::ErrorKind::BrokenPipe, e))
+			}
+		}
+		else {
+			Ok(())
+		}
 	}
 }
 

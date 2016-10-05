@@ -116,7 +116,7 @@ fn open(matches: &ArgMatches) -> error::Result<()> {
 	let mut terminal = Terminal::open(config.clone(), render.columns(), render.rows())?;
 	let mut tty      = Tty::spawn(config.clone(), matches.value_of("execute").map(|s| s.into()), render.columns(), render.rows())?;
 
-	let output = tty.output();
+	let input  = tty.output();
 	let events = window.events();
 
 	loop {
@@ -215,8 +215,7 @@ fn open(matches: &ArgMatches) -> error::Result<()> {
 				}
 			},
 
-			output = output.recv() => {
-				// TODO: handle output
+			input = input.recv() => {
 			}
 		}
 	}
