@@ -55,7 +55,7 @@ impl Config {
 			let mut content = String::new();
 			file.read_to_string(&mut content)?;
 
-			toml::Parser::new(&content).parse().ok_or(error::Error::Parse)?
+			toml::Parser::new(&content).parse().ok_or(error::Error::Config)?
 		}
 		else {
 			toml::Table::new()

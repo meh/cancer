@@ -14,7 +14,7 @@ pub enum Error {
 	Message(String),
 	Nul(ffi::NulError),
 	Unknown,
-	Parse,
+	Config,
 
 	X(X),
 	Cli(clap::Error),
@@ -91,8 +91,8 @@ impl error::Error for Error {
 			Error::Unknown =>
 				"Unknown error.",
 
-			Error::Parse =>
-				"Parse error.",
+			Error::Config =>
+				"Configuration error.",
 
 			Error::X(ref err) => match *err {
 				X::Request(..) =>

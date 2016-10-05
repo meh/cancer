@@ -17,7 +17,7 @@
 
 use toml::{self, Value};
 use picto::color::Rgba;
-use super::{is_color, to_color};
+use super::to_color;
 
 #[derive(PartialEq, Clone, Debug)]
 pub struct Style {
