@@ -22,10 +22,11 @@ use std::io::Write;
 use unicode_segmentation::UnicodeSegmentation;
 use unicode_width::UnicodeWidthStr;
 use picto::Area;
+use nom::IResult;
 use error::{self, Error};
 use config::Config;
 use style::{self, Style};
-use terminal::{Cell, cell, iter};
+use terminal::{Cell, cell, iter, escape};
 
 #[derive(Debug)]
 pub struct Terminal {
@@ -91,6 +92,37 @@ impl Terminal {
 	}
 
 	pub fn handle<'a, I: AsRef<[u8]>, O: Write>(&'a mut self, input: I, output: O) -> error::Result<impl Iterator<Item = &'a Cell>> {
+		let mut input = input.as_ref();
+
+		loop {
+			match escape::parse(input) {
+				IResult::Done(rest, item) => {
+					input = rest;
+
+					match item {
+						escape::Item::Insert(string) => {
+							for ch in string.graphemes(true) {
+								self.insert(ch.into());
+							}
+						}
+
+						item => {
+							println!("{:?}", item);
+						}
+					}
+				}
+
+				IResult::Incomplete(_) => {
+					// TODO(meh): fill cache
+					break;
+				}
+
+				IResult::Error(e) => {
+					return Err(Error::Message(e.to_string()));
+				}
+			}
+		}
+
 		Ok(self.iter())
 	}
 
