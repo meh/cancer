@@ -48,18 +48,169 @@ named!(pub control<Item>,
 		| map!(C0::parse, |c| Item::C0(c))
 		| map!(C1::parse, |c| Item::C1(c))));
 
+macro_rules! arg {
+	($args:ident[$index:tt] => $default:tt) => (
+		$args.get($index).and_then(|v| *v).unwrap_or($default)
+	);
+}
+
 pub mod SGR {
 	use nom::{self, ErrorKind};
 
 	#[derive(Eq, PartialEq, Copy, Clone, Debug)]
 	pub enum T {
 		Reset,
+		Font(Weight),
+		Italic(bool),
+		Underline(bool),
+		Blink(bool),
+		Reverse(bool),
+		Invisible(bool),
+		Struck(bool),
+		Foreground(Color),
+		Background(Color),
 	}
 
 	pub use self::T::*;
 
+	#[derive(Eq, PartialEq, Copy, Clone, Debug)]
+	pub enum Weight {
+		Normal,
+		Bold,
+		Faint,
+	}
+
+	#[derive(Eq, PartialEq, Copy, Clone, Debug)]
+	pub enum Color {
+		Default,
+		Transparent,
+		Index(u8),
+		Cmy(u8, u8, u8),
+		Cmyk(u8, u8, u8, u8),
+		Rgb(u8, u8, u8),
+	}
+
+	impl Color {
+		fn from<'a>(args: &[Option<u32>]) -> Result<Color, nom::Err<&'a [u8]>> {
+			Ok(match arg!(args[0] => 0) {
+				0 =>
+					Color::Default,
+
+				1 =>
+					Color::Transparent,
+
+				2 =>
+					Color::Rgb(
+						arg!(args[1] => 0) as u8,
+						arg!(args[2] => 0) as u8,
+						arg!(args[3] => 0) as u8),
+
+				3 =>
+					Color::Cmy(
+						arg!(args[1] => 0) as u8,
+						arg!(args[2] => 0) as u8,
+						arg!(args[3] => 0) as u8),
+
+				4 =>
+					Color::Cmyk(
+						arg!(args[1] => 0) as u8,
+						arg!(args[2] => 0) as u8,
+						arg!(args[3] => 0) as u8,
+						arg!(args[4] => 0) as u8),
+
+				5 =>
+					Color::Index(arg!(args[1] => 0) as u8),
+
+				_ =>
+					return Err(nom::Err::Code(ErrorKind::Custom(9006)))
+			})
+		}
+	}
+
 	pub fn parse<'a, 'b>(args: &'b [Option<u32>]) -> Result<T, nom::Err<&'a [u8]>> {
-		Err(nom::Err::Code(ErrorKind::Custom(9004)))
+		if args.is_empty() {
+			return Ok(Reset);
+		}
+
+		let id   = arg!(args[0] => 0);
+		let args = &args[1..];
+
+		Ok(match id {
+			0 =>
+				Reset,
+
+			1 =>
+				Font(Weight::Bold),
+
+			2 =>
+				Font(Weight::Faint),
+
+			3 =>
+				Italic(true),
+
+			4 =>
+				Underline(true),
+
+			5 | 6 =>
+				Blink(true),
+
+			7 =>
+				Reverse(true),
+
+			8 =>
+				Invisible(true),
+
+			9 =>
+				Struck(true),
+
+			22 =>
+				Font(Weight::Normal),
+
+			23 =>
+				Italic(false),
+
+			24 =>
+				Underline(false),
+
+			25 =>
+				Blink(false),
+
+			27 =>
+				Reverse(false),
+
+			28 =>
+				Invisible(false),
+
+			29 =>
+				Struck(false),
+
+			c if c >= 30 && c <= 37 =>
+				Foreground(Color::Index(c as u8 - 30)),
+
+			38 =>
+				Foreground(Color::from(args)?),
+
+			39 =>
+				Foreground(Color::Default),
+
+			c if c >= 40 && c <= 47 =>
+				Background(Color::Index(c as u8 - 40)),
+
+			48 =>
+				Background(Color::from(args)?),
+
+			49 =>
+				Background(Color::Default),
+
+			c if c >= 90 && c <= 97 =>
+				Foreground(Color::Index(c as u8 - 90 + 8)),
+
+			c if c >= 100 && c <= 107 =>
+				Background(Color::Index(c as u8 - 100 + 8)),
+
+			_ =>
+				return Err(nom::Err::Code(ErrorKind::Custom(9001)))
+		})
 	}
 }
 
@@ -94,7 +245,7 @@ pub mod CSI {
 	#[derive(Eq, PartialEq, Copy, Clone, Debug)]
 	pub enum Erase {
 		ToEnd,
-		ToBeginning,
+		ToStart,
 		All,
 	}
 
@@ -102,7 +253,7 @@ pub mod CSI {
 		fn from<'a>(value: u32) -> Result<Self, nom::Err<&'a [u8]>> {
 			match value {
 				0 => Ok(Erase::ToEnd),
-				1 => Ok(Erase::ToBeginning),
+				1 => Ok(Erase::ToStart),
 				2 => Ok(Erase::All),
 				_ => Err(nom::Err::Code(ErrorKind::Custom(9002))),
 			}
@@ -162,7 +313,7 @@ pub mod CSI {
 				}
 			}
 		);
-
+	
 		($name:ident, $submac:ident!( $($args:tt)* )) => (
 			fn $name<'a, 'b>(i: &'a [u8], args: &'b [Option<u32>]) -> nom::IResult<&'a [u8], T, u32> {
 				if args.is_empty() {
@@ -172,12 +323,6 @@ pub mod CSI {
 					nom::IResult::Error(nom::Err::Code(ErrorKind::Custom(9001)))
 				}
 			}
-		);
-	}
-
-	macro_rules! arg {
-		($args:ident[$index:tt] => $default:tt) => (
-			$args.get($index).and_then(|v| *v).unwrap_or($default)
 		);
 	}
 
@@ -265,7 +410,7 @@ pub mod CSI {
 			SaveCursorPosition));
 
 	with_args!(RCP,
-		map!(char!('s'), |_|
+		map!(char!('u'), |_|
 			RestoreCursorPosition));
 }
 
@@ -570,10 +715,323 @@ mod C1 {
 
 #[cfg(test)]
 mod test {
-	pub use super::*;
+	mod sgr {
+		pub use super::super::*;
 
-	#[test]
-	fn csi() {
-		println!("{:?}", CSI::parse(b"\x1B[23A"));
+		#[test]
+		fn reset() {
+			assert_eq!(Item::SGR(SGR::Reset),
+				parse(b"\x1B[0m").unwrap().1);
+
+			assert_eq!(Item::SGR(SGR::Reset),
+				parse(b"\x1B[m").unwrap().1);
+		}
+
+		#[test]
+		fn font() {
+			assert_eq!(Item::SGR(SGR::Font(SGR::Weight::Bold)),
+				parse(b"\x1B[1m").unwrap().1);
+
+			assert_eq!(Item::SGR(SGR::Font(SGR::Weight::Faint)),
+				parse(b"\x1B[2m").unwrap().1);
+
+			assert_eq!(Item::SGR(SGR::Font(SGR::Weight::Normal)),
+				parse(b"\x1B[22m").unwrap().1);
+		}
+
+		#[test]
+		fn italic() {
+			assert_eq!(Item::SGR(SGR::Italic(true)),
+				parse(b"\x1B[3m").unwrap().1);
+
+			assert_eq!(Item::SGR(SGR::Italic(false)),
+				parse(b"\x1B[23m").unwrap().1);
+		}
+
+		#[test]
+		fn underline() {
+			assert_eq!(Item::SGR(SGR::Underline(true)),
+				parse(b"\x1B[4m").unwrap().1);
+
+			assert_eq!(Item::SGR(SGR::Underline(false)),
+				parse(b"\x1B[24m").unwrap().1);
+		}
+
+		#[test]
+		fn blink() {
+			assert_eq!(Item::SGR(SGR::Blink(true)),
+				parse(b"\x1B[5m").unwrap().1);
+
+			assert_eq!(Item::SGR(SGR::Blink(true)),
+				parse(b"\x1B[6m").unwrap().1);
+
+			assert_eq!(Item::SGR(SGR::Blink(false)),
+				parse(b"\x1B[25m").unwrap().1);
+		}
+
+		#[test]
+		fn reverse() {
+			assert_eq!(Item::SGR(SGR::Reverse(true)),
+				parse(b"\x1B[7m").unwrap().1);
+
+			assert_eq!(Item::SGR(SGR::Reverse(false)),
+				parse(b"\x1B[27m").unwrap().1);
+		}
+
+		#[test]
+		fn invisible() {
+			assert_eq!(Item::SGR(SGR::Invisible(true)),
+				parse(b"\x1B[8m").unwrap().1);
+
+			assert_eq!(Item::SGR(SGR::Invisible(false)),
+				parse(b"\x1B[28m").unwrap().1);
+		}
+
+		#[test]
+		fn struck() {
+			assert_eq!(Item::SGR(SGR::Struck(true)),
+				parse(b"\x1B[9m").unwrap().1);
+
+			assert_eq!(Item::SGR(SGR::Struck(false)),
+				parse(b"\x1B[29m").unwrap().1);
+		}
+
+		#[test]
+		fn foreground() {
+			assert_eq!(Item::SGR(SGR::Foreground(SGR::Color::Default)),
+				parse(b"\x1B[38;0m").unwrap().1);
+
+			assert_eq!(Item::SGR(SGR::Foreground(SGR::Color::Default)),
+				parse(b"\x1B[39m").unwrap().1);
+
+			assert_eq!(Item::SGR(SGR::Foreground(SGR::Color::Transparent)),
+				parse(b"\x1B[38;1m").unwrap().1);
+
+			assert_eq!(Item::SGR(SGR::Foreground(SGR::Color::Index(0))),
+				parse(b"\x1B[30m").unwrap().1);
+
+			assert_eq!(Item::SGR(SGR::Foreground(SGR::Color::Index(7))),
+				parse(b"\x1B[37m").unwrap().1);
+
+			assert_eq!(Item::SGR(SGR::Foreground(SGR::Color::Rgb(255, 0, 127))),
+				parse(b"\x1B[38;2;255;;127m").unwrap().1);
+
+			assert_eq!(Item::SGR(SGR::Foreground(SGR::Color::Index(235))),
+				parse(b"\x1B[38;5;235m").unwrap().1);
+
+			assert_eq!(Item::SGR(SGR::Foreground(SGR::Color::Index(8))),
+				parse(b"\x1B[90m").unwrap().1);
+
+			assert_eq!(Item::SGR(SGR::Foreground(SGR::Color::Index(15))),
+				parse(b"\x1B[97m").unwrap().1);
+		}
+
+		#[test]
+		fn background() {
+			assert_eq!(Item::SGR(SGR::Background(SGR::Color::Default)),
+				parse(b"\x1B[48;0m").unwrap().1);
+
+			assert_eq!(Item::SGR(SGR::Background(SGR::Color::Default)),
+				parse(b"\x1B[49m").unwrap().1);
+
+			assert_eq!(Item::SGR(SGR::Background(SGR::Color::Transparent)),
+				parse(b"\x1B[48;1m").unwrap().1);
+
+			assert_eq!(Item::SGR(SGR::Background(SGR::Color::Index(0))),
+				parse(b"\x1B[40m").unwrap().1);
+
+			assert_eq!(Item::SGR(SGR::Background(SGR::Color::Index(7))),
+				parse(b"\x1B[47m").unwrap().1);
+
+			assert_eq!(Item::SGR(SGR::Background(SGR::Color::Rgb(255, 0, 127))),
+				parse(b"\x1B[48;2;255;;127m").unwrap().1);
+
+			assert_eq!(Item::SGR(SGR::Background(SGR::Color::Index(235))),
+				parse(b"\x1B[48;5;235m").unwrap().1);
+
+			assert_eq!(Item::SGR(SGR::Background(SGR::Color::Index(8))),
+				parse(b"\x1B[100m").unwrap().1);
+
+			assert_eq!(Item::SGR(SGR::Background(SGR::Color::Index(15))),
+				parse(b"\x1B[107m").unwrap().1);
+		}
+	}
+
+	mod csi {
+		pub use super::super::*;
+
+		#[test]
+		fn cuu() {
+			assert_eq!(Item::CSI(CSI::CursorUp(1)),
+				parse(b"\x1B[A").unwrap().1);
+
+			assert_eq!(Item::CSI(CSI::CursorUp(23)),
+				parse(b"\x1B[23A").unwrap().1);
+		}
+
+		#[test]
+		fn cud() {
+			assert_eq!(Item::CSI(CSI::CursorDown(1)),
+				parse(b"\x1B[B").unwrap().1);
+
+			assert_eq!(Item::CSI(CSI::CursorDown(42)),
+				parse(b"\x1B[42B").unwrap().1);
+		}
+
+		#[test]
+		fn cuf() {
+			assert_eq!(Item::CSI(CSI::CursorForward(1)),
+				parse(b"\x1B[C").unwrap().1);
+
+			assert_eq!(Item::CSI(CSI::CursorForward(13)),
+				parse(b"\x1B[13C").unwrap().1);
+		}
+
+		#[test]
+		fn cub() {
+			assert_eq!(Item::CSI(CSI::CursorBack(1)),
+				parse(b"\x1B[D").unwrap().1);
+
+			assert_eq!(Item::CSI(CSI::CursorBack(37)),
+				parse(b"\x1B[37D").unwrap().1);
+		}
+
+		#[test]
+		fn cnl() {
+			assert_eq!(Item::CSI(CSI::CursorNextLine(1)),
+				parse(b"\x1B[E").unwrap().1);
+
+			assert_eq!(Item::CSI(CSI::CursorNextLine(12)),
+				parse(b"\x1B[12E").unwrap().1);
+		}
+
+		#[test]
+		fn cpl() {
+			assert_eq!(Item::CSI(CSI::CursorPreviousLine(1)),
+				parse(b"\x1B[F").unwrap().1);
+
+			assert_eq!(Item::CSI(CSI::CursorPreviousLine(43)),
+				parse(b"\x1B[43F").unwrap().1);
+		}
+
+		#[test]
+		fn cha() {
+			assert_eq!(Item::CSI(CSI::CursorHorizontalPosition(0)),
+				parse(b"\x1B[G").unwrap().1);
+
+			assert_eq!(Item::CSI(CSI::CursorHorizontalPosition(42)),
+				parse(b"\x1B[43G").unwrap().1);
+		}
+
+		#[test]
+		fn cup() {
+			assert_eq!(Item::CSI(CSI::CursorPosition(0, 0)),
+				parse(b"\x1B[H").unwrap().1);
+
+			assert_eq!(Item::CSI(CSI::CursorPosition(1, 2)),
+				parse(b"\x1B[2;3H").unwrap().1);
+
+			assert_eq!(Item::CSI(CSI::CursorPosition(0, 2)),
+				parse(b"\x1B[;3H").unwrap().1);
+
+			assert_eq!(Item::CSI(CSI::CursorPosition(1, 0)),
+				parse(b"\x1B[2;H").unwrap().1);
+
+			assert_eq!(Item::CSI(CSI::CursorPosition(0, 0)),
+				parse(b"\x1B[;H").unwrap().1);
+		}
+
+		#[test]
+		fn ed() {
+			assert_eq!(Item::CSI(CSI::EraseDisplay(CSI::Erase::ToEnd)),
+				parse(b"\x1B[J").unwrap().1);
+
+			assert_eq!(Item::CSI(CSI::EraseDisplay(CSI::Erase::ToEnd)),
+				parse(b"\x1B[0J").unwrap().1);
+
+			assert_eq!(Item::CSI(CSI::EraseDisplay(CSI::Erase::ToStart)),
+				parse(b"\x1B[1J").unwrap().1);
+
+			assert_eq!(Item::CSI(CSI::EraseDisplay(CSI::Erase::All)),
+				parse(b"\x1B[2J").unwrap().1);
+		}
+
+		#[test]
+		fn el() {
+			assert_eq!(Item::CSI(CSI::EraseLine(CSI::Erase::ToEnd)),
+				parse(b"\x1B[K").unwrap().1);
+
+			assert_eq!(Item::CSI(CSI::EraseLine(CSI::Erase::ToEnd)),
+				parse(b"\x1B[0K").unwrap().1);
+
+			assert_eq!(Item::CSI(CSI::EraseLine(CSI::Erase::ToStart)),
+				parse(b"\x1B[1K").unwrap().1);
+
+			assert_eq!(Item::CSI(CSI::EraseLine(CSI::Erase::All)),
+				parse(b"\x1B[2K").unwrap().1);
+		}
+
+		#[test]
+		fn su() {
+			assert_eq!(Item::CSI(CSI::ScrollUp(1)),
+				parse(b"\x1B[S").unwrap().1);
+
+			assert_eq!(Item::CSI(CSI::ScrollUp(37)),
+				parse(b"\x1B[37S").unwrap().1);
+		}
+
+		#[test]
+		fn sd() {
+			assert_eq!(Item::CSI(CSI::ScrollDown(1)),
+				parse(b"\x1B[T").unwrap().1);
+
+			assert_eq!(Item::CSI(CSI::ScrollDown(73)),
+				parse(b"\x1B[73T").unwrap().1);
+		}
+
+		#[test]
+		fn hsv() {
+			assert_eq!(Item::CSI(CSI::MoveTo(0, 0)),
+				parse(b"\x1B[f").unwrap().1);
+
+			assert_eq!(Item::CSI(CSI::MoveTo(1, 2)),
+				parse(b"\x1B[2;3f").unwrap().1);
+
+			assert_eq!(Item::CSI(CSI::MoveTo(0, 2)),
+				parse(b"\x1B[;3f").unwrap().1);
+
+			assert_eq!(Item::CSI(CSI::MoveTo(1, 0)),
+				parse(b"\x1B[2;f").unwrap().1);
+
+			assert_eq!(Item::CSI(CSI::MoveTo(0, 0)),
+				parse(b"\x1B[;f").unwrap().1);
+		}
+
+		#[test]
+		fn aux() {
+			assert_eq!(Item::CSI(CSI::AuxPort(true)),
+				parse(b"\x1B[5i").unwrap().1);
+
+			assert_eq!(Item::CSI(CSI::AuxPort(false)),
+				parse(b"\x1B[6i").unwrap().1);
+		}
+
+		#[test]
+		fn dsr() {
+			assert_eq!(Item::CSI(CSI::DeviceStatusReport),
+				parse(b"\x1B[6n").unwrap().1);
+		}
+
+		#[test]
+		fn scp() {
+			assert_eq!(Item::CSI(CSI::SaveCursorPosition),
+				parse(b"\x1B[s").unwrap().1);
+		}
+
+		#[test]
+		fn rcp() {
+			assert_eq!(Item::CSI(CSI::RestoreCursorPosition),
+				parse(b"\x1B[u").unwrap().1);
+		}
 	}
 }
