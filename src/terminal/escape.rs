@@ -814,10 +814,8 @@ pub mod SGR {
 				c if c >= 100 && c <= 107 =>
 					Background(Color::Index(c as u8 - 100 + 8)),
 
-				_ => {
-					panic!("ree");
+				_ =>
 					return Err(nom::Err::Code(ErrorKind::Custom(9001)))
-				}
 			});
 		}
 
