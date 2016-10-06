@@ -18,23 +18,71 @@
 #![allow(non_snake_case)]
 
 use std::str;
-use nom::{IResult, rest};
+use nom::{self, IResult, Needed, rest};
 
 #[derive(Eq, PartialEq, Clone, Debug)]
 pub enum Item<'a> {
-	Insert(&'a str),
+	String(&'a str),
 
 	C0(C0::T),
 	C1(C1::T),
 }
 
 named!(pub parse<Item>,
-	alt!(control | insert));
+	alt!(control | string));
 
-named!(insert<Item>,
-	map!(rest, |s| Item::Insert(str::from_utf8(s).unwrap().into())));
 
-named!(pub control<Item>,
+fn string(i: &[u8]) -> IResult<&[u8], Item> {
+	const WIDTH: [u8; 256] = [
+		1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,
+		1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1, // 0x1F
+		1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,
+		1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1, // 0x3F
+		1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,
+		1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1, // 0x5F
+		1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,
+		1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1, // 0x7F
+		0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+		0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0, // 0x9F
+		0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+		0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0, // 0xBF
+		0,0,2,2,2,2,2,2,2,2,2,2,2,2,2,2,
+		2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2, // 0xDF
+		3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3, // 0xEF
+		4,4,4,4,4,0,0,0,0,0,0,0,0,0,0,0, // 0xFF
+	];
+
+	if i.is_empty() {
+		return IResult::Incomplete(Needed::Size(1));
+	}
+
+	let mut length = 0;
+	let mut input  = i;
+
+	while control(input).is_err() {
+		let w = WIDTH[input[0] as usize] as usize;
+
+		if input.len() < w {
+			return IResult::Incomplete(Needed::Size(w - input.len()));
+		}
+
+		length += w;
+		input   = &input[w..];
+
+		if input.is_empty() {
+			break;
+		}
+	}
+
+	if let Ok(string) = str::from_utf8(&i[..length]) {
+		IResult::Done(&i[length..], Item::String(string))
+	}
+	else {
+		IResult::Error(nom::Err::Code(nom::ErrorKind::Custom(9001)))
+	}
+}
+
+named!(control<Item>,
 	alt!(
 		map!(C1::parse, |c| Item::C1(c)) |
 		map!(C0::parse, |c| Item::C0(c))));
@@ -511,7 +559,7 @@ pub mod CSI {
 
 	macro_rules! with_args {
 		($name:ident<$n:tt, $params:ident>, $submac:ident!( $($args:tt)* )) => (
-			fn $name<'a, 'b>(i: &'a [u8], $params: &'b [Option<u32>]) -> nom::IResult<&'a [u8], T, u32> {
+			fn $name<'a, 'b>(i: &'a [u8], $params: &'b [Option<u32>]) -> nom::IResult<&'a [u8], T> {
 				if $params.len() <= $n {
 					$submac!(i, $($args)*)
 				}
@@ -522,13 +570,13 @@ pub mod CSI {
 		);
 
 		($name:ident<$params:ident>, $submac:ident!( $($args:tt)* )) => (
-			fn $name<'a, 'b>(i: &'a [u8], $params: &'b [Option<u32>]) -> nom::IResult<&'a [u8], T, u32> {
+			fn $name<'a, 'b>(i: &'a [u8], $params: &'b [Option<u32>]) -> nom::IResult<&'a [u8], T> {
 				$submac!(i, $($args)*)
 			}
 		);
 	
 		($name:ident, $submac:ident!( $($args:tt)* )) => (
-			fn $name<'a, 'b>(i: &'a [u8], args: &'b [Option<u32>]) -> nom::IResult<&'a [u8], T, u32> {
+			fn $name<'a, 'b>(i: &'a [u8], args: &'b [Option<u32>]) -> nom::IResult<&'a [u8], T> {
 				if args.is_empty() {
 					$submac!(i, $($args)*)
 				}
