@@ -244,10 +244,15 @@ fn open(matches: &ArgMatches) -> error::Result<()> {
 			},
 
 			input = input.recv() => {
-				let input = input.unwrap();
-
-				render!(terminal.handle(&input, &mut tty).unwrap());
+				if let Ok(input) = input {
+					render!(terminal.handle(&input, &mut tty).unwrap());
+				}
+				else {
+					break;
+				}
 			}
 		}
 	}
+
+	Ok(())
 }
