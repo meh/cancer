@@ -21,7 +21,6 @@ use std::sync::Arc;
 use std::ops::{Deref, DerefMut};
 
 use picto::Area;
-use picto::color::ComponentWise;
 use config::Config;
 use config::style::Shape;
 use sys::cairo;
@@ -190,14 +189,10 @@ impl Renderer {
 		let (c, o, l, f) = (&self.config, &mut self.context, &mut self.layout, &self.font);
 		let     cb       = blinking && c.style().cursor().blink();
 		let     bc       = blinking && cell.style().attributes().contains(style::BLINK);
-		let mut fg       = *cell.style().foreground().unwrap_or_else(|| c.style().color().foreground());
-		let mut bg       = *cell.style().background().unwrap_or_else(|| c.style().color().background());
+		let mut fg       = cell.style().foreground().unwrap_or_else(|| c.style().color().foreground());
+		let mut bg       = cell.style().background().unwrap_or_else(|| c.style().color().background());
 		let     cfg      = c.style().cursor().foreground();
 		let     cbg      = c.style().cursor().background();
-
-		if cell.style().attributes().contains(style::FAINT) {
-			fg = fg.component_wise_self(|c| c / 2.0);
-		}
 
 		if cell.style().attributes().contains(style::REVERSE) {
 			mem::swap(&mut fg, &mut bg);
@@ -215,7 +210,7 @@ impl Renderer {
 			o.clip();
 
 			// Clear the area for rendering.
-			o.rgba(&bg);
+			o.rgba(bg);
 			o.paint();
 
 			// Render cursors that require to be on the bottom.
@@ -235,7 +230,7 @@ impl Renderer {
 
 				// Other cursors keep the foreground color normal.
 				Shape::Beam | Shape::Line => {
-					o.rgba(&fg);
+					o.rgba(fg);
 				}
 			}
 
@@ -299,13 +294,9 @@ impl Renderer {
 		//
 		// FIXME(meh): Find better names/and or ways to deal with this stuff.
 		let (c, o, l, f) = (&self.config, &mut self.context, &mut self.layout, &self.font);
-		let mut fg       = *cell.style().foreground().unwrap_or_else(|| c.style().color().foreground());
-		let mut bg       = *cell.style().background().unwrap_or_else(|| c.style().color().background());
+		let mut fg       = cell.style().foreground().unwrap_or_else(|| c.style().color().foreground());
+		let mut bg       = cell.style().background().unwrap_or_else(|| c.style().color().background());
 		let     bc       = blinking && cell.style().attributes().contains(style::BLINK);
-
-		if cell.style().attributes().contains(style::FAINT) {
-			fg = fg.component_wise_self(|c| c / 2.0);
-		}
 
 		if cell.style().attributes().contains(style::REVERSE) {
 			mem::swap(&mut fg, &mut bg);
@@ -323,11 +314,11 @@ impl Renderer {
 			o.clip();
 
 			// Draw background.
-			o.rgba(&bg);
+			o.rgba(bg);
 			o.paint();
 
 			// Draw text in the cell.
-			o.rgba(&fg);
+			o.rgba(fg);
 			o.move_to(x as f64, y as f64);
 			l.attributes(attributes(c, cell));
 
@@ -354,6 +345,9 @@ fn attributes(config: &Config, cell: &Cell) -> pango::Attributes {
 	// Set bold.
 	let attrs = if cell.style().attributes().contains(style::BOLD) {
 		attrs.weight(pango::Weight::Bold)
+	}
+	else if cell.style().attributes().contains(style::FAINT) {
+		attrs.weight(pango::Weight::Light)
 	}
 	else {
 		attrs.weight(pango::Weight::Normal)
