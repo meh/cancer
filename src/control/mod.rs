@@ -18,6 +18,7 @@
 #![allow(non_snake_case)]
 
 use std::str;
+use std::io::{self, Write};
 use nom::{self, IResult, Needed, rest};
 
 #[macro_use]
@@ -43,9 +44,27 @@ pub enum Item<'a> {
 	C1(C1::T),
 }
 
+pub trait Format {
+	fn fmt<W: Write>(&self, f: W, wide: bool) -> io::Result<()>;
+}
+
+impl<'a> Format for Item<'a> {
+	fn fmt<W: Write>(&self, mut f: W, wide: bool) -> io::Result<()> {
+		match self {
+			&Item::String(ref value) =>
+				f.write_all(value.as_bytes()),
+
+			&Item::C0(ref value) =>
+				value.fmt(f, wide),
+
+			&Item::C1(ref value) =>
+				value.fmt(f, wide),
+		}
+	}
+}
+
 named!(pub parse<Item>,
 	alt!(control | string));
-
 
 fn string(i: &[u8]) -> IResult<&[u8], Item> {
 	const WIDTH: [u8; 256] = [

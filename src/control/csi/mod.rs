@@ -19,7 +19,8 @@ use std::str;
 use std::u32;
 use nom::{self, ErrorKind, is_digit};
 
-use control;
+use std::io::{self, Write};
+use control::{self, Format};
 
 #[derive(Eq, PartialEq, Clone, Debug)]
 pub enum CSI {
@@ -91,6 +92,46 @@ pub enum CSI {
 }
 
 use self::CSI::*;
+
+impl Format for CSI {
+	fn fmt<W: Write>(&self, mut f: W, wide: bool) -> io::Result<()> {
+		macro_rules! write {
+			($id:expr, [$($values:expr),*]) => ({
+				let params = [$($values),*];
+				write!($id, params.iter())
+			});
+
+			($id:expr, $iter:expr) => ({
+				if wide {
+					try!(f.write_all(b"\x1B\x5B"));
+				}
+				else {
+					try!(f.write_all(b"\x9B"));
+				}
+
+				let     iter = $iter;
+				let mut iter = iter.peekable();
+
+				while iter.peek().is_some() {
+					try!(f.write_all(iter.next().unwrap().to_string().as_bytes()));
+					try!(f.write_all(&[b';']));
+				}
+
+				try!(f.write_all(iter.next().unwrap().to_string().as_bytes()));
+
+				f.write_all($id.as_bytes())
+			})
+		}
+
+		match *self {
+			CursorBackTabulation(value) =>
+				write!("Z", [value]),
+
+			_ =>
+				unreachable!(),
+		}
+	}
+}
 
 mod erase;
 pub use self::erase::Erase;

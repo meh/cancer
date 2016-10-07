@@ -15,7 +15,8 @@
 // You should have received a copy of the GNU General Public License
 // along with cancer.  If not, see <http://www.gnu.org/licenses/>.
 
-use control;
+use std::io::{self, Write};
+use control::{self, Format};
 
 #[derive(Eq, PartialEq, Clone, Debug)]
 pub enum C1 {
@@ -69,6 +70,122 @@ pub enum C1 {
 
 use self::C1::*;
 
+impl Format for C1 {
+	fn fmt<W: Write>(&self, mut f: W, wide: bool) -> io::Result<()> {
+		macro_rules! write {
+			($code:expr) => (
+				if wide {
+					f.write_all(&[0x1B, $code - 0x80])
+				}
+				else {
+					f.write_all(&[$code])
+				}
+			);
+		}
+
+		match *self {
+			Delete =>
+				write!(0x7f),
+
+			PaddingCharacter =>
+				write!(0x80),
+
+			HighOctetPreset =>
+				write!(0x81),
+
+			BreakPermittedHere =>
+				write!(0x82),
+
+			NoBreakHere =>
+				write!(0x83),
+
+			Index =>
+				write!(0x84),
+
+			NextLine =>
+				write!(0x85),
+
+			StartSelectedArea =>
+				write!(0x86),
+
+			EndSelectedArea =>
+				write!(0x87),
+
+			HorizontalTabulationSet =>
+				write!(0x88),
+
+			HorizontalTabulationWithJustification =>
+				write!(0x89),
+
+			VerticalTabulationSet =>
+				write!(0x8A),
+
+			PartialLineDown =>
+				write!(0x8B),
+
+			PartialLineUp =>
+				write!(0x8C),
+
+			ReverseIndex =>
+				write!(0x8D),
+
+			SingleShiftTwo =>
+				write!(0x8E),
+
+			SingleShiftThree =>
+				write!(0x8F),
+
+			DeviceControlString =>
+				write!(0x90),
+
+			PrivateUseOne =>
+				write!(0x91),
+
+			PrivateUseTwo =>
+				write!(0x92),
+
+			SetTransmitState =>
+				write!(0x93),
+
+			CancelCharacter =>
+				write!(0x94),
+
+			MessageWaiting =>
+				write!(0x95),
+
+			StartProtectedArea =>
+				write!(0x96),
+
+			EndProtectedArea =>
+				write!(0x97),
+
+			StartString =>
+				write!(0x98),
+
+			SingleGraphicCharacterIntroducer =>
+				write!(0x99),
+
+			SingleCharacterIntroducer =>
+				write!(0x9A),
+
+			ControlSequenceIntroducer(ref value) =>
+				value.fmt(f, wide),
+
+			StringTerminator =>
+				write!(0x9C),
+
+			OperatingSystemCommand =>
+				write!(0x9D),
+
+			PrivacyMessage =>
+				write!(0x9E),
+
+			ApplicationProgramCommand =>
+				write!(0x9F),
+		}
+	}
+}
+
 named!(pub parse<C1>,
 	alt!(DEL | PAD | HOP | BPH | NBH | IND | NEL | SSA | ESA | HTS | HTJ | VTS |
 	     PLD | PLU | RI | SS2 | SS3 | DCS | PU1 | PU2 | STS | CCH | MW | SPA |
@@ -80,11 +197,11 @@ named!(DEL<C1>,
 
 named!(PAD<C1>,
 	value!(PaddingCharacter,
-		char!(0x80)));
+		alt!(tag!(b"\x80") | tag!(b"\x1B\x40"))));
 
 named!(HOP<C1>,
 	value!(HighOctetPreset,
-		char!(0x81)));
+		alt!(tag!(b"\x81") | tag!(b"\x1B\x41"))));
 
 named!(BPH<C1>,
 	value!(BreakPermittedHere,
@@ -96,7 +213,7 @@ named!(NBH<C1>,
 
 named!(IND<C1>,
 	value!(Index,
-		char!(0x84)));
+		alt!(tag!(b"\x84") | tag!(b"\x1B\x44"))));
 
 named!(NEL<C1>,
 	value!(NextLine,
@@ -112,7 +229,7 @@ named!(ESA<C1>,
 
 named!(HTS<C1>,
 	value!(HorizontalTabulationSet,
-		char!(0x88)));
+		alt!(tag!(b"\x88") | tag!(b"\x1B\x48"))));
 
 named!(HTJ<C1>,
 	value!(HorizontalTabulationWithJustification,
@@ -148,11 +265,11 @@ named!(DCS<C1>,
 
 named!(PU1<C1>,
 	value!(PrivateUseOne,
-		char!(0x91)));
+		alt!(tag!(b"\x91") | tag!(b"\x1B\x51"))));
 
 named!(PU2<C1>,
 	value!(PrivateUseTwo,
-		char!(0x92)));
+		alt!(tag!(b"\x92") | tag!(b"\x1B\x52"))));
 
 named!(STS<C1>,
 	value!(SetTransmitState,
@@ -164,7 +281,7 @@ named!(CCH<C1>,
 
 named!(MW<C1>,
 	value!(MessageWaiting,
-		char!(0x95)));
+		alt!(tag!(b"\x95") | tag!(b"\x1B\x55"))));
 
 named!(SPA<C1>,
 	value!(StartProtectedArea,
@@ -172,7 +289,7 @@ named!(SPA<C1>,
 
 named!(EPA<C1>,
 	value!(EndProtectedArea,
-		char!(0x97)));
+		alt!(tag!(b"\x97") | tag!(b"\x1B\x57"))));
 
 named!(SOS<C1>,
 	value!(StartString,
@@ -180,7 +297,7 @@ named!(SOS<C1>,
 
 named!(SGCI<C1>,
 	value!(SingleGraphicCharacterIntroducer,
-		char!(0x99)));
+		alt!(tag!(b"\x99") | tag!(b"\x1B\x59"))));
 
 named!(SCI<C1>,
 	value!(SingleCharacterIntroducer,
@@ -203,7 +320,7 @@ named!(OSC<C1>,
 
 named!(PM<C1>,
 	value!(PrivacyMessage,
-		char!(0x9E)));
+		alt!(tag!(b"\x9E") | tag!(b"\x1B\x5E"))));
 
 named!(APC<C1>,
 	value!(ApplicationProgramCommand,

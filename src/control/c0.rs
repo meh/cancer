@@ -15,6 +15,9 @@
 // You should have received a copy of the GNU General Public License
 // along with cancer.  If not, see <http://www.gnu.org/licenses/>.
 
+use std::io::{self, Write};
+use control::Format;
+
 #[derive(Eq, PartialEq, Copy, Clone, Debug)]
 pub enum C0 {
 	Null,
@@ -52,6 +55,114 @@ pub enum C0 {
 }
 
 use self::C0::*;
+
+impl Format for C0 {
+	fn fmt<W: Write>(&self, mut f: W, wide: bool) -> io::Result<()> {
+		macro_rules! write {
+			($code:expr) => (
+				f.write_all(&[$code])
+			);
+		}
+
+		match *self {
+			Null =>
+				write!(0x00),
+
+			StartHeading =>
+				write!(0x01),
+
+			StartText =>
+				write!(0x02),
+
+			EndText =>
+				write!(0x03),
+
+			EndTransmission =>
+				write!(0x04),
+
+			Enquiry =>
+				write!(0x05),
+
+			Acknowledge =>
+				write!(0x06),
+
+			Bell =>
+				write!(0x07),
+
+			Backspace =>
+				write!(0x08),
+
+			HorizontalTabulation =>
+				write!(0x09),
+
+			LineFeed =>
+				write!(0x0A),
+
+			VerticalTabulation =>
+				write!(0x0B),
+
+			FormFeed =>
+				write!(0x0C),
+
+			CarriageReturn =>
+				write!(0x0D),
+
+			ShiftOut =>
+				write!(0x0E),
+
+			ShiftIn =>
+				write!(0x0F),
+
+			DataLinkEscape =>
+				write!(0x10),
+
+			DeviceControlOne =>
+				write!(0x11),
+
+			DeviceControlTwo =>
+				write!(0x12),
+
+			DeviceControlThree =>
+				write!(0x13),
+
+			DeviceControlFour =>
+				write!(0x14),
+
+			NegativeAcknowledge =>
+				write!(0x15),
+
+			SynchronousIdle =>
+				write!(0x16),
+
+			EndTransmissionBlock =>
+				write!(0x17),
+
+			Cancel =>
+				write!(0x18),
+
+			EndMedium =>
+				write!(0x19),
+
+			Substitute =>
+				write!(0x1A),
+
+			Escape =>
+				write!(0x1B),
+
+			FileSeparator =>
+				write!(0x1C),
+
+			GroupSeparator =>
+				write!(0x1D),
+
+			RecordSeparator =>
+				write!(0x1E),
+
+			UnitSeparator =>
+				write!(0x1F),
+		}
+	}
+}
 
 named!(pub parse<C0>,
 	alt!(NUL | SOH | STX | ETX | EOT | ENQ | ACK | BEL | BS | HT | LF | VT | FF |
