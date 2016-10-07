@@ -71,6 +71,10 @@ impl Config {
 	pub fn environment(&self) -> &Environment {
 		&self.environment
 	}
+
+	pub fn color(&self) -> &Color {
+		&self.color
+	}
 }
 
 impl From<toml::Table> for Config {
