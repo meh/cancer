@@ -87,8 +87,8 @@ pub enum CSI {
 	LinePosition(u32),
 	LineForward(u32),
 
-	Unknown(char, Option<char>, Vec<Option<u32>>),
-	Private(char, Option<char>, Vec<Option<u32>>),
+	Unknown(u8, Option<u8>, Vec<Option<u32>>),
+	Private(u8, Option<u8>, Vec<Option<u32>>),
 }
 
 use self::CSI::*;
@@ -168,7 +168,7 @@ pub use self::unit::Unit;
 
 const DIGIT:    &[u8] = b"0123456789";
 const LETTER:   &[u8] = b"@ABCDEFGHIJKLMNOPQRSTUVWXYZ[\\]^_`abcdefghijklmnopqrstuvwxyz{|}~";
-const MODIFIER: &[u8] = b" !\"\\#$%&'()*+,-./";
+const MODIFIER: &[u8] = b" !\"#$%&'()*+,-./";
 
 named!(pub parse<CSI>,
 	alt!(private | standard | unknown));
@@ -180,7 +180,7 @@ named!(private<CSI>,
 		modifier: opt!(one_of!(MODIFIER)) ~
 		id:       one_of!(LETTER),
 
-		|| Private(id as char, modifier.map(|c| c as char), args)));
+		|| Private(id as u8, modifier.map(|c| c as u8), args)));
 
 named!(unknown<CSI>,
 	chain!(
@@ -188,7 +188,7 @@ named!(unknown<CSI>,
 		modifier: opt!(one_of!(MODIFIER)) ~
 		id:       one_of!(LETTER),
 
-		|| Unknown(id as char, modifier.map(|c| c as char), args)));
+		|| Unknown(id as u8, modifier.map(|c| c as u8), args)));
 
 // TODO(meh): reorder them by most common occurrence
 named!(standard<CSI>,
