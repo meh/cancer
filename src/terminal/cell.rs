@@ -100,6 +100,10 @@ impl Cell {
 		}
 	}
 
+	pub fn set_style(&mut self, style: Rc<Style>) {
+		self.style = style;
+	}
+
 	pub fn make_char(&mut self, ch: String, wrap: bool) {
 		self.state = State::Char {
 			value: ch,

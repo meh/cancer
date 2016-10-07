@@ -22,6 +22,7 @@ use std::io::Write;
 use unicode_segmentation::UnicodeSegmentation;
 use unicode_width::UnicodeWidthStr;
 use picto::Area;
+use picto::color::Rgba;
 use nom::IResult;
 use error::{self, Error};
 use config::Config;
@@ -32,8 +33,9 @@ use control::{self, C0, C1, CSI, SGR};
 #[derive(Debug)]
 pub struct Terminal {
 	config: Arc<Config>,
+	area:   Area,
 
-	area:     Area,
+	style:    Rc<Style>,
 	cells:    Vec<Cell>,
 	cursor:   (u32, u32),
 	blinking: bool,
@@ -47,8 +49,9 @@ impl Terminal {
 
 		Ok(Terminal {
 			config: config,
+			area:   area,
 
-			area:     area,
+			style:    style.clone(),
 			cells:    cells.collect(),
 			cursor:   (0, 0),
 			blinking: false,
@@ -96,19 +99,84 @@ impl Terminal {
 		let mut input = input.as_ref();
 
 		loop {
-			match escape::parse(input) {
+			match control::parse(input) {
 				IResult::Done(rest, item) => {
 					input = rest;
 
 					match item {
-						escape::Item::Insert(string) => {
+						control::Item::String(string) => {
 							for ch in string.graphemes(true) {
 								self.insert(ch.into());
 							}
 						}
 
-						item => {
-							println!("{:?}", item);
+						control::Item::C1(C1::ControlSequenceIntroducer(CSI::SelectGraphicalRendition(attrs))) => {
+							let mut style = *self.style;
+
+							for attr in &attrs {
+								match attr {
+									&SGR::Reset =>
+										style = Style::default(),
+
+									&SGR::Font(SGR::Weight::Normal) =>
+										style.attributes.remove(style::BOLD | style::FAINT),
+
+									&SGR::Font(SGR::Weight::Bold) => {
+										style.attributes.remove(style::FAINT);
+										style.attributes.insert(style::BOLD);
+									}
+
+									&SGR::Font(SGR::Weight::Faint) => {
+										style.attributes.remove(style::BOLD);
+										style.attributes.insert(style::FAINT);
+									}
+
+									&SGR::Italic(true) =>
+										style.attributes.insert(style::ITALIC),
+									&SGR::Italic(false) =>
+										style.attributes.remove(style::ITALIC),
+
+									&SGR::Underline(true) =>
+										style.attributes.insert(style::UNDERLINE),
+									&SGR::Underline(false) =>
+										style.attributes.remove(style::UNDERLINE),
+
+									&SGR::Blink(true) =>
+										style.attributes.insert(style::BLINK),
+									&SGR::Blink(false) =>
+										style.attributes.remove(style::BLINK),
+
+									&SGR::Reverse(true) =>
+										style.attributes.insert(style::REVERSE),
+									&SGR::Reverse(false) =>
+										style.attributes.remove(style::REVERSE),
+
+									&SGR::Invisible(true) =>
+										style.attributes.insert(style::INVISIBLE),
+									&SGR::Invisible(false) =>
+										style.attributes.remove(style::INVISIBLE),
+
+									&SGR::Struck(true) =>
+										style.attributes.insert(style::STRUCK),
+									&SGR::Struck(false) =>
+										style.attributes.remove(style::STRUCK),
+
+									&SGR::Foreground(ref color) =>
+										style.foreground = Some(to_rgba(color, &self.config, true)),
+
+									&SGR::Background(ref color) =>
+										style.background = Some(to_rgba(color, &self.config, false)),
+								}
+							}
+
+							if style != *self.style {
+								println!("style {:?}", style);
+								self.style = Rc::new(style);
+							}
+						}
+
+						control => {
+							debug!("unhandled control: {:?}", control);
 						}
 					}
 				}
@@ -136,6 +204,7 @@ impl Terminal {
 
 		let (cell, rest) = cells.split_at_mut(1);
 		cell[0].make_char(ch, false);
+		cell[0].set_style(self.style.clone());
 
 		for c in rest {
 			c.make_reference(cell[0].x(), cell[0].y());
@@ -147,5 +216,33 @@ impl Terminal {
 
 	fn delete(&mut self) -> u32 {
 		0
+	}
+}
+
+fn to_rgba(color: &SGR::Color, config: &Config, foreground: bool) -> Rgba<f64> {
+	match color {
+		&SGR::Color::Default => {
+			if foreground {
+				*config.style().color().foreground()
+			}
+			else {
+				*config.style().color().background()
+			}
+		}
+
+		&SGR::Color::Transparent =>
+			Rgba::new(0.0, 0.0, 0.0, 0.0),
+
+		&SGR::Color::Index(index) =>
+			*config.color().get(index),
+
+		&SGR::Color::Rgb(r, g, b) =>
+			Rgba::new_u8(r, g, b, 255),
+
+		&SGR::Color::Cmy(c, m, y) =>
+			unreachable!(),
+
+		&SGR::Color::Cmyk(c, m, y, k) =>
+			unreachable!(),
 	}
 }
