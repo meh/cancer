@@ -67,26 +67,23 @@ fn string(i: &[u8]) -> IResult<&[u8], Item> {
 		4, 4, 4, 4, 4, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, // 0xFF
 	];
 
-	if i.is_empty() {
-		return IResult::Incomplete(Needed::Size(1));
+	let mut length = WIDTH[i[0] as usize] as usize;
+
+	if i.len() < length {
+		return IResult::Incomplete(Needed::Size(length - i.len()));
 	}
 
-	let mut length = 0;
-	let mut input  = i;
+	let mut rest = &i[length..];
 
-	while control(input).is_err() {
-		let w = WIDTH[input[0] as usize] as usize;
+	while !rest.is_empty() && control(rest).is_err() {
+		let w = WIDTH[rest[0] as usize] as usize;
 
-		if input.len() < w {
-			return IResult::Incomplete(Needed::Size(w - input.len()));
+		if rest.len() < w {
+			return IResult::Incomplete(Needed::Size(w - rest.len()));
 		}
 
 		length += w;
-		input   = &input[w..];
-
-		if input.is_empty() {
-			break;
-		}
+		rest    = &rest[w..];
 	}
 
 	if let Ok(string) = str::from_utf8(&i[..length]) {
