@@ -237,7 +237,9 @@ fn open(matches: &ArgMatches) -> error::Result<()> {
 						}
 					}
 
-					_ => ()
+					e => {
+						debug!("unhandled X event: {:?}", e);
+					}
 				}
 			},
 
