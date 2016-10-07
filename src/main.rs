@@ -59,6 +59,8 @@ use font::Font;
 mod timer;
 use timer::Timer;
 
+mod control;
+
 mod terminal;
 use terminal::Terminal;
 

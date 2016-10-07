@@ -26,7 +26,8 @@ use nom::IResult;
 use error::{self, Error};
 use config::Config;
 use style::{self, Style};
-use terminal::{Cell, cell, iter, escape};
+use terminal::{Cell, cell, iter};
+use control::{self, C0, C1, CSI, SGR};
 
 #[derive(Debug)]
 pub struct Terminal {

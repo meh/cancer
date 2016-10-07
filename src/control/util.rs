@@ -15,10 +15,12 @@
 // You should have received a copy of the GNU General Public License
 // along with cancer.  If not, see <http://www.gnu.org/licenses/>.
 
-mod terminal;
-pub use self::terminal::Terminal;
+macro_rules! arg {
+	($args:ident[$index:tt] => $default:tt) => (
+		$args.get($index).and_then(|v| *v).unwrap_or($default)
+	);
 
-pub mod cell;
-pub use self::cell::Cell;
-
-pub mod iter;
+	($args:ident[$index:tt]) => (
+		$args.get($index).and_then(|v| *v)
+	);
+}
