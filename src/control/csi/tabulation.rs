@@ -42,3 +42,17 @@ impl Tabulation {
 		}
 	}
 }
+
+impl Into<u32> for Tabulation {
+	fn into(self) -> u32 {
+		match self {
+			Tabulation::Character             => 0,
+			Tabulation::Line                  => 1,
+			Tabulation::ClearCharacter        => 2,
+			Tabulation::ClearLine             => 3,
+			Tabulation::ClearLineAllCharacter => 4,
+			Tabulation::ClearAllCharacter     => 5,
+			Tabulation::ClearAllLine          => 6,
+		}
+	}
+}

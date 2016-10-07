@@ -42,3 +42,15 @@ impl Parallel {
 }
 
 
+impl Into<u32> for Parallel {
+	fn into(self) -> u32 {
+		match self {
+			Parallel::End                   => 0,
+			Parallel::Start                 => 1,
+			Parallel::StartSupplementary    => 2,
+			Parallel::StartPhoneticJapanese => 3,
+			Parallel::StartPhoneticChinese  => 4,
+			Parallel::StopPhonetic          => 5,
+		}
+	}
+}

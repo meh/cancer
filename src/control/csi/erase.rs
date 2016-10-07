@@ -34,3 +34,13 @@ impl Erase {
 		}
 	}
 }
+
+impl Into<u32> for Erase {
+	fn into(self) -> u32 {
+		match self {
+			Erase::ToEnd   => 0,
+			Erase::ToStart => 1,
+			Erase::All     => 2,
+		}
+	}
+}

@@ -34,3 +34,13 @@ impl Combination {
 		}
 	}
 }
+
+impl Into<u32> for Combination {
+	fn into(self) -> u32 {
+		match self {
+			Combination::Next  => 0,
+			Combination::Start => 1,
+			Combination::End   => 2,
+		}
+	}
+}

@@ -50,6 +50,108 @@ pub enum Color {
 	Rgb(u8, u8, u8),
 }
 
+impl Into<Vec<u32>> for SGR {
+	fn into(self) -> Vec<u32> {
+		match self {
+			Reset =>
+				vec![0],
+
+			Font(Weight::Bold) =>
+				vec![1],
+
+			Font(Weight::Faint) =>
+				vec![2],
+
+			Italic(true) =>
+				vec![3],
+
+			Underline(true) =>
+				vec![4],
+
+			Blink(true) =>
+				vec![5],
+
+			Reverse(true) =>
+				vec![7],
+
+			Invisible(true) =>
+				vec![8],
+
+			Struck(true) =>
+				vec![9],
+
+			Font(Weight::Normal) =>
+				vec![22],
+
+			Italic(false) =>
+				vec![23],
+
+			Underline(false) =>
+				vec![24],
+
+			Blink(false) =>
+				vec![25],
+
+			Reverse(false) =>
+				vec![27],
+
+			Invisible(false) =>
+				vec![28],
+
+			Struck(false) =>
+				vec![29],
+
+			Foreground(Color::Index(index)) if index < 8 =>
+				vec![index as u32 + 30],
+
+			Foreground(Color::Index(index)) if index < 16 =>
+				vec![index as u32 + 90],
+
+			Foreground(Color::Index(index)) =>
+				vec![38, 5, index as u32],
+
+			Foreground(Color::Default) =>
+				vec![38, 0],
+
+			Foreground(Color::Transparent) =>
+				vec![38, 1],
+
+			Foreground(Color::Rgb(r, g, b)) =>
+				vec![38, 2, r as u32, g as u32, b as u32],
+
+			Foreground(Color::Cmy(c, m, y)) =>
+				vec![38, 3, c as u32, m as u32, y as u32],
+
+			Foreground(Color::Cmyk(c, m, y, k)) =>
+				vec![38, 4, c as u32, m as u32, y as u32, k as u32],
+
+			Background(Color::Index(index)) if index < 8 =>
+				vec![index as u32 + 40],
+
+			Background(Color::Index(index)) if index < 16 =>
+				vec![index as u32 + 100],
+
+			Background(Color::Index(index)) =>
+				vec![48, 5, index as u32],
+
+			Background(Color::Default) =>
+				vec![48, 0],
+
+			Background(Color::Transparent) =>
+				vec![48, 1],
+
+			Background(Color::Rgb(r, g, b)) =>
+				vec![48, 2, r as u32, g as u32, b as u32],
+
+			Background(Color::Cmy(c, m, y)) =>
+				vec![48, 3, c as u32, m as u32, y as u32],
+
+			Background(Color::Cmyk(c, m, y, k)) =>
+				vec![48, 4, c as u32, m as u32, y as u32, k as u32],
+		}
+	}
+}
+
 macro_rules! pop {
 	($args:ident, $n:expr) => ({
 		let count = $n;

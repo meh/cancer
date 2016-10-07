@@ -32,3 +32,12 @@ impl Direction {
 		}
 	}
 }
+
+impl Into<u32> for Direction {
+	fn into(self) -> u32 {
+		match self {
+			Direction::Forward  => 0,
+			Direction::Backward => 1,
+		}
+	}
+}

@@ -42,3 +42,17 @@ impl Disposition {
 		}
 	}
 }
+
+impl Into<u32> for Disposition {
+	fn into(self) -> u32 {
+		match self {
+			Disposition::ToHome            => 0,
+			Disposition::ToHomeWithLeader  => 1,
+			Disposition::Center            => 2,
+			Disposition::CenterWithLeader  => 3,
+			Disposition::ToLimit           => 4,
+			Disposition::ToLimitWithLeader => 5,
+			Disposition::ToBoth            => 6,
+		}
+	}
+}

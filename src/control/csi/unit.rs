@@ -46,3 +46,19 @@ impl Unit {
 		}
 	}
 }
+
+impl Into<u32> for Unit {
+	fn into(self) -> u32 {
+		match self {
+			Unit::Character          => 0,
+			Unit::Millimeter         => 1,
+			Unit::ComputerDecipoint  => 2,
+			Unit::Decidot            => 3,
+			Unit::Mil                => 4,
+			Unit::BasicMeasuringUnit => 5,
+			Unit::Micrometer         => 6,
+			Unit::Pixel              => 7,
+			Unit::Decipoint          => 8,
+		}
+	}
+}

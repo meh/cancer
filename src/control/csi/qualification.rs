@@ -52,3 +52,22 @@ impl Qualification {
 		}
 	}
 }
+
+impl Into<u32> for Qualification {
+	fn into(self) -> u32 {
+		match self {
+			Qualification::UnprotectedUnguarded  => 0 ,
+			Qualification::ProtectedGuarded      => 1 ,
+			Qualification::GraphicCharacterInput => 2 ,
+			Qualification::NumericInput          => 3 ,
+			Qualification::AlphabeticInput       => 4 ,
+			Qualification::AlignLast             => 5 ,
+			Qualification::ZeroFill              => 6 ,
+			Qualification::FieldStart            => 7 ,
+			Qualification::ProtectedUnguarded    => 8 ,
+			Qualification::SpaceFill             => 9 ,
+			Qualification::AlignFirst            => 10,
+			Qualification::Reverse               => 11,
+		}
+	}
+}

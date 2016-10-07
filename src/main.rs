@@ -16,7 +16,7 @@
 // along with cancer.  If not, see <http://www.gnu.org/licenses/>.
 
 #![feature(question_mark, mpsc_select, conservative_impl_trait, slice_patterns)]
-#![feature(static_in_const, trace_macros)]
+#![feature(static_in_const, trace_macros, type_ascription)]
 #![recursion_limit="100"]
 
 #[macro_use]

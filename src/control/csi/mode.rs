@@ -68,3 +68,30 @@ impl Mode {
 		}
 	}
 }
+
+impl Into<u32> for Mode {
+	fn into(self) -> u32 {
+		match self {
+			Mode::GuardedAreaTransfer         => 1,
+			Mode::KeyboardAction              => 2,
+			Mode::ControlRepresentation       => 3,
+			Mode::InsertionReplacement        => 4,
+			Mode::StatusReportTransfer        => 5,
+			Mode::Erasure                     => 6,
+			Mode::LineEditing                 => 7,
+			Mode::BidirectionalSupport        => 8,
+			Mode::DeviceComponentSelect       => 9,
+			Mode::CharacterEditing            => 10,
+			Mode::PositioningUnit             => 11,
+			Mode::SendReceive                 => 12,
+			Mode::FormatEffectorAction        => 13,
+			Mode::FormatEffectorTransfer      => 14,
+			Mode::MultipleAreaTransfer        => 15,
+			Mode::TransferTermination         => 16,
+			Mode::SelectedAreaTransfer        => 17,
+			Mode::TabulationStop              => 18,
+			Mode::GraphicRenditionCombination => 21,
+			Mode::ZeroDefault                 => 22,
+		}
+	}
+}

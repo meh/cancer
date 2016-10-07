@@ -85,7 +85,6 @@ pub enum CSI {
 	SpaceWidth(u32),
 	ScrollUp(u32),
 	LinePosition(u32),
-	LineForward(u32),
 
 	Unknown(u8, Option<u8>, Vec<Option<u32>>),
 	Private(u8, Option<u8>, Vec<Option<u32>>),
@@ -96,12 +95,7 @@ use self::CSI::*;
 impl Format for CSI {
 	fn fmt<W: Write>(&self, mut f: W, wide: bool) -> io::Result<()> {
 		macro_rules! write {
-			($id:expr, [$($values:expr),*]) => ({
-				let params = [$($values),*];
-				write!($id, params.iter())
-			});
-
-			($id:expr, $iter:expr) => ({
+			(entry $private:expr) => ({
 				if wide {
 					try!(f.write_all(b"\x1B\x5B"));
 				}
@@ -109,26 +103,260 @@ impl Format for CSI {
 					try!(f.write_all(b"\x9B"));
 				}
 
-				let     iter = $iter;
+				if $private {
+					try!(f.write_all(b"?"));
+				}
+			});
+
+			(parameters $args:expr) => ({
+				let     iter = $args;
 				let mut iter = iter.peekable();
 
 				while iter.peek().is_some() {
-					try!(f.write_all(iter.next().unwrap().to_string().as_bytes()));
+					if let Some(value) = iter.next().unwrap().clone() {
+						try!(f.write_all(value.to_string().as_bytes()));
+					}
+
 					try!(f.write_all(&[b';']));
 				}
 
-				try!(f.write_all(iter.next().unwrap().to_string().as_bytes()));
+				if let Some(value) = iter.next().unwrap().clone() {
+					try!(f.write_all(value.to_string().as_bytes()));
+				}
+			});
+
+			(identifier $id:expr, $modifier:expr) => ({
+				let id       = $id as u8;
+				let modifier = $modifier.map(|c| c as u8);
+
+				if let Some(modifier) = modifier {
+					try!(f.write_all(&[modifier]));
+				}
+
+				f.write_all(&[id])
+			});
+
+			($id:expr, [$($values:expr),*]) => ({
+				let params = [$(Some($values.into(): u32)),*];
+				write!($id, params.iter())
+			});
+
+			($id:expr, ![$($values:expr),*]) => ({
+				let params = [$($values),*];
+				write!($id, params.iter())
+			});
+
+			($id:expr, $iter:expr) => ({
+				write!(entry false);
+				write!(parameters $iter);
 
 				f.write_all($id.as_bytes())
-			})
+			});
+
+			($id:expr) => ({
+				write!(entry false);
+				f.write_all($id.as_bytes())
+			});
 		}
 
 		match *self {
-			CursorBackTabulation(value) =>
-				write!("Z", [value]),
+			CursorBackTabulation(n) =>
+				write!("Z", [n]),
 
-			_ =>
-				unreachable!(),
+			CursorHorizontalPosition(n) =>
+				write!("G", [n + 1]),
+
+			CursorForwardTabulation(n) =>
+				write!("I", [n]),
+
+			CursorNextLine(n) =>
+				write!("E", [n]),
+
+			CursorPreviousLine(n) =>
+				write!("F", [n]),
+
+			CursorPositionReport(x, y) =>
+				write!("R", [x + 1, y + 1]),
+
+			CursorTabulationControl(value) =>
+				write!("W", [value]),
+
+			CursorBack(n) =>
+				write!("D", [n]),
+
+			CursorDown(n) =>
+				write!("B", [n]),
+
+			CursorForward(n) =>
+				write!("C", [n]),
+
+			CursorPosition(x, y) =>
+				write!("H", [x + 1, y + 1]),
+
+			CursorUp(n) =>
+				write!("A", [n]),
+
+			CursorLineTabulation(n) =>
+				write!("Y", [n]),
+
+			DeviceAttributes(n) =>
+				write!("c", [n]),
+
+			DefineAreaQualification(value) =>
+				write!("o", [value]),
+
+			DeleteCharacter(n) =>
+				write!("c", [n]),
+
+			DeleteLine(n) =>
+				write!("M", [n]),
+
+			DeviceStatusReport =>
+				write!("n", [6u32]),
+
+			DimensionTextArea(w, h) =>
+				write!(" T", [w, h]),
+
+			EraseArea(value) =>
+				write!("o", [value]),
+
+			EraseCharacter(n) =>
+				write!("X", [n]),
+
+			EraseField(value) =>
+				write!("J", [value]),
+
+			EraseDisplay(value) =>
+				write!("N", [value]),
+
+			EraseLine(value) =>
+				write!("N", [value]),
+
+			FunctionKey(n) =>
+				write!(" W", [n]),
+
+			SelectFont(a, b) =>
+				write!(" D", [a, b]),
+
+			GraphicCharacterCombination(value) =>
+				write!(" _", [value]),
+
+			GraphicSizeModification(w, h) =>
+				write!("`", [w, h]),
+
+			InsertBlankCharacter(n) =>
+				write!("@", [n]),
+
+			IdentifyDeviceControlString(n) =>
+				write!(" O", ![n]),
+
+			IdentifyGraphicSubrepertoire(n) =>
+				write!(" M", ![n]),
+
+			InsertBlankLine(n) =>
+				write!("L", [n]),
+
+			Justify(ref args) =>
+				write!(" F", args.iter()),
+
+			MediaCopy(value) =>
+				write!("i", [value]),
+
+			NextPage(n) =>
+				write!("U", [n]),
+
+			Presentation(value) =>
+				write!(" Z", [value]),
+
+			PageFormat(n) =>
+				write!(" J", [n]),
+
+			PrecedingPage(n) =>
+				write!("V", [n]),
+
+			PagePosition(n) =>
+				write!(" P", [n]),
+
+			PageBack(n) =>
+				write!(" R", [n]),
+
+			PageForward(n) =>
+				write!(" Q", [n]),
+
+			ParallelText(value) =>
+				write!("\\", [value]),
+
+			GraphicDisposition(ref dispositions) =>
+				write!(" H", dispositions.iter().map(|&d| Some(d.into(): u32))),
+
+			RestoreCursor =>
+				write!("u"),
+
+			Repeat(n) =>
+				write!("b", [n]),
+
+			Reset(ref modes) =>
+				write!("l", modes.iter().map(|&m| Some(m.into(): u32))),
+
+			CharacterOrientation(n) =>
+				write!(" e", [n]),
+
+			SaveCursor =>
+				write!("s"),
+
+			CharacterSpacing(n) =>
+				write!("b", [n]),
+
+			ScrollDown(n) =>
+				write!("T", [n]),
+
+			Movement(direction) =>
+				write!("^", [direction]),
+
+			SelectGraphicalRendition(ref attrs) =>
+				write!("m", attrs.iter().flat_map(|&a| a.into(): Vec<u32>).map(Some)),
+
+			ScrollLeft(n) =>
+				write!(" @", [n]),
+
+			LineSpacing(n) =>
+				write!(" h", [n]),
+
+			Set(ref modes) =>
+				write!("h", modes.iter().map(|&m| m.into(): u32).map(Some)),
+
+			ScrollRight(n) =>
+				write!(" A", [n]),
+
+			ReverseString(false) =>
+				write!("[", [0u32]),
+
+			ReverseString(true) =>
+				write!("[", [1u32]),
+
+			SizeUnit(unit) =>
+				write!(" I", [unit]),
+
+			SpaceWidth(n) =>
+				write!(" [", [n]),
+
+			ScrollUp(n) =>
+				write!("S", [n]),
+
+			LinePosition(n) =>
+				write!("d", [n]),
+
+			Unknown(id, modifier, ref args) => {
+				write!(entry false);
+				write!(parameters args.iter());
+				write!(identifier id, modifier)
+			}
+
+			Private(id, modifier, ref args) => {
+				write!(entry true);
+				write!(parameters args.iter());
+				write!(identifier id, modifier)
+			}
 		}
 	}
 }

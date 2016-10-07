@@ -34,3 +34,13 @@ impl Expansion {
 		}
 	}
 }
+
+impl Into<u32> for Expansion {
+	fn into(self) -> u32 {
+		match self {
+			Expansion::Normal    => 0,
+			Expansion::Expanded  => 1,
+			Expansion::Condensed => 2,
+		}
+	}
+}

@@ -44,3 +44,18 @@ impl Copy {
 		}
 	}
 }
+
+impl Into<u32> for Copy {
+	fn into(self) -> u32 {
+		match self {
+			Copy::ToPrimary      => 0,
+			Copy::FromPrimary    => 1,
+			Copy::ToSecondary    => 2,
+			Copy::FromSecondary  => 3,
+			Copy::StopPrimary    => 4,
+			Copy::StartPrimary   => 5,
+			Copy::StopSecondary  => 6,
+			Copy::StartSecondary => 7,
+		}
+	}
+}
