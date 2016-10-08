@@ -434,73 +434,13 @@ named!(unknown<CSI>,
 named!(standard<CSI>,
 	chain!(
 		args: parameters ~
-		res:  alt!(apply!(CBT,  &args) |
-		           apply!(CHA,  &args) |
-		           apply!(CHT,  &args) |
-		           apply!(CNL,  &args) |
-		           apply!(CPL,  &args) |
-		           apply!(CPR,  &args) |
-		           apply!(CTC,  &args) |
-		           apply!(CUB,  &args) |
-		           apply!(CUD,  &args) |
-		           apply!(CUF,  &args) |
-		           apply!(CUP,  &args) |
-		           apply!(CUU,  &args) |
-		           apply!(CVT,  &args) |
-		           apply!(DA,   &args) |
-		           apply!(DAQ,  &args) |
-		           apply!(DCH,  &args) |
-		           apply!(DL,   &args) |
-		           apply!(DSR,  &args) |
-		           apply!(DTA,  &args) |
-		           apply!(EA,   &args) |
-		           apply!(ECH,  &args) |
-		           apply!(ED,   &args) |
-		           apply!(EF,   &args) |
-		           apply!(EL,   &args) |
-		           apply!(FNK,  &args) |
-		           apply!(FNT,  &args) |
-		           apply!(GCC,  &args) |
-		           apply!(GSM,  &args) |
-		           apply!(HPA,  &args) |
-		           apply!(HPB,  &args) |
-		           apply!(HPR,  &args) |
-		           apply!(HVP,  &args) |
-		           apply!(ICH,  &args) |
-		           apply!(IDCS, &args) |
-		           apply!(IGS,  &args) |
-		           apply!(IL,   &args) |
-		           apply!(JFY,  &args) |
-		           apply!(MC,   &args) |
-		           apply!(NP,   &args) |
-		           apply!(PEC,  &args) |
-		           apply!(PFS,  &args) |
-		           apply!(PP,   &args) |
-		           apply!(PPA,  &args) |
-		           apply!(PPB,  &args) |
-		           apply!(PPR,  &args) |
-		           apply!(PTX,  &args) |
-		           apply!(QUAD, &args) |
-		           apply!(RCP,  &args) |
-		           apply!(REP,  &args) |
-		           apply!(RM,   &args) |
-		           apply!(SCO,  &args) |
-		           apply!(SCP,  &args) |
-		           apply!(SCS,  &args) |
-		           apply!(SD,   &args) |
-		           apply!(SIMD, &args) |
-		           apply!(SGR,  &args) |
-		           apply!(SL,   &args) |
-		           apply!(SLS,  &args) |
-		           apply!(SM,   &args) |
-		           apply!(SR,   &args) |
-		           apply!(SRS,  &args) |
-		           apply!(SSU,  &args) |
-		           apply!(SSW,  &args) |
-		           apply!(SU,   &args) |
-		           apply!(VPA,  &args) |
-		           apply!(VPB,  &args) |
-		           apply!(VPR,  &args)),
+		res:  alt_apply!(&args;
+			CBT | CHA | CHT | CNL | CPL | CPR | CTC | CUB | CUD | CUF | CUP | CUU | CVT |
+			DA | DAQ | DCH | DL | DSR | DTA | EA | ECH | ED | EF | EL | FNK | FNT |
+			GCC | GSM | HPA | HPB | HPR | HVP | ICH | IDCS | IGS | IL | JFY | MC | NP |
+			PEC | PFS | PP | PPA | PPB | PPR | PTX | QUAD | RCP | REP | RM | SCO |
+			SCP | SCS | SD | SIMD | SGR | SL | SLS | SM | SR | SRS | SSU | SSW | SU |
+			VPA | VPB | VPR),
 
 		|| res));
 

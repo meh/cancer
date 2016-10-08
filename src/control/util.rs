@@ -24,3 +24,9 @@ macro_rules! arg {
 		$args.get($index).and_then(|v| *v)
 	);
 }
+
+macro_rules! alt_apply {
+	($i:expr, $arg:expr; $t:ident $(| $rest:tt)*) => (
+		alt!($i, apply!($t, $arg) $(| apply!($rest, $arg))*)
+	);
+}
