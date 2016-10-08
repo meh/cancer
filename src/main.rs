@@ -110,6 +110,8 @@ fn main() {
 
 fn open(matches: &ArgMatches) -> error::Result<()> {
 	use std::sync::Arc;
+	use std::io::Write;
+	use xkbcommon::xkb::keysyms as key;
 
 	let     config   = Arc::new(Config::load(matches.value_of("config"))?);
 	let     font     = Arc::new(Font::load(config.clone())?);
@@ -231,10 +233,20 @@ fn open(matches: &ArgMatches) -> error::Result<()> {
 						let event = xcb::cast_event::<xcb::KeyPressEvent>(&event);
 
 						match keyboard.symbol(event.detail()) {
-							sym => {
-								println!("key: {:?} {:?}", sym, keyboard.string(event.detail()));
+							key::KEY_Return => {
+								render!(terminal.key(terminal::Key::Enter, &mut tty).unwrap());
+							}
+
+							_ => {
+								let string = keyboard.string(event.detail());
+
+								if !string.is_empty() {
+									render!(terminal.input(&string, &mut tty).unwrap());
+								}
 							}
 						}
+
+						tty.flush().unwrap();
 					}
 
 					e => {

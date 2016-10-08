@@ -27,8 +27,8 @@ use nom::IResult;
 use error::{self, Error};
 use config::Config;
 use style::{self, Style};
-use terminal::{Cell, cell, iter};
-use control::{self, C0, C1, CSI, SGR};
+use terminal::{Cell, Key, cell, iter};
+use control::{self, C0, C1, CSI, SGR, Format};
 
 #[derive(Debug)]
 pub struct Terminal {
@@ -95,7 +95,29 @@ impl Terminal {
 		self.iter().filter(|c| c.style().attributes().contains(style::BLINK))
 	}
 
-	pub fn handle<'a, I: AsRef<[u8]>, O: Write>(&'a mut self, input: I, output: O) -> error::Result<impl Iterator<Item = &'a Cell>> {
+	pub fn key<'a, O: Write>(&'a mut self, key: Key, mut output: O) -> error::Result<impl Iterator<Item = &'a Cell>> {
+		macro_rules! write {
+			($item:expr) => (
+				try!(($item.into(): control::Item).fmt(output.by_ref(), true));
+			);
+		}
+
+		match key {
+			Key::Enter => {
+				write!(C0::LineFeed);
+			}
+		}
+
+		Ok(iter::Area::new(self, Area::from(0, 0, 0, 0)))
+	}
+
+	pub fn input<'a, I: AsRef<str>, O: Write>(&'a mut self, input: I, mut output: O) -> error::Result<impl Iterator<Item = &'a Cell>> {
+		try!(output.write_all(input.as_ref().as_bytes()));
+
+		Ok(iter::Area::new(self, Area::from(0, 0, 0, 0)))
+	}
+
+	pub fn handle<'a, I: AsRef<[u8]>, O: Write>(&'a mut self, input: I, mut output: O) -> error::Result<impl Iterator<Item = &'a Cell>> {
 		let mut input = input.as_ref();
 
 		loop {
@@ -108,6 +130,20 @@ impl Terminal {
 							for ch in string.graphemes(true) {
 								self.insert(ch.into());
 							}
+						}
+
+						control::Item::C0(C0::CarriageReturn) => {
+							self.cursor.0 = 0;
+						}
+
+						// TODO: properly scroll
+						control::Item::C0(C0::LineFeed) => {
+							self.cursor.1 += 1;
+						}
+
+						// TODO: properly wrap back
+						control::Item::C0(C0::Backspace) => {
+							self.cursor.0 -= 1;
 						}
 
 						control::Item::C1(C1::ControlSequenceIntroducer(CSI::SelectGraphicalRendition(attrs))) => {
@@ -170,7 +206,6 @@ impl Terminal {
 							}
 
 							if style != *self.style {
-								println!("style {:?}", style);
 								self.style = Rc::new(style);
 							}
 						}
