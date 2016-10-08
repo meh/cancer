@@ -799,7 +799,7 @@ mod test {
 
 		macro_rules! test {
 			($string:expr => $item:expr) => (
-				assert_eq!(Item::C1(C1::ControlSequenceIntroducer($item)),
+				assert_eq!(Item::C1(C1::ControlSequence($item)),
 					parse($string).unwrap().1);
 			);
 		}
@@ -1704,7 +1704,7 @@ mod test {
 
 		macro_rules! test {
 			($code:expr) => (
-				let item = Item::C1(C1::ControlSequenceIntroducer($code));
+				let item = Item::C1(C1::ControlSequence($code));
 
 				let mut result = vec![];
 				item.fmt(&mut result, true).unwrap();

@@ -16,10 +16,11 @@
 // along with cancer.  If not, see <http://www.gnu.org/licenses/>.
 
 use std::io::{self, Write};
+use std::str;
 use control::{self, Format};
 
 #[derive(Eq, PartialEq, Clone, Debug)]
-pub enum C1 {
+pub enum C1<'a> {
 	PaddingCharacter,
 	HighOctetPreset,
 	BreakPermittedHere,
@@ -36,9 +37,7 @@ pub enum C1 {
 	ReverseIndex,
 	SingleShiftTwo,
 	SingleShiftThree,
-	// TODO: Followed by a string of printable characters (0x20 through 0x7E) and
-	//       format effectors (0x08 through 0x0D), terminated by ST (0x9C).
-	DeviceControlString,
+	DeviceControlString(&'a str),
 	PrivateUseOne,
 	PrivateUseTwo,
 	SetTransmitState,
@@ -46,40 +45,42 @@ pub enum C1 {
 	MessageWaiting,
 	StartProtectedArea,
 	EndProtectedArea,
-	// TODO: Followed by a control string terminated by ST (0x9C) that may
-	//       contain any character except SOS or ST. Not part of the first edition of
-	//       ISO/IEC 6429.[3]
-	StartString,
-	SingleGraphicCharacterIntroducer,
-	// TODO: To be followed by a single printable character (0x20 through 0x7E)
-	//       or format effector (0x08 through 0x0D).
-	SingleCharacterIntroducer,
-	ControlSequenceIntroducer(control::CSI::T),
-	StringTerminator,
-	// TODO: Followed by a string of printable characters (0x20 through 0x7E) and
-	//       format effectors (0x08 through 0x0D), terminated by ST (0x9C). 
-	OperatingSystemCommand,
-	// TODO: Followed by a string of printable characters (0x20 through 0x7E) and
-	//       format effectors (0x08 through 0x0D), terminated by ST (0x9C). 
-	PrivacyMessage,
-	// TODO: Followed by a string of printable characters (0x20 through 0x7E) and
-	//       format effectors (0x08 through 0x0D), terminated by ST (0x9C). 
-	ApplicationProgramCommand,
+	String(&'a str),
+	// TODO: this should contain the value.
+	SingleGraphicCharacter,
+	SingleCharacter(&'a str),
+	ControlSequence(control::CSI::T),
+	OperatingSystemCommand(&'a str),
+	PrivacyMessage(&'a str),
+	ApplicationProgramCommand(&'a str),
 }
 
 use self::C1::*;
 
-impl Format for C1 {
+impl<'a> Format for C1<'a> {
 	fn fmt<W: Write>(&self, mut f: W, wide: bool) -> io::Result<()> {
 		macro_rules! write {
 			($code:expr) => (
 				if wide {
-					f.write_all(&[0x1B, $code - 0x40])
+					try!(f.write_all(&[0x1B, $code - 0x40]));
 				}
 				else {
-					f.write_all(&[$code])
+					try!(f.write_all(&[$code]));
 				}
 			);
+		}
+
+		macro_rules! string {
+			($string:expr) => (
+				try!(f.write_all($string.as_bytes()));
+
+				if wide {
+					try!(f.write_all(&[0x1B, 0x9C - 0x40]));
+				}
+				else {
+					try!(f.write_all(&[0x9C]));
+				}
+			)
 		}
 
 		match *self {
@@ -131,8 +132,10 @@ impl Format for C1 {
 			SingleShiftThree =>
 				write!(0x8F),
 
-			DeviceControlString =>
-				write!(0x90),
+			DeviceControlString(string) => {
+				write!(0x90);
+				string!(string);
+			}
 
 			PrivateUseOne =>
 				write!(0x91),
@@ -155,37 +158,55 @@ impl Format for C1 {
 			EndProtectedArea =>
 				write!(0x97),
 
-			StartString =>
-				write!(0x98),
+			String(string) => {
+				write!(0x98);
+				string!(string);
+			}
 
-			SingleGraphicCharacterIntroducer =>
+			SingleGraphicCharacter =>
 				write!(0x99),
 
-			SingleCharacterIntroducer =>
-				write!(0x9A),
+			SingleCharacter(string) => {
+				write!(0x9A);
+				string!(string);
+			}
 
-			ControlSequenceIntroducer(ref value) =>
-				value.fmt(f, wide),
+			ControlSequence(ref value) => {
+				try!(value.fmt(f, wide));
+			}
 
-			StringTerminator =>
-				write!(0x9C),
+			OperatingSystemCommand(string) => {
+				write!(0x9D);
+				string!(string);
+			}
 
-			OperatingSystemCommand =>
-				write!(0x9D),
+			PrivacyMessage(string) => {
+				write!(0x9E);
+				string!(string);
+			}
 
-			PrivacyMessage =>
-				write!(0x9E),
-
-			ApplicationProgramCommand =>
-				write!(0x9F),
+			ApplicationProgramCommand(string) => {
+				write!(0x9F);
+				string!(string);
+			}
 		}
+
+		Ok(())
 	}
 }
 
 named!(pub parse<C1>,
 	alt!(PAD | HOP | BPH | NBH | IND | NEL | SSA | ESA | HTS | HTJ | VTS |
 	     PLD | PLU | RI | SS2 | SS3 | DCS | PU1 | PU2 | STS | CCH | MW | SPA |
-	     EPA | SOS | SGCI | SCI | CSI | ST | OSC | PM | APC));
+	     EPA | SOS | SGCI | SCI | CSI | OSC | PM | APC));
+
+fn is_printable(b: u8) -> bool {
+	(b >= 0x08 && b <= 0x0D) || (b >= 0x20 && b <= 0x7E)
+}
+
+named!(string<&str>,
+	map!(terminated!(take_while!(is_printable), ST),
+		|s| unsafe { str::from_utf8_unchecked(s) }));
 
 named!(PAD<C1>,
 	value!(PaddingCharacter,
@@ -252,8 +273,11 @@ named!(SS3<C1>,
 		alt!(tag!(b"\x8F") | tag!(b"\x1B\x4F"))));
 
 named!(DCS<C1>,
-	value!(DeviceControlString,
-		alt!(tag!(b"\x90") | tag!(b"\x1B\x50"))));
+	chain!(
+		alt!(tag!(b"\x90") | tag!(b"\x1B\x50")) ~
+		string: string,
+		
+		|| DeviceControlString(string)));
 
 named!(PU1<C1>,
 	value!(PrivateUseOne,
@@ -284,39 +308,53 @@ named!(EPA<C1>,
 		alt!(tag!(b"\x97") | tag!(b"\x1B\x57"))));
 
 named!(SOS<C1>,
-	value!(StartString,
-		alt!(tag!(b"\x98") | tag!(b"\x1B\x58"))));
+	chain!(
+		alt!(tag!(b"\x98") | tag!(b"\x1B\x58")) ~
+		string: string,
+		
+		|| String(string)));
 
 named!(SGCI<C1>,
-	value!(SingleGraphicCharacterIntroducer,
+	value!(SingleGraphicCharacter,
 		alt!(tag!(b"\x99") | tag!(b"\x1B\x59"))));
 
 named!(SCI<C1>,
-	value!(SingleCharacterIntroducer,
-		alt!(tag!(b"\x9A") | tag!(b"\x1B\x5A"))));
+	chain!(
+		alt!(tag!(b"\x9A") | tag!(b"\x1B\x5A")) ~
+		string: string,
+
+		|| SingleCharacter(string)));
 
 named!(CSI<C1>,
 	chain!(
 		alt!(tag!(b"\x9B") | tag!(b"\x1B\x5B")) ~
 		res: call!(control::CSI::parse),
 
-		|| ControlSequenceIntroducer(res)));
+		|| ControlSequence(res)));
 
-named!(ST<C1>,
-	value!(StringTerminator,
-		alt!(tag!(b"\x9C") | tag!(b"\x1B\x5C"))));
+named!(ST,
+	alt!(tag!(b"\x9C") | tag!(b"\x1B\x5C")));
 
 named!(OSC<C1>,
-	value!(OperatingSystemCommand,
-		alt!(tag!(b"\x9D") | tag!(b"\x1B\x5D"))));
+	chain!(
+		alt!(tag!(b"\x9D") | tag!(b"\x1B\x5D")) ~
+		string: string,
+
+		|| OperatingSystemCommand(string)));
 
 named!(PM<C1>,
-	value!(PrivacyMessage,
-		alt!(tag!(b"\x9E") | tag!(b"\x1B\x5E"))));
+	chain!(
+		alt!(tag!(b"\x9E") | tag!(b"\x1B\x5E")) ~
+		string: string,
+
+		|| PrivacyMessage(string)));
 
 named!(APC<C1>,
-	value!(ApplicationProgramCommand,
-		alt!(tag!(b"\x9F") | tag!(b"\x1B\x5F"))));
+	chain!(
+		alt!(tag!(b"\x9F") | tag!(b"\x1B\x5F")) ~
+		string: string,
+
+		|| ApplicationProgramCommand(string)));
 
 pub mod shim {
 	pub use super::C1 as T;
@@ -330,199 +368,280 @@ mod test {
 		pub use control::*;
 
 		macro_rules! test {
-			($id:expr => $attr:expr) => (
-				assert_eq!(Item::C1($attr),
-					parse(&[$id]).unwrap().1);
-
-				assert_eq!(Item::C1($attr),
-					parse(&[0x1B, $id - 0x40]).unwrap().1);
+			($string:expr => $item:expr) => (
+				assert_eq!(Item::C1($item),
+					parse($string).unwrap().1);
 			);
 		}
 
 		#[test]
 		fn pad() {
-			test!(0x80 =>
+			test!(b"\x80" =>
+				C1::PaddingCharacter);
+
+			test!(b"\x1B\x40" =>
 				C1::PaddingCharacter);
 		}
 
 		#[test]
 		fn hop() {
-			test!(0x81 =>
+			test!(b"\x81" =>
+				C1::HighOctetPreset);
+
+			test!(b"\x1B\x41" =>
 				C1::HighOctetPreset);
 		}
 
 		#[test]
 		fn bph() {
-			test!(0x82 =>
+			test!(b"\x82" =>
+				C1::BreakPermittedHere);
+
+			test!(b"\x1B\x42" =>
 				C1::BreakPermittedHere);
 		}
 
 		#[test]
 		fn nbh() {
-			test!(0x83 =>
+			test!(b"\x83" =>
+				C1::NoBreakHere);
+
+			test!(b"\x1B\x43" =>
 				C1::NoBreakHere);
 		}
 
 		#[test]
 		fn ind() {
-			test!(0x84 =>
+			test!(b"\x84" =>
+				C1::Index);
+
+			test!(b"\x1B\x44" =>
 				C1::Index);
 		}
 
 		#[test]
 		fn nel() {
-			test!(0x85 =>
+			test!(b"\x85" =>
+				C1::NextLine);
+
+			test!(b"\x1B\x45" =>
 				C1::NextLine);
 		}
 
 		#[test]
 		fn ssa() {
-			test!(0x86 =>
+			test!(b"\x86" =>
+				C1::StartSelectedArea);
+
+			test!(b"\x1B\x46" =>
 				C1::StartSelectedArea);
 		}
 
 		#[test]
 		fn esa() {
-			test!(0x87 =>
+			test!(b"\x87" =>
+				C1::EndSelectedArea);
+
+			test!(b"\x1B\x47" =>
 				C1::EndSelectedArea);
 		}
 
 		#[test]
 		fn hts() {
-			test!(0x88 =>
+			test!(b"\x88" =>
+				C1::HorizontalTabulationSet);
+
+			test!(b"\x1B\x48" =>
 				C1::HorizontalTabulationSet);
 		}
 
 		#[test]
 		fn htj() {
-			test!(0x89 =>
+			test!(b"\x89" =>
+				C1::HorizontalTabulationWithJustification);
+
+			test!(b"\x1B\x49" =>
 				C1::HorizontalTabulationWithJustification);
 		}
 
 		#[test]
 		fn vts() {
-			test!(0x8A =>
+			test!(b"\x8A" =>
+				C1::VerticalTabulationSet);
+
+			test!(b"\x1B\x4A" =>
 				C1::VerticalTabulationSet);
 		}
 
 		#[test]
 		fn pld() {
-			test!(0x8B =>
+			test!(b"\x8B" =>
+				C1::PartialLineDown);
+
+			test!(b"\x1B\x4B" =>
 				C1::PartialLineDown);
 		}
 
 		#[test]
 		fn plu() {
-			test!(0x8C =>
+			test!(b"\x8C" =>
+				C1::PartialLineUp);
+
+			test!(b"\x1B\x4C" =>
 				C1::PartialLineUp);
 		}
 
 		#[test]
 		fn ri() {
-			test!(0x8D =>
+			test!(b"\x8D" =>
+				C1::ReverseIndex);
+
+			test!(b"\x1B\x4D" =>
 				C1::ReverseIndex);
 		}
 
 		#[test]
 		fn ss2() {
-			test!(0x8E =>
+			test!(b"\x8E" =>
+				C1::SingleShiftTwo);
+
+			test!(b"\x1B\x4E" =>
 				C1::SingleShiftTwo);
 		}
 
 		#[test]
 		fn ss3() {
-			test!(0x8F =>
+			test!(b"\x8F" =>
+				C1::SingleShiftThree);
+
+			test!(b"\x1B\x4F" =>
 				C1::SingleShiftThree);
 		}
 
 		#[test]
 		fn dcs() {
-			test!(0x90 =>
-				C1::DeviceControlString);
+			test!(b"\x90foo\x9C" =>
+				C1::DeviceControlString("foo"));
+
+			test!(b"\x1B\x50foo\x1B\x5C" =>
+				C1::DeviceControlString("foo"));
 		}
 
 		#[test]
 		fn pu1() {
-			test!(0x91 =>
+			test!(b"\x91" =>
+				C1::PrivateUseOne);
+
+			test!(b"\x1B\x51" =>
 				C1::PrivateUseOne);
 		}
 
 		#[test]
 		fn pu2() {
-			test!(0x92 =>
+			test!(b"\x92" =>
+				C1::PrivateUseTwo);
+
+			test!(b"\x1B\x52" =>
 				C1::PrivateUseTwo);
 		}
 
 		#[test]
 		fn sts() {
-			test!(0x93 =>
+			test!(b"\x93" =>
+				C1::SetTransmitState);
+
+			test!(b"\x1B\x53" =>
 				C1::SetTransmitState);
 		}
 
 		#[test]
 		fn cch() {
-			test!(0x94 =>
+			test!(b"\x94" =>
+				C1::CancelCharacter);
+
+			test!(b"\x1B\x54" =>
 				C1::CancelCharacter);
 		}
 
 		#[test]
 		fn mw() {
-			test!(0x95 =>
+			test!(b"\x95" =>
+				C1::MessageWaiting);
+
+			test!(b"\x1B\x55" =>
 				C1::MessageWaiting);
 		}
 
 		#[test]
 		fn spa() {
-			test!(0x96 =>
+			test!(b"\x96" =>
+				C1::StartProtectedArea);
+
+			test!(b"\x1B\x56" =>
 				C1::StartProtectedArea);
 		}
 
 		#[test]
 		fn epa() {
-			test!(0x97 =>
+			test!(b"\x97" =>
+				C1::EndProtectedArea);
+
+			test!(b"\x1B\x57" =>
 				C1::EndProtectedArea);
 		}
 
 		#[test]
 		fn sos() {
-			test!(0x98 =>
-				C1::StartString);
+			test!(b"\x98foo\x9C" =>
+				C1::String("foo"));
+
+			test!(b"\x1B\x58foo\x1B\x5C" =>
+				C1::String("foo"));
 		}
 
 		#[test]
 		fn sgci() {
-			test!(0x99 =>
-				C1::SingleGraphicCharacterIntroducer);
+			test!(b"\x99" =>
+				C1::SingleGraphicCharacter);
+
+			test!(b"\x1B\x59" =>
+				C1::SingleGraphicCharacter);
 		}
 
 		#[test]
 		fn sci() {
-			test!(0x9A =>
-				C1::SingleCharacterIntroducer);
-		}
+			test!(b"\x9Afoo\x9C" =>
+				C1::SingleCharacter("foo"));
 
-		#[test]
-		fn st() {
-			test!(0x9C =>
-				C1::StringTerminator);
+			test!(b"\x1B\x5Afoo\x1B\x5C" =>
+				C1::SingleCharacter("foo"));
 		}
 
 		#[test]
 		fn osc() {
-			test!(0x9D =>
-				C1::OperatingSystemCommand);
+			test!(b"\x9Dfoo\x9C" =>
+				C1::OperatingSystemCommand("foo"));
+
+			test!(b"\x1B\x5Dfoo\x1B\x5C" =>
+				C1::OperatingSystemCommand("foo"));
 		}
 
 		#[test]
 		fn pn() {
-			test!(0x9E =>
-				C1::PrivacyMessage);
+			test!(b"\x9Efoo\x9C" =>
+				C1::PrivacyMessage("foo"));
+
+			test!(b"\x1B\x5Efoo\x1B\x5C" =>
+				C1::PrivacyMessage("foo"));
 		}
 
 		#[test]
 		fn apc() {
-			test!(0x9F =>
-				C1::ApplicationProgramCommand);
+			test!(b"\x9Ffoo\x9C" =>
+				C1::ApplicationProgramCommand("foo"));
+
+			test!(b"\x1B\x5Ffoo\x1B\x5C" =>
+				C1::ApplicationProgramCommand("foo"));
 		}
 	}
 
@@ -625,7 +744,7 @@ mod test {
 
 		#[test]
 		fn dcs() {
-			test!(C1::DeviceControlString);
+			test!(C1::DeviceControlString("foo"));
 		}
 
 		#[test]
@@ -665,37 +784,32 @@ mod test {
 
 		#[test]
 		fn sos() {
-			test!(C1::StartString);
+			test!(C1::String("foo"));
 		}
 
 		#[test]
 		fn sgci() {
-			test!(C1::SingleGraphicCharacterIntroducer);
+			test!(C1::SingleGraphicCharacter);
 		}
 
 		#[test]
 		fn sci() {
-			test!(C1::SingleCharacterIntroducer);
-		}
-
-		#[test]
-		fn st() {
-			test!(C1::StringTerminator);
+			test!(C1::SingleCharacter("foo"));
 		}
 
 		#[test]
 		fn osc() {
-			test!(C1::OperatingSystemCommand);
+			test!(C1::OperatingSystemCommand("foo"));
 		}
 
 		#[test]
 		fn pn() {
-			test!(C1::PrivacyMessage);
+			test!(C1::PrivacyMessage("foo"));
 		}
 
 		#[test]
 		fn apc() {
-			test!(C1::ApplicationProgramCommand);
+			test!(C1::ApplicationProgramCommand("foo"));
 		}
 	}
 }

@@ -41,7 +41,7 @@ pub enum Item<'a> {
 	String(&'a str),
 
 	C0(C0::T),
-	C1(C1::T),
+	C1(C1::T<'a>),
 }
 
 impl<'a> From<C0::T> for Item<'a> {
@@ -50,27 +50,27 @@ impl<'a> From<C0::T> for Item<'a> {
 	}
 }
 
-impl<'a> From<C1::T> for Item<'a> {
-	fn from(value: C1::T) -> Item<'a> {
+impl<'a> From<C1::T<'a>> for Item<'a> {
+	fn from(value: C1::T<'a>) -> Item<'a> {
 		Item::C1(value)
 	}
 }
 
 impl<'a> From<CSI::T> for Item<'a> {
 	fn from(value: CSI::T) -> Item<'a> {
-		Item::C1(C1::ControlSequenceIntroducer(value))
+		Item::C1(C1::ControlSequence(value))
 	}
 }
 
 impl<'a> From<SGR::T> for Item<'a> {
 	fn from(value: SGR::T) -> Item<'a> {
-		Item::C1(C1::ControlSequenceIntroducer(CSI::SelectGraphicalRendition(vec![value])))
+		Item::C1(C1::ControlSequence(CSI::SelectGraphicalRendition(vec![value])))
 	}
 }
 
 impl<'a> From<Vec<SGR::T>> for Item<'a> {
 	fn from(value: Vec<SGR::T>) -> Item<'a> {
-		Item::C1(C1::ControlSequenceIntroducer(CSI::SelectGraphicalRendition(value)))
+		Item::C1(C1::ControlSequence(CSI::SelectGraphicalRendition(value)))
 	}
 }
 

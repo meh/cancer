@@ -325,7 +325,7 @@ mod test {
 
 		macro_rules! test {
 			($string:expr => $($attrs:expr),+) => (
-				assert_eq!(Item::C1(C1::ControlSequenceIntroducer(CSI::SelectGraphicalRendition(vec![$($attrs),*]))),
+				assert_eq!(Item::C1(C1::ControlSequence(CSI::SelectGraphicalRendition(vec![$($attrs),*]))),
 					parse($string).unwrap().1);
 			);
 		}
@@ -481,7 +481,7 @@ mod test {
 
 		macro_rules! test {
 			($($attr:expr),+) => (
-				let item = Item::C1(C1::ControlSequenceIntroducer(CSI::SelectGraphicalRendition(
+				let item = Item::C1(C1::ControlSequence(CSI::SelectGraphicalRendition(
 					vec![$($attr),*])));
 
 				let mut result = vec![];

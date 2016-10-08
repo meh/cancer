@@ -146,7 +146,7 @@ impl Terminal {
 							self.cursor.0 -= 1;
 						}
 
-						control::Item::C1(C1::ControlSequenceIntroducer(CSI::SelectGraphicalRendition(attrs))) => {
+						control::Item::C1(C1::ControlSequence(CSI::SelectGraphicalRendition(attrs))) => {
 							let mut style = *self.style;
 
 							for attr in &attrs {
