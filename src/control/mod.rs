@@ -117,5 +117,3 @@ named!(control<Item>,
 	alt!(
 		map!(C1::parse, |c| Item::C1(c)) |
 		map!(C0::parse, |c| Item::C0(c))));
-
-

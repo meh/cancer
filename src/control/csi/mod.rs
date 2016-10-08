@@ -120,8 +120,10 @@ impl Format for CSI {
 					try!(f.write_all(&[b';']));
 				}
 
-				if let Some(value) = iter.next().unwrap().clone() {
-					try!(f.write_all(value.to_string().as_bytes()));
+				if let Some(value) = iter.next() {
+					if let Some(value) = value.clone() {
+						try!(f.write_all(value.to_string().as_bytes()));
+					}
 				}
 			});
 
@@ -206,7 +208,7 @@ impl Format for CSI {
 				write!("o", [value]),
 
 			DeleteCharacter(n) =>
-				write!("c", [n]),
+				write!("P", [n]),
 
 			DeleteLine(n) =>
 				write!("M", [n]),
@@ -218,19 +220,19 @@ impl Format for CSI {
 				write!(" T", [w, h]),
 
 			EraseArea(value) =>
-				write!("o", [value]),
+				write!("O", [value]),
 
 			EraseCharacter(n) =>
 				write!("X", [n]),
 
 			EraseField(value) =>
-				write!("J", [value]),
+				write!("N", [value]),
 
 			EraseDisplay(value) =>
-				write!("N", [value]),
+				write!("J", [value]),
 
 			EraseLine(value) =>
-				write!("N", [value]),
+				write!("K", [value]),
 
 			FunctionKey(n) =>
 				write!(" W", [n]),
@@ -242,7 +244,7 @@ impl Format for CSI {
 				write!(" _", [value]),
 
 			GraphicSizeModification(w, h) =>
-				write!("`", [w, h]),
+				write!(" B", [h, w]),
 
 			InsertBlankCharacter(n) =>
 				write!("@", [n]),
@@ -299,13 +301,23 @@ impl Format for CSI {
 				write!("l", modes.iter().map(|&m| Some(m.into(): u32))),
 
 			CharacterOrientation(n) =>
-				write!(" e", [n]),
+				write!(" e", [match n {
+					0   => 0u32,
+					45  => 1u32,
+					90  => 2u32,
+					135 => 3u32,
+					180 => 4u32,
+					225 => 5u32,
+					270 => 6u32,
+					315 => 7u32,
+					_   => unreachable!(),
+				}]),
 
 			SaveCursor =>
 				write!("s"),
 
 			CharacterSpacing(n) =>
-				write!("b", [n]),
+				write!(" b", [n]),
 
 			ScrollDown(n) =>
 				write!("T", [n]),
@@ -596,7 +608,7 @@ with_args!(DAQ<1, args>,
 		Qualification::parse(arg!(args[0] => 0)).map(DefineAreaQualification)));
 
 with_args!(DCH<1, args>,
-	map!(char!('c'), |_|
+	map!(char!('P'), |_|
 		DeleteCharacter(arg!(args[0] => 1))));
 
 with_args!(DL<1, args>,
@@ -618,7 +630,7 @@ with_args!(DTA<2, args>,
 		DimensionTextArea(arg!(args[0] => 0), arg!(args[1] => 0))));
 
 with_args!(EA<1, args>,
-	map_res!(char!('o'), |_|
+	map_res!(char!('O'), |_|
 		Erase::parse(arg!(args[0] => 0)).map(EraseArea)));
 
 with_args!(ECH<1, args>,
@@ -723,7 +735,7 @@ with_args!(PPR<1, args>,
 
 with_args!(PTX<1, args>,
 	map_res!(char!('\\'), |_|
-		Parallel::parse(arg!(args[0] => 1)).map(ParallelText)));
+		Parallel::parse(arg!(args[0] => 0)).map(ParallelText)));
 
 with_args!(QUAD<args>,
 	map_res!(tag!(b" H"), |_|
@@ -766,7 +778,7 @@ with_args!(SCP,
 		SaveCursor));
 
 with_args!(SCS<1, args>,
-	map!(char!('b'), |_|
+	map!(tag!(b" b"), |_|
 		CharacterSpacing(arg!(args[0] => 1))));
 
 with_args!(SD<1, args>,
@@ -775,7 +787,7 @@ with_args!(SD<1, args>,
 
 with_args!(SIMD<1, args>,
 	map_res!(char!('^'), |_|
-		Direction::parse(arg!(args[0] => 1)).map(Movement)));
+		Direction::parse(arg!(args[0] => 0)).map(Movement)));
 
 with_args!(SGR<args>,
 	map_res!(char!('m'), |_|
@@ -810,7 +822,7 @@ with_args!(SRS<1, args>,
 
 with_args!(SSU<1, args>,
 	map_res!(tag!(b" I"), |_|
-		Unit::parse(arg!(args[0] => 1)).map(SizeUnit)));
+		Unit::parse(arg!(args[0] => 0)).map(SizeUnit)));
 
 with_args!(SSW<1, args>,
 	map!(tag!(b" ["), |_|
@@ -836,236 +848,1413 @@ pub mod shim {
 	pub use super::CSI as T;
 	pub use super::CSI::*;
 	pub use super::parse;
-	pub use super::{Erase, Tabulation, Qualification, Combination};
+	pub use super::{Erase, Tabulation, Qualification, Combination, Copy};
+	pub use super::{Expansion, Parallel, Disposition, Mode, Direction, Unit};
 }
 
 #[cfg(test)]
 mod test {
-	pub use control::*;
+	mod parse {
+		pub use control::*;
 
-	#[test]
-	fn ich() {
-		assert_eq!(Item::C1(C1::ControlSequenceIntroducer(
-			CSI::InsertBlankCharacter(1))),
-			parse(b"\x1B[@").unwrap().1);
+		macro_rules! test {
+			($string:expr => $item:expr) => (
+				assert_eq!(Item::C1(C1::ControlSequenceIntroducer($item)),
+					parse($string).unwrap().1);
+			);
+		}
 
-		assert_eq!(Item::C1(C1::ControlSequenceIntroducer(
-			CSI::InsertBlankCharacter(23))),
-			parse(b"\x1B[23@").unwrap().1);
+		#[test]
+		fn cbt() {
+			test!(b"\x1B[Z" =>
+				CSI::CursorBackTabulation(1));
+
+			test!(b"\x1B[23Z" =>
+				CSI::CursorBackTabulation(23));
+		}
+
+		#[test]
+		fn cha() {
+			test!(b"\x1B[G" =>
+				CSI::CursorHorizontalPosition(0));
+
+			test!(b"\x1B[43G" =>
+				CSI::CursorHorizontalPosition(42));
+		}
+
+		#[test]
+		fn cht() {
+			test!(b"\x1B[I" =>
+				CSI::CursorForwardTabulation(1));
+
+			test!(b"\x1B[23I" =>
+				CSI::CursorForwardTabulation(23));
+		}
+
+		#[test]
+		fn cnl() {
+			test!(b"\x1B[E" =>
+				CSI::CursorNextLine(1));
+
+			test!(b"\x1B[12E" =>
+				CSI::CursorNextLine(12));
+		}
+
+		#[test]
+		fn cpl() {
+			test!(b"\x1B[F" =>
+				CSI::CursorPreviousLine(1));
+
+			test!(b"\x1B[43F" =>
+				CSI::CursorPreviousLine(43));
+		}
+
+		#[test]
+		fn cpr() {
+			test!(b"\x1B[R" =>
+				CSI::CursorPositionReport(0, 0));
+
+			test!(b"\x1B[2R" =>
+				CSI::CursorPositionReport(1, 0));
+
+			test!(b"\x1B[;2R" =>
+				CSI::CursorPositionReport(0, 1));
+
+			test!(b"\x1B[2;2R" =>
+				CSI::CursorPositionReport(1, 1));
+		}
+
+		#[test]
+		fn ctc() {
+			test!(b"\x1B[W" =>
+				CSI::CursorTabulationControl(CSI::Tabulation::Character));
+
+			test!(b"\x1B[0W" =>
+				CSI::CursorTabulationControl(CSI::Tabulation::Character));
+
+			test!(b"\x1B[1W" =>
+				CSI::CursorTabulationControl(CSI::Tabulation::Line));
+
+			test!(b"\x1B[2W" =>
+				CSI::CursorTabulationControl(CSI::Tabulation::ClearCharacter));
+
+			test!(b"\x1B[3W" =>
+				CSI::CursorTabulationControl(CSI::Tabulation::ClearLine));
+
+			test!(b"\x1B[4W" =>
+				CSI::CursorTabulationControl(CSI::Tabulation::ClearLineAllCharacters));
+
+			test!(b"\x1B[5W" =>
+				CSI::CursorTabulationControl(CSI::Tabulation::ClearAllCharacters));
+
+			test!(b"\x1B[6W" =>
+				CSI::CursorTabulationControl(CSI::Tabulation::ClearAllLines));
+		}
+
+		#[test]
+		fn cub() {
+			test!(b"\x1B[D" =>
+				CSI::CursorBack(1));
+
+			test!(b"\x1B[37D" =>
+				CSI::CursorBack(37));
+		}
+
+		#[test]
+		fn cud() {
+			test!(b"\x1B[B" =>
+				CSI::CursorDown(1));
+
+			test!(b"\x1B[42B" =>
+				CSI::CursorDown(42));
+		}
+
+		#[test]
+		fn cuf() {
+			test!(b"\x1B[C" =>
+				CSI::CursorForward(1));
+
+			test!(b"\x1B[13C" =>
+				CSI::CursorForward(13));
+		}
+
+		#[test]
+		fn cup() {
+			test!(b"\x1B[H" =>
+				CSI::CursorPosition(0, 0));
+
+			test!(b"\x1B[2;3H" =>
+				CSI::CursorPosition(1, 2));
+
+			test!(b"\x1B[;3H" =>
+				CSI::CursorPosition(0, 2));
+
+			test!(b"\x1B[2;H" =>
+				CSI::CursorPosition(1, 0));
+
+			test!(b"\x1B[;H" =>
+				CSI::CursorPosition(0, 0));
+		}
+
+		#[test]
+		fn cuu() {
+			test!(b"\x1B[A" =>
+				CSI::CursorUp(1));
+
+			test!(b"\x1B[23A" =>
+				CSI::CursorUp(23));
+		}
+
+		#[test]
+		fn cvt() {
+			test!(b"\x1B[Y" =>
+				CSI::CursorLineTabulation(1));
+
+			test!(b"\x1B[23Y" =>
+				CSI::CursorLineTabulation(23));
+		}
+
+		#[test]
+		fn da() {
+			test!(b"\x1B[c" =>
+				CSI::DeviceAttributes(0));
+
+			test!(b"\x1B[23c" =>
+				CSI::DeviceAttributes(23));
+		}
+
+		#[test]
+		fn daq() {
+			test!(b"\x1B[o" =>
+				CSI::DefineAreaQualification(CSI::Qualification::UnprotectedUnguarded));
+
+			test!(b"\x1B[0o" =>
+				CSI::DefineAreaQualification(CSI::Qualification::UnprotectedUnguarded));
+
+			test!(b"\x1B[1o" =>
+				CSI::DefineAreaQualification(CSI::Qualification::ProtectedGuarded));
+
+			test!(b"\x1B[2o" =>
+				CSI::DefineAreaQualification(CSI::Qualification::GraphicCharacterInput));
+
+			test!(b"\x1B[3o" =>
+				CSI::DefineAreaQualification(CSI::Qualification::NumericInput));
+
+			test!(b"\x1B[4o" =>
+				CSI::DefineAreaQualification(CSI::Qualification::AlphabeticInput));
+
+			test!(b"\x1B[5o" =>
+				CSI::DefineAreaQualification(CSI::Qualification::AlignLast));
+
+			test!(b"\x1B[6o" =>
+				CSI::DefineAreaQualification(CSI::Qualification::ZeroFill));
+
+			test!(b"\x1B[7o" =>
+				CSI::DefineAreaQualification(CSI::Qualification::FieldStart));
+
+			test!(b"\x1B[8o" =>
+				CSI::DefineAreaQualification(CSI::Qualification::ProtectedUnguarded));
+
+			test!(b"\x1B[9o" =>
+				CSI::DefineAreaQualification(CSI::Qualification::SpaceFill));
+
+			test!(b"\x1B[10o" =>
+				CSI::DefineAreaQualification(CSI::Qualification::AlignFirst));
+
+			test!(b"\x1B[11o" =>
+				CSI::DefineAreaQualification(CSI::Qualification::Reverse));
+		}
+
+		#[test]
+		fn dch() {
+			test!(b"\x1B[P" =>
+				CSI::DeleteCharacter(1));
+
+			test!(b"\x1B[8P" =>
+				CSI::DeleteCharacter(8));
+		}
+
+		#[test]
+		fn dl() {
+			test!(b"\x1B[M" =>
+				CSI::DeleteLine(1));
+
+			test!(b"\x1B[8M" =>
+				CSI::DeleteLine(8));
+		}
+
+		#[test]
+		fn dsr() {
+			test!(b"\x1B[6n" =>
+				CSI::DeviceStatusReport);
+		}
+
+		#[test]
+		fn dta() {
+			test!(b"\x1B[ T" =>
+				CSI::DimensionTextArea(0, 0));
+
+			test!(b"\x1B[1 T" =>
+				CSI::DimensionTextArea(1, 0));
+
+			test!(b"\x1B[;1 T" =>
+				CSI::DimensionTextArea(0, 1));
+
+			test!(b"\x1B[1;1 T" =>
+				CSI::DimensionTextArea(1, 1));
+		}
+
+		#[test]
+		fn ea() {
+			test!(b"\x1B[O" =>
+				CSI::EraseArea(CSI::Erase::ToEnd));
+
+			test!(b"\x1B[0O" =>
+				CSI::EraseArea(CSI::Erase::ToEnd));
+
+			test!(b"\x1B[1O" =>
+				CSI::EraseArea(CSI::Erase::ToStart));
+
+			test!(b"\x1B[2O" =>
+				CSI::EraseArea(CSI::Erase::All));
+		}
+
+		#[test]
+		fn ech() {
+			test!(b"\x1B[X" =>
+				CSI::EraseCharacter(1));
+
+			test!(b"\x1B[8X" =>
+				CSI::EraseCharacter(8));
+		}
+
+		#[test]
+		fn ed() {
+			test!(b"\x1B[J" =>
+				CSI::EraseDisplay(CSI::Erase::ToEnd));
+
+			test!(b"\x1B[0J" =>
+				CSI::EraseDisplay(CSI::Erase::ToEnd));
+
+			test!(b"\x1B[1J" =>
+				CSI::EraseDisplay(CSI::Erase::ToStart));
+
+			test!(b"\x1B[2J" =>
+				CSI::EraseDisplay(CSI::Erase::All));
+		}
+
+		#[test]
+		fn ef() {
+			test!(b"\x1B[N" =>
+				CSI::EraseField(CSI::Erase::ToEnd));
+
+			test!(b"\x1B[0N" =>
+				CSI::EraseField(CSI::Erase::ToEnd));
+
+			test!(b"\x1B[1N" =>
+				CSI::EraseField(CSI::Erase::ToStart));
+
+			test!(b"\x1B[2N" =>
+				CSI::EraseField(CSI::Erase::All));
+		}
+
+		#[test]
+		fn el() {
+			test!(b"\x1B[K" =>
+				CSI::EraseLine(CSI::Erase::ToEnd));
+
+			test!(b"\x1B[0K" =>
+				CSI::EraseLine(CSI::Erase::ToEnd));
+
+			test!(b"\x1B[1K" =>
+				CSI::EraseLine(CSI::Erase::ToStart));
+
+			test!(b"\x1B[2K" =>
+				CSI::EraseLine(CSI::Erase::All));
+		}
+
+		#[test]
+		fn fnk() {
+			test!(b"\x1B[ W" =>
+				CSI::FunctionKey(0));
+
+			test!(b"\x1B[13 W" =>
+				CSI::FunctionKey(13));
+		}
+
+		#[test]
+		fn fnt() {
+			test!(b"\x1B[ D" =>
+				CSI::SelectFont(0, 0));
+
+			test!(b"\x1B[13 D" =>
+				CSI::SelectFont(13, 0));
+
+			test!(b"\x1B[;13 D" =>
+				CSI::SelectFont(0, 13));
+
+			test!(b"\x1B[13;13 D" =>
+				CSI::SelectFont(13, 13));
+		}
+
+		#[test]
+		fn gcc() {
+			test!(b"\x1B[ _" =>
+				CSI::GraphicCharacterCombination(CSI::Combination::Next));
+
+			test!(b"\x1B[0 _" =>
+				CSI::GraphicCharacterCombination(CSI::Combination::Next));
+
+			test!(b"\x1B[1 _" =>
+				CSI::GraphicCharacterCombination(CSI::Combination::Start));
+
+			test!(b"\x1B[2 _" =>
+				CSI::GraphicCharacterCombination(CSI::Combination::End));
+		}
+
+		#[test]
+		fn gsm() {
+			test!(b"\x1B[ B" =>
+				CSI::GraphicSizeModification(100, 100));
+
+			test!(b"\x1B[13 B" =>
+				CSI::GraphicSizeModification(100, 13));
+
+			test!(b"\x1B[;13 B" =>
+				CSI::GraphicSizeModification(13, 100));
+
+			test!(b"\x1B[13;13 B" =>
+				CSI::GraphicSizeModification(13, 13));
+		}
+
+		#[test]
+		fn hpa() {
+			test!(b"\x1B[`" =>
+				CSI::CursorHorizontalPosition(0));
+
+			test!(b"\x1B[2`" =>
+				CSI::CursorHorizontalPosition(1));
+		}
+
+		#[test]
+		fn hpb() {
+			test!(b"\x1B[j" =>
+				CSI::CursorBack(1));
+
+			test!(b"\x1B[2j" =>
+				CSI::CursorBack(2));
+		}
+
+		#[test]
+		fn hpr() {
+			test!(b"\x1B[a" =>
+				CSI::CursorForward(1));
+
+			test!(b"\x1B[2a" =>
+				CSI::CursorForward(2));
+		}
+
+		#[test]
+		fn hvp() {
+			test!(b"\x1B[f" =>
+				CSI::CursorPosition(0, 0));
+
+			test!(b"\x1B[13f" =>
+				CSI::CursorPosition(12, 0));
+
+			test!(b"\x1B[;13f" =>
+				CSI::CursorPosition(0, 12));
+
+			test!(b"\x1B[13;13f" =>
+				CSI::CursorPosition(12, 12));
+		}
+
+		#[test]
+		fn ich() {
+			test!(b"\x1B[@" =>
+				CSI::InsertBlankCharacter(1));
+
+			test!(b"\x1B[23@" =>
+				CSI::InsertBlankCharacter(23));
+		}
+
+		#[test]
+		fn idcs() {
+			test!(b"\x1B[ O" =>
+				CSI::IdentifyDeviceControlString(None));
+
+			test!(b"\x1B[1 O" =>
+				CSI::IdentifyDeviceControlString(Some(1)));
+		}
+
+		#[test]
+		fn igs() {
+			test!(b"\x1B[ M" =>
+				CSI::IdentifyGraphicSubrepertoire(None));
+
+			test!(b"\x1B[1 M" =>
+				CSI::IdentifyGraphicSubrepertoire(Some(1)));
+		}
+
+		#[test]
+		fn il() {
+			test!(b"\x1B[L" =>
+				CSI::InsertBlankLine(1));
+
+			test!(b"\x1B[2L" =>
+				CSI::InsertBlankLine(2));
+		}
+
+		#[test]
+		fn jfy() {
+			test!(b"\x1B[1;2 F" =>
+				CSI::Justify(vec![Some(1), Some(2)]));
+		}
+
+		#[test]
+		fn mc() {
+			test!(b"\x1B[i" =>
+				CSI::MediaCopy(CSI::Copy::ToPrimary));
+
+			test!(b"\x1B[0i" =>
+				CSI::MediaCopy(CSI::Copy::ToPrimary));
+
+			test!(b"\x1B[1i" =>
+				CSI::MediaCopy(CSI::Copy::FromPrimary));
+
+			test!(b"\x1B[2i" =>
+				CSI::MediaCopy(CSI::Copy::ToSecondary));
+
+			test!(b"\x1B[3i" =>
+				CSI::MediaCopy(CSI::Copy::FromSecondary));
+
+			test!(b"\x1B[4i" =>
+				CSI::MediaCopy(CSI::Copy::StopPrimary));
+
+			test!(b"\x1B[5i" =>
+				CSI::MediaCopy(CSI::Copy::StartPrimary));
+
+			test!(b"\x1B[6i" =>
+				CSI::MediaCopy(CSI::Copy::StopSecondary));
+
+			test!(b"\x1B[7i" =>
+				CSI::MediaCopy(CSI::Copy::StartSecondary));
+		}
+
+		#[test]
+		fn np() {
+			test!(b"\x1B[U" =>
+				CSI::NextPage(1));
+
+			test!(b"\x1B[2U" =>
+				CSI::NextPage(2));
+		}
+
+		#[test]
+		fn pec() {
+			test!(b"\x1B[ Z" =>
+				CSI::Presentation(CSI::Expansion::Normal));
+
+			test!(b"\x1B[0 Z" =>
+				CSI::Presentation(CSI::Expansion::Normal));
+
+			test!(b"\x1B[1 Z" =>
+				CSI::Presentation(CSI::Expansion::Expanded));
+
+			test!(b"\x1B[2 Z" =>
+				CSI::Presentation(CSI::Expansion::Condensed));
+		}
+
+		#[test]
+		fn pfs() {
+			test!(b"\x1B[ J" =>
+				CSI::PageFormat(0));
+
+			test!(b"\x1B[3 J" =>
+				CSI::PageFormat(3));
+		}
+
+		#[test]
+		fn pp() {
+			test!(b"\x1B[V" =>
+				CSI::PrecedingPage(1));
+
+			test!(b"\x1B[3V" =>
+				CSI::PrecedingPage(3));
+		}
+
+		#[test]
+		fn ppa() {
+			test!(b"\x1B[ P" =>
+				CSI::PagePosition(1));
+
+			test!(b"\x1B[3 P" =>
+				CSI::PagePosition(3));
+		}
+
+		#[test]
+		fn ppb() {
+			test!(b"\x1B[ R" =>
+				CSI::PageBack(1));
+
+			test!(b"\x1B[3 R" =>
+				CSI::PageBack(3));
+		}
+
+		#[test]
+		fn ppr() {
+			test!(b"\x1B[ Q" =>
+				CSI::PageForward(1));
+
+			test!(b"\x1B[3 Q" =>
+				CSI::PageForward(3));
+		}
+
+		#[test]
+		fn ptx() {
+			test!(b"\x1B[\\" =>
+				CSI::ParallelText(CSI::Parallel::End));
+
+			test!(b"\x1B[0\\" =>
+				CSI::ParallelText(CSI::Parallel::End));
+
+			test!(b"\x1B[1\\" =>
+				CSI::ParallelText(CSI::Parallel::Start));
+
+			test!(b"\x1B[2\\" =>
+				CSI::ParallelText(CSI::Parallel::StartSupplementary));
+
+			test!(b"\x1B[3\\" =>
+				CSI::ParallelText(CSI::Parallel::StartPhoneticJapanese));
+
+			test!(b"\x1B[4\\" =>
+				CSI::ParallelText(CSI::Parallel::StartPhoneticChinese));
+
+			test!(b"\x1B[5\\" =>
+				CSI::ParallelText(CSI::Parallel::StopPhonetic));
+		}
+
+		#[test]
+		fn rcp() {
+			test!(b"\x1B[u" =>
+				CSI::RestoreCursor);
+		}
+
+		#[test]
+		fn rep() {
+			test!(b"\x1B[b" =>
+				CSI::Repeat(1));
+
+			test!(b"\x1B[10b" =>
+				CSI::Repeat(10));
+		}
+
+		#[test]
+		fn rm() {
+			test!(b"\x1B[1l" =>
+				CSI::Reset(vec![CSI::Mode::GuardedAreaTransfer]));
+
+			test!(b"\x1B[2l" =>
+				CSI::Reset(vec![CSI::Mode::KeyboardAction]));
+
+			test!(b"\x1B[3l" =>
+				CSI::Reset(vec![CSI::Mode::ControlRepresentation]));
+
+			test!(b"\x1B[4l" =>
+				CSI::Reset(vec![CSI::Mode::InsertionReplacement]));
+
+			test!(b"\x1B[5l" =>
+				CSI::Reset(vec![CSI::Mode::StatusReportTransfer]));
+
+			test!(b"\x1B[6l" =>
+				CSI::Reset(vec![CSI::Mode::Erasure]));
+
+			test!(b"\x1B[7l" =>
+				CSI::Reset(vec![CSI::Mode::LineEditing]));
+
+			test!(b"\x1B[8l" =>
+				CSI::Reset(vec![CSI::Mode::BidirectionalSupport]));
+
+			test!(b"\x1B[9l" =>
+				CSI::Reset(vec![CSI::Mode::DeviceComponentSelect]));
+
+			test!(b"\x1B[10l" =>
+				CSI::Reset(vec![CSI::Mode::CharacterEditing]));
+
+			test!(b"\x1B[11l" =>
+				CSI::Reset(vec![CSI::Mode::PositioningUnit]));
+
+			test!(b"\x1B[12l" =>
+				CSI::Reset(vec![CSI::Mode::SendReceive]));
+
+			test!(b"\x1B[13l" =>
+				CSI::Reset(vec![CSI::Mode::FormatEffectorAction]));
+
+			test!(b"\x1B[14l" =>
+				CSI::Reset(vec![CSI::Mode::FormatEffectorTransfer]));
+
+			test!(b"\x1B[15l" =>
+				CSI::Reset(vec![CSI::Mode::MultipleAreaTransfer]));
+
+			test!(b"\x1B[16l" =>
+				CSI::Reset(vec![CSI::Mode::TransferTermination]));
+
+			test!(b"\x1B[17l" =>
+				CSI::Reset(vec![CSI::Mode::SelectedAreaTransfer]));
+
+			test!(b"\x1B[18l" =>
+				CSI::Reset(vec![CSI::Mode::TabulationStop]));
+
+			test!(b"\x1B[21l" =>
+				CSI::Reset(vec![CSI::Mode::GraphicRenditionCombination]));
+
+			test!(b"\x1B[22l" =>
+				CSI::Reset(vec![CSI::Mode::ZeroDefault]));
+		}
+
+		#[test]
+		fn sco() {
+			test!(b"\x1B[ e" =>
+				CSI::CharacterOrientation(0));
+
+			test!(b"\x1B[0 e" =>
+				CSI::CharacterOrientation(0));
+
+			test!(b"\x1B[1 e" =>
+				CSI::CharacterOrientation(45));
+
+			test!(b"\x1B[2 e" =>
+				CSI::CharacterOrientation(90));
+
+			test!(b"\x1B[3 e" =>
+				CSI::CharacterOrientation(135));
+
+			test!(b"\x1B[4 e" =>
+				CSI::CharacterOrientation(180));
+
+			test!(b"\x1B[5 e" =>
+				CSI::CharacterOrientation(225));
+
+			test!(b"\x1B[6 e" =>
+				CSI::CharacterOrientation(270));
+
+			test!(b"\x1B[7 e" =>
+				CSI::CharacterOrientation(315));
+		}
+
+		#[test]
+		fn scp() {
+			test!(b"\x1B[s" =>
+				CSI::SaveCursor);
+		}
+
+		#[test]
+		fn scs() {
+			test!(b"\x1B[ b" =>
+				CSI::CharacterSpacing(1));
+
+			test!(b"\x1B[23 b" =>
+				CSI::CharacterSpacing(23));
+		}
+
+		#[test]
+		fn sd() {
+			test!(b"\x1B[T" =>
+				CSI::ScrollDown(1));
+
+			test!(b"\x1B[73T" =>
+				CSI::ScrollDown(73));
+		}
+
+		#[test]
+		fn simd() {
+			test!(b"\x1B[^" =>
+				CSI::Movement(CSI::Direction::Forward));
+
+			test!(b"\x1B[0^" =>
+				CSI::Movement(CSI::Direction::Forward));
+
+			test!(b"\x1B[1^" =>
+				CSI::Movement(CSI::Direction::Backward));
+		}
+
+		#[test]
+		fn sl() {
+			test!(b"\x1B[ @" =>
+				CSI::ScrollLeft(1));
+
+			test!(b"\x1B[12 @" =>
+				CSI::ScrollLeft(12));
+		}
+
+		#[test]
+		fn sls() {
+			test!(b"\x1B[ h" =>
+				CSI::LineSpacing(1));
+
+			test!(b"\x1B[12 h" =>
+				CSI::LineSpacing(12));
+		}
+
+		#[test]
+		fn sm() {
+			test!(b"\x1B[1h" =>
+				CSI::Set(vec![CSI::Mode::GuardedAreaTransfer]));
+
+			test!(b"\x1B[2h" =>
+				CSI::Set(vec![CSI::Mode::KeyboardAction]));
+
+			test!(b"\x1B[3h" =>
+				CSI::Set(vec![CSI::Mode::ControlRepresentation]));
+
+			test!(b"\x1B[4h" =>
+				CSI::Set(vec![CSI::Mode::InsertionReplacement]));
+
+			test!(b"\x1B[5h" =>
+				CSI::Set(vec![CSI::Mode::StatusReportTransfer]));
+
+			test!(b"\x1B[6h" =>
+				CSI::Set(vec![CSI::Mode::Erasure]));
+
+			test!(b"\x1B[7h" =>
+				CSI::Set(vec![CSI::Mode::LineEditing]));
+
+			test!(b"\x1B[8h" =>
+				CSI::Set(vec![CSI::Mode::BidirectionalSupport]));
+
+			test!(b"\x1B[9h" =>
+				CSI::Set(vec![CSI::Mode::DeviceComponentSelect]));
+
+			test!(b"\x1B[10h" =>
+				CSI::Set(vec![CSI::Mode::CharacterEditing]));
+
+			test!(b"\x1B[11h" =>
+				CSI::Set(vec![CSI::Mode::PositioningUnit]));
+
+			test!(b"\x1B[12h" =>
+				CSI::Set(vec![CSI::Mode::SendReceive]));
+
+			test!(b"\x1B[13h" =>
+				CSI::Set(vec![CSI::Mode::FormatEffectorAction]));
+
+			test!(b"\x1B[14h" =>
+				CSI::Set(vec![CSI::Mode::FormatEffectorTransfer]));
+
+			test!(b"\x1B[15h" =>
+				CSI::Set(vec![CSI::Mode::MultipleAreaTransfer]));
+
+			test!(b"\x1B[16h" =>
+				CSI::Set(vec![CSI::Mode::TransferTermination]));
+
+			test!(b"\x1B[17h" =>
+				CSI::Set(vec![CSI::Mode::SelectedAreaTransfer]));
+
+			test!(b"\x1B[18h" =>
+				CSI::Set(vec![CSI::Mode::TabulationStop]));
+
+			test!(b"\x1B[21h" =>
+				CSI::Set(vec![CSI::Mode::GraphicRenditionCombination]));
+
+			test!(b"\x1B[22h" =>
+				CSI::Set(vec![CSI::Mode::ZeroDefault]));
+		}
+
+		#[test]
+		fn sr() {
+			test!(b"\x1B[ A" =>
+				CSI::ScrollRight(1));
+
+			test!(b"\x1B[43 A" =>
+				CSI::ScrollRight(43));
+		}
+
+		#[test]
+		fn srs() {
+			test!(b"\x1B[[" =>
+				CSI::ReverseString(false));
+
+			test!(b"\x1B[0[" =>
+				CSI::ReverseString(false));
+
+			test!(b"\x1B[1[" =>
+				CSI::ReverseString(true));
+		}
+
+		#[test]
+		fn ssu() {
+			test!(b"\x1B[ I" =>
+				CSI::SizeUnit(CSI::Unit::Character));
+
+			test!(b"\x1B[0 I" =>
+				CSI::SizeUnit(CSI::Unit::Character));
+
+			test!(b"\x1B[1 I" =>
+				CSI::SizeUnit(CSI::Unit::Millimeter));
+
+			test!(b"\x1B[2 I" =>
+				CSI::SizeUnit(CSI::Unit::ComputerDecipoint));
+
+			test!(b"\x1B[3 I" =>
+				CSI::SizeUnit(CSI::Unit::Decidot));
+
+			test!(b"\x1B[4 I" =>
+				CSI::SizeUnit(CSI::Unit::Mil));
+
+			test!(b"\x1B[5 I" =>
+				CSI::SizeUnit(CSI::Unit::BasicMeasuringUnit));
+
+			test!(b"\x1B[6 I" =>
+				CSI::SizeUnit(CSI::Unit::Micrometer));
+
+			test!(b"\x1B[7 I" =>
+				CSI::SizeUnit(CSI::Unit::Pixel));
+
+			test!(b"\x1B[8 I" =>
+				CSI::SizeUnit(CSI::Unit::Decipoint));
+		}
+
+		#[test]
+		fn ssw() {
+			test!(b"\x1B[ [" =>
+				CSI::SpaceWidth(1));
+
+			test!(b"\x1B[12 [" =>
+				CSI::SpaceWidth(12));
+		}
+
+		#[test]
+		fn su() {
+			test!(b"\x1B[S" =>
+				CSI::ScrollUp(1));
+
+			test!(b"\x1B[37S" =>
+				CSI::ScrollUp(37));
+		}
+
+		#[test]
+		fn vpa() {
+			test!(b"\x1B[d" =>
+				CSI::LinePosition(1));
+
+			test!(b"\x1B[42d" =>
+				CSI::LinePosition(42));
+		}
+
+		#[test]
+		fn vpb() {
+			test!(b"\x1B[k" =>
+				CSI::CursorUp(1));
+
+			test!(b"\x1B[42k" =>
+				CSI::CursorUp(42));
+		}
+
+		#[test]
+		fn vpr() {
+			test!(b"\x1B[e" =>
+				CSI::CursorDown(1));
+
+			test!(b"\x1B[42e" =>
+				CSI::CursorDown(42));
+		}
 	}
 
-	#[test]
-	fn cuu() {
-		assert_eq!(Item::C1(C1::ControlSequenceIntroducer(
-			CSI::CursorUp(1))),
-			parse(b"\x1B[A").unwrap().1);
+	mod format {
+		pub use control::*;
 
-		assert_eq!(Item::C1(C1::ControlSequenceIntroducer(
-			CSI::CursorUp(23))),
-			parse(b"\x1B[23A").unwrap().1);
-	}
+		macro_rules! test {
+			($code:expr) => (
+				let item = Item::C1(C1::ControlSequenceIntroducer($code));
 
-	#[test]
-	fn cud() {
-		assert_eq!(Item::C1(C1::ControlSequenceIntroducer(
-			CSI::CursorDown(1))),
-			parse(b"\x1B[B").unwrap().1);
+				let mut result = vec![];
+				item.fmt(&mut result, true).unwrap();
+				assert_eq!(item, parse(&result).unwrap().1);
 
-		assert_eq!(Item::C1(C1::ControlSequenceIntroducer(
-			CSI::CursorDown(42))),
-			parse(b"\x1B[42B").unwrap().1);
-	}
+				let mut result = vec![];
+				item.fmt(&mut result, false).unwrap();
+				assert_eq!(item, parse(&result).unwrap().1);
+			);
+		}
 
-	#[test]
-	fn vpr() {
-		assert_eq!(Item::C1(C1::ControlSequenceIntroducer(
-			CSI::CursorDown(1))),
-			parse(b"\x1B[e").unwrap().1);
+		#[test]
+		fn cbt() {
+			test!(CSI::CursorBackTabulation(1));
+			test!(CSI::CursorBackTabulation(23));
+		}
 
-		assert_eq!(Item::C1(C1::ControlSequenceIntroducer(
-			CSI::CursorDown(42))),
-			parse(b"\x1B[42e").unwrap().1);
-	}
+		#[test]
+		fn cha() {
+			test!(CSI::CursorHorizontalPosition(0));
+			test!(CSI::CursorHorizontalPosition(42));
+		}
 
-	#[test]
-	fn cuf() {
-		assert_eq!(Item::C1(C1::ControlSequenceIntroducer(
-			CSI::CursorForward(1))),
-			parse(b"\x1B[C").unwrap().1);
+		#[test]
+		fn cht() {
+			test!(CSI::CursorForwardTabulation(1));
+			test!(CSI::CursorForwardTabulation(23));
+		}
 
-		assert_eq!(Item::C1(C1::ControlSequenceIntroducer(
-			CSI::CursorForward(13))),
-			parse(b"\x1B[13C").unwrap().1);
-	}
+		#[test]
+		fn cnl() {
+			test!(CSI::CursorNextLine(1));
+			test!(CSI::CursorNextLine(12));
+		}
 
-	#[test]
-	fn cub() {
-		assert_eq!(Item::C1(C1::ControlSequenceIntroducer(
-			CSI::CursorBack(1))),
-			parse(b"\x1B[D").unwrap().1);
+		#[test]
+		fn cpl() {
+			test!(CSI::CursorPreviousLine(1));
+			test!(CSI::CursorPreviousLine(43));
+		}
 
-		assert_eq!(Item::C1(C1::ControlSequenceIntroducer(
-			CSI::CursorBack(37))),
-			parse(b"\x1B[37D").unwrap().1);
-	}
+		#[test]
+		fn cpr() {
+			test!(CSI::CursorPositionReport(0, 0));
+			test!(CSI::CursorPositionReport(1, 0));
+			test!(CSI::CursorPositionReport(0, 1));
+			test!(CSI::CursorPositionReport(1, 1));
+		}
 
-	#[test]
-	fn cnl() {
-		assert_eq!(Item::C1(C1::ControlSequenceIntroducer(
-			CSI::CursorNextLine(1))),
-			parse(b"\x1B[E").unwrap().1);
+		#[test]
+		fn ctc() {
+			test!(CSI::CursorTabulationControl(CSI::Tabulation::Character));
+			test!(CSI::CursorTabulationControl(CSI::Tabulation::Line));
+			test!(CSI::CursorTabulationControl(CSI::Tabulation::ClearCharacter));
+			test!(CSI::CursorTabulationControl(CSI::Tabulation::ClearLine));
+			test!(CSI::CursorTabulationControl(CSI::Tabulation::ClearLineAllCharacters));
+			test!(CSI::CursorTabulationControl(CSI::Tabulation::ClearAllCharacters));
+			test!(CSI::CursorTabulationControl(CSI::Tabulation::ClearAllLines));
+		}
 
-		assert_eq!(Item::C1(C1::ControlSequenceIntroducer(
-			CSI::CursorNextLine(12))),
-			parse(b"\x1B[12E").unwrap().1);
-	}
+		#[test]
+		fn cub() {
+			test!(CSI::CursorBack(1));
+			test!(CSI::CursorBack(37));
+		}
 
-	#[test]
-	fn cpl() {
-		assert_eq!(Item::C1(C1::ControlSequenceIntroducer(
-			CSI::CursorPreviousLine(1))),
-			parse(b"\x1B[F").unwrap().1);
+		#[test]
+		fn cud() {
+			test!(CSI::CursorDown(1));
+			test!(CSI::CursorDown(42));
+		}
 
-		assert_eq!(Item::C1(C1::ControlSequenceIntroducer(
-			CSI::CursorPreviousLine(43))),
-			parse(b"\x1B[43F").unwrap().1);
-	}
+		#[test]
+		fn cuf() {
+			test!(CSI::CursorForward(1));
+			test!(CSI::CursorForward(13));
+		}
 
-	#[test]
-	fn cha() {
-		assert_eq!(Item::C1(C1::ControlSequenceIntroducer(
-			CSI::CursorHorizontalPosition(0))),
-			parse(b"\x1B[G").unwrap().1);
+		#[test]
+		fn cup() {
+			test!(CSI::CursorPosition(0, 0));
+			test!(CSI::CursorPosition(1, 2));
+			test!(CSI::CursorPosition(0, 2));
+			test!(CSI::CursorPosition(1, 0));
+		}
 
-		assert_eq!(Item::C1(C1::ControlSequenceIntroducer(
-			CSI::CursorHorizontalPosition(42))),
-			parse(b"\x1B[43G").unwrap().1);
-	}
+		#[test]
+		fn cuu() {
+			test!(CSI::CursorUp(1));
+			test!(CSI::CursorUp(23));
+		}
 
-	#[test]
-	fn cup() {
-		assert_eq!(Item::C1(C1::ControlSequenceIntroducer(
-			CSI::CursorPosition(0, 0))),
-			parse(b"\x1B[H").unwrap().1);
+		#[test]
+		fn cvt() {
+			test!(CSI::CursorLineTabulation(1));
+			test!(CSI::CursorLineTabulation(23));
+		}
 
-		assert_eq!(Item::C1(C1::ControlSequenceIntroducer(
-			CSI::CursorPosition(1, 2))),
-			parse(b"\x1B[2;3H").unwrap().1);
+		#[test]
+		fn da() {
+			test!(CSI::DeviceAttributes(0));
+			test!(CSI::DeviceAttributes(23));
+		}
 
-		assert_eq!(Item::C1(C1::ControlSequenceIntroducer(
-			CSI::CursorPosition(0, 2))),
-			parse(b"\x1B[;3H").unwrap().1);
+		#[test]
+		fn daq() {
+			test!(CSI::DefineAreaQualification(CSI::Qualification::UnprotectedUnguarded));
+			test!(CSI::DefineAreaQualification(CSI::Qualification::ProtectedGuarded));
+			test!(CSI::DefineAreaQualification(CSI::Qualification::GraphicCharacterInput));
+			test!(CSI::DefineAreaQualification(CSI::Qualification::NumericInput));
+			test!(CSI::DefineAreaQualification(CSI::Qualification::AlphabeticInput));
+			test!(CSI::DefineAreaQualification(CSI::Qualification::AlignLast));
+			test!(CSI::DefineAreaQualification(CSI::Qualification::ZeroFill));
+			test!(CSI::DefineAreaQualification(CSI::Qualification::FieldStart));
+			test!(CSI::DefineAreaQualification(CSI::Qualification::ProtectedUnguarded));
+			test!(CSI::DefineAreaQualification(CSI::Qualification::SpaceFill));
+			test!(CSI::DefineAreaQualification(CSI::Qualification::AlignFirst));
+			test!(CSI::DefineAreaQualification(CSI::Qualification::Reverse));
+		}
 
-		assert_eq!(Item::C1(C1::ControlSequenceIntroducer(
-			CSI::CursorPosition(1, 0))),
-			parse(b"\x1B[2;H").unwrap().1);
+		#[test]
+		fn dch() {
+			test!(CSI::DeleteCharacter(1));
+			test!(CSI::DeleteCharacter(8));
+		}
 
-		assert_eq!(Item::C1(C1::ControlSequenceIntroducer(
-			CSI::CursorPosition(0, 0))),
-			parse(b"\x1B[;H").unwrap().1);
-	}
+		#[test]
+		fn dl() {
+			test!(CSI::DeleteLine(1));
+			test!(CSI::DeleteLine(8));
+		}
 
-	#[test]
-	fn hvp() {
-		assert_eq!(Item::C1(C1::ControlSequenceIntroducer(
-			CSI::CursorPosition(0, 0))),
-			parse(b"\x1B[f").unwrap().1);
+		#[test]
+		fn dsr() {
+			test!(CSI::DeviceStatusReport);
+		}
 
-		assert_eq!(Item::C1(C1::ControlSequenceIntroducer(
-			CSI::CursorPosition(1, 2))),
-			parse(b"\x1B[2;3f").unwrap().1);
+		#[test]
+		fn dta() {
+			test!(CSI::DimensionTextArea(0, 0));
+			test!(CSI::DimensionTextArea(1, 0));
+			test!(CSI::DimensionTextArea(0, 1));
+			test!(CSI::DimensionTextArea(1, 1));
+		}
 
-		assert_eq!(Item::C1(C1::ControlSequenceIntroducer(
-			CSI::CursorPosition(0, 2))),
-			parse(b"\x1B[;3f").unwrap().1);
+		#[test]
+		fn ea() {
+			test!(CSI::EraseArea(CSI::Erase::ToEnd));
+			test!(CSI::EraseArea(CSI::Erase::ToStart));
+			test!(CSI::EraseArea(CSI::Erase::All));
+		}
 
-		assert_eq!(Item::C1(C1::ControlSequenceIntroducer(
-			CSI::CursorPosition(1, 0))),
-			parse(b"\x1B[2;f").unwrap().1);
+		#[test]
+		fn ech() {
+			test!(CSI::EraseCharacter(1));
+			test!(CSI::EraseCharacter(8));
+		}
 
-		assert_eq!(Item::C1(C1::ControlSequenceIntroducer(
-			CSI::CursorPosition(0, 0))),
-			parse(b"\x1B[;f").unwrap().1);
-	}
+		#[test]
+		fn ed() {
+			test!(CSI::EraseDisplay(CSI::Erase::ToEnd));
+			test!(CSI::EraseDisplay(CSI::Erase::ToStart));
+			test!(CSI::EraseDisplay(CSI::Erase::All));
+		}
 
-	#[test]
-	fn ed() {
-		assert_eq!(Item::C1(C1::ControlSequenceIntroducer(
-			CSI::EraseDisplay(CSI::Erase::ToEnd))),
-			parse(b"\x1B[J").unwrap().1);
+		#[test]
+		fn ef() {
+			test!(CSI::EraseField(CSI::Erase::ToEnd));
+			test!(CSI::EraseField(CSI::Erase::ToEnd));
+			test!(CSI::EraseField(CSI::Erase::ToStart));
+			test!(CSI::EraseField(CSI::Erase::All));
+		}
 
-		assert_eq!(Item::C1(C1::ControlSequenceIntroducer(
-			CSI::EraseDisplay(CSI::Erase::ToEnd))),
-			parse(b"\x1B[0J").unwrap().1);
+		#[test]
+		fn el() {
+			test!(CSI::EraseLine(CSI::Erase::ToEnd));
+			test!(CSI::EraseLine(CSI::Erase::ToEnd));
+			test!(CSI::EraseLine(CSI::Erase::ToStart));
+			test!(CSI::EraseLine(CSI::Erase::All));
+		}
 
-		assert_eq!(Item::C1(C1::ControlSequenceIntroducer(
-			CSI::EraseDisplay(CSI::Erase::ToStart))),
-			parse(b"\x1B[1J").unwrap().1);
+		#[test]
+		fn fnk() {
+			test!(CSI::FunctionKey(0));
+			test!(CSI::FunctionKey(13));
+		}
 
-		assert_eq!(Item::C1(C1::ControlSequenceIntroducer(
-			CSI::EraseDisplay(CSI::Erase::All))),
-			parse(b"\x1B[2J").unwrap().1);
-	}
+		#[test]
+		fn fnt() {
+			test!(CSI::SelectFont(0, 0));
+			test!(CSI::SelectFont(13, 0));
+			test!(CSI::SelectFont(0, 13));
+			test!(CSI::SelectFont(13, 13));
+		}
 
-	#[test]
-	fn el() {
-		assert_eq!(Item::C1(C1::ControlSequenceIntroducer(
-			CSI::EraseLine(CSI::Erase::ToEnd))),
-			parse(b"\x1B[K").unwrap().1);
+		#[test]
+		fn gcc() {
+			test!(CSI::GraphicCharacterCombination(CSI::Combination::Next));
+			test!(CSI::GraphicCharacterCombination(CSI::Combination::Start));
+			test!(CSI::GraphicCharacterCombination(CSI::Combination::End));
+		}
 
-		assert_eq!(Item::C1(C1::ControlSequenceIntroducer(
-			CSI::EraseLine(CSI::Erase::ToEnd))),
-			parse(b"\x1B[0K").unwrap().1);
+		#[test]
+		fn gsm() {
+			test!(CSI::GraphicSizeModification(100, 100));
+			test!(CSI::GraphicSizeModification(100, 13));
+			test!(CSI::GraphicSizeModification(13, 100));
+			test!(CSI::GraphicSizeModification(13, 13));
+		}
 
-		assert_eq!(Item::C1(C1::ControlSequenceIntroducer(
-			CSI::EraseLine(CSI::Erase::ToStart))),
-			parse(b"\x1B[1K").unwrap().1);
+		#[test]
+		fn hpa() {
+			test!(CSI::CursorHorizontalPosition(0));
+			test!(CSI::CursorHorizontalPosition(1));
+		}
 
-		assert_eq!(Item::C1(C1::ControlSequenceIntroducer(
-			CSI::EraseLine(CSI::Erase::All))),
-			parse(b"\x1B[2K").unwrap().1);
-	}
+		#[test]
+		fn hpb() {
+			test!(CSI::CursorBack(1));
+			test!(CSI::CursorBack(2));
+		}
 
-	#[test]
-	fn su() {
-		assert_eq!(Item::C1(C1::ControlSequenceIntroducer(
-			CSI::ScrollUp(1))),
-			parse(b"\x1B[S").unwrap().1);
+		#[test]
+		fn hpr() {
+			test!(CSI::CursorForward(1));
+			test!(CSI::CursorForward(2));
+		}
 
-		assert_eq!(Item::C1(C1::ControlSequenceIntroducer(
-			CSI::ScrollUp(37))),
-			parse(b"\x1B[37S").unwrap().1);
-	}
+		#[test]
+		fn hvp() {
+			test!(CSI::CursorPosition(0, 0));
+			test!(CSI::CursorPosition(12, 0));
+			test!(CSI::CursorPosition(0, 12));
+			test!(CSI::CursorPosition(12, 12));
+		}
 
-	#[test]
-	fn sd() {
-		assert_eq!(Item::C1(C1::ControlSequenceIntroducer(
-			CSI::ScrollDown(1))),
-			parse(b"\x1B[T").unwrap().1);
+		#[test]
+		fn ich() {
+			test!(CSI::InsertBlankCharacter(1));
+			test!(CSI::InsertBlankCharacter(23));
+		}
 
-		assert_eq!(Item::C1(C1::ControlSequenceIntroducer(
-			CSI::ScrollDown(73))),
-			parse(b"\x1B[73T").unwrap().1);
-	}
+		#[test]
+		fn idcs() {
+			test!(CSI::IdentifyDeviceControlString(None));
+			test!(CSI::IdentifyDeviceControlString(Some(1)));
+		}
 
-	#[test]
-	fn dsr() {
-		assert_eq!(Item::C1(C1::ControlSequenceIntroducer(
-			CSI::DeviceStatusReport)),
-			parse(b"\x1B[6n").unwrap().1);
-	}
+		#[test]
+		fn igs() {
+			test!(CSI::IdentifyGraphicSubrepertoire(None));
+			test!(CSI::IdentifyGraphicSubrepertoire(Some(1)));
+		}
 
-	#[test]
-	fn scp() {
-		assert_eq!(Item::C1(C1::ControlSequenceIntroducer(
-			CSI::SaveCursor)),
-			parse(b"\x1B[s").unwrap().1);
-	}
+		#[test]
+		fn il() {
+			test!(CSI::InsertBlankLine(1));
+			test!(CSI::InsertBlankLine(2));
+		}
 
-	#[test]
-	fn rcp() {
-		assert_eq!(Item::C1(C1::ControlSequenceIntroducer(
-			CSI::RestoreCursor)),
-			parse(b"\x1B[u").unwrap().1);
+		#[test]
+		fn jfy() {
+			test!(CSI::Justify(vec![Some(1), Some(2)]));
+		}
+
+		#[test]
+		fn mc() {
+			test!(CSI::MediaCopy(CSI::Copy::ToPrimary));
+			test!(CSI::MediaCopy(CSI::Copy::FromPrimary));
+			test!(CSI::MediaCopy(CSI::Copy::ToSecondary));
+			test!(CSI::MediaCopy(CSI::Copy::FromSecondary));
+			test!(CSI::MediaCopy(CSI::Copy::StopPrimary));
+			test!(CSI::MediaCopy(CSI::Copy::StartPrimary));
+			test!(CSI::MediaCopy(CSI::Copy::StopSecondary));
+			test!(CSI::MediaCopy(CSI::Copy::StartSecondary));
+		}
+
+		#[test]
+		fn np() {
+			test!(CSI::NextPage(1));
+			test!(CSI::NextPage(2));
+		}
+
+		#[test]
+		fn pec() {
+			test!(CSI::Presentation(CSI::Expansion::Normal));
+			test!(CSI::Presentation(CSI::Expansion::Expanded));
+			test!(CSI::Presentation(CSI::Expansion::Condensed));
+		}
+
+		#[test]
+		fn pfs() {
+			test!(CSI::PageFormat(0));
+			test!(CSI::PageFormat(3));
+		}
+
+		#[test]
+		fn pp() {
+			test!(CSI::PrecedingPage(1));
+			test!(CSI::PrecedingPage(3));
+		}
+
+		#[test]
+		fn ppa() {
+			test!(CSI::PagePosition(1));
+			test!(CSI::PagePosition(3));
+		}
+
+		#[test]
+		fn ppb() {
+			test!(CSI::PageBack(1));
+			test!(CSI::PageBack(3));
+		}
+
+		#[test]
+		fn ppr() {
+			test!(CSI::PageForward(1));
+			test!(CSI::PageForward(3));
+		}
+
+		#[test]
+		fn ptx() {
+			test!(CSI::ParallelText(CSI::Parallel::End));
+			test!(CSI::ParallelText(CSI::Parallel::Start));
+			test!(CSI::ParallelText(CSI::Parallel::StartSupplementary));
+			test!(CSI::ParallelText(CSI::Parallel::StartPhoneticJapanese));
+			test!(CSI::ParallelText(CSI::Parallel::StartPhoneticChinese));
+			test!(CSI::ParallelText(CSI::Parallel::StopPhonetic));
+		}
+
+		#[test]
+		fn rcp() {
+			test!(CSI::RestoreCursor);
+		}
+
+		#[test]
+		fn rep() {
+			test!(CSI::Repeat(1));
+			test!(CSI::Repeat(10));
+		}
+
+		#[test]
+		fn rm() {
+			test!(CSI::Reset(vec![CSI::Mode::GuardedAreaTransfer]));
+			test!(CSI::Reset(vec![CSI::Mode::KeyboardAction]));
+			test!(CSI::Reset(vec![CSI::Mode::ControlRepresentation]));
+			test!(CSI::Reset(vec![CSI::Mode::InsertionReplacement]));
+			test!(CSI::Reset(vec![CSI::Mode::StatusReportTransfer]));
+			test!(CSI::Reset(vec![CSI::Mode::Erasure]));
+			test!(CSI::Reset(vec![CSI::Mode::LineEditing]));
+			test!(CSI::Reset(vec![CSI::Mode::BidirectionalSupport]));
+			test!(CSI::Reset(vec![CSI::Mode::DeviceComponentSelect]));
+			test!(CSI::Reset(vec![CSI::Mode::CharacterEditing]));
+			test!(CSI::Reset(vec![CSI::Mode::PositioningUnit]));
+			test!(CSI::Reset(vec![CSI::Mode::SendReceive]));
+			test!(CSI::Reset(vec![CSI::Mode::FormatEffectorAction]));
+			test!(CSI::Reset(vec![CSI::Mode::FormatEffectorTransfer]));
+			test!(CSI::Reset(vec![CSI::Mode::MultipleAreaTransfer]));
+			test!(CSI::Reset(vec![CSI::Mode::TransferTermination]));
+			test!(CSI::Reset(vec![CSI::Mode::SelectedAreaTransfer]));
+			test!(CSI::Reset(vec![CSI::Mode::TabulationStop]));
+			test!(CSI::Reset(vec![CSI::Mode::GraphicRenditionCombination]));
+			test!(CSI::Reset(vec![CSI::Mode::ZeroDefault]));
+		}
+
+		#[test]
+		fn sco() {
+			test!(CSI::CharacterOrientation(0));
+			test!(CSI::CharacterOrientation(45));
+			test!(CSI::CharacterOrientation(90));
+			test!(CSI::CharacterOrientation(135));
+			test!(CSI::CharacterOrientation(180));
+			test!(CSI::CharacterOrientation(225));
+			test!(CSI::CharacterOrientation(270));
+			test!(CSI::CharacterOrientation(315));
+		}
+
+		#[test]
+		fn scp() {
+			test!(CSI::SaveCursor);
+		}
+
+		#[test]
+		fn scs() {
+			test!(CSI::CharacterSpacing(1));
+			test!(CSI::CharacterSpacing(23));
+		}
+
+		#[test]
+		fn sd() {
+			test!(CSI::ScrollDown(1));
+			test!(CSI::ScrollDown(73));
+		}
+
+		#[test]
+		fn simd() {
+			test!(CSI::Movement(CSI::Direction::Forward));
+			test!(CSI::Movement(CSI::Direction::Forward));
+			test!(CSI::Movement(CSI::Direction::Backward));
+		}
+
+		#[test]
+		fn sl() {
+			test!(CSI::ScrollLeft(1));
+			test!(CSI::ScrollLeft(12));
+		}
+
+		#[test]
+		fn sls() {
+			test!(CSI::LineSpacing(1));
+			test!(CSI::LineSpacing(12));
+		}
+
+		#[test]
+		fn sm() {
+			test!(CSI::Set(vec![CSI::Mode::GuardedAreaTransfer]));
+			test!(CSI::Set(vec![CSI::Mode::KeyboardAction]));
+			test!(CSI::Set(vec![CSI::Mode::ControlRepresentation]));
+			test!(CSI::Set(vec![CSI::Mode::InsertionReplacement]));
+			test!(CSI::Set(vec![CSI::Mode::StatusReportTransfer]));
+			test!(CSI::Set(vec![CSI::Mode::Erasure]));
+			test!(CSI::Set(vec![CSI::Mode::LineEditing]));
+			test!(CSI::Set(vec![CSI::Mode::BidirectionalSupport]));
+			test!(CSI::Set(vec![CSI::Mode::DeviceComponentSelect]));
+			test!(CSI::Set(vec![CSI::Mode::CharacterEditing]));
+			test!(CSI::Set(vec![CSI::Mode::PositioningUnit]));
+			test!(CSI::Set(vec![CSI::Mode::SendReceive]));
+			test!(CSI::Set(vec![CSI::Mode::FormatEffectorAction]));
+			test!(CSI::Set(vec![CSI::Mode::FormatEffectorTransfer]));
+			test!(CSI::Set(vec![CSI::Mode::MultipleAreaTransfer]));
+			test!(CSI::Set(vec![CSI::Mode::TransferTermination]));
+			test!(CSI::Set(vec![CSI::Mode::SelectedAreaTransfer]));
+			test!(CSI::Set(vec![CSI::Mode::TabulationStop]));
+			test!(CSI::Set(vec![CSI::Mode::GraphicRenditionCombination]));
+			test!(CSI::Set(vec![CSI::Mode::ZeroDefault]));
+		}
+
+		#[test]
+		fn sr() {
+			test!(CSI::ScrollRight(1));
+			test!(CSI::ScrollRight(43));
+		}
+
+		#[test]
+		fn srs() {
+			test!(CSI::ReverseString(false));
+			test!(CSI::ReverseString(true));
+		}
+
+		#[test]
+		fn ssu() {
+			test!(CSI::SizeUnit(CSI::Unit::Character));
+			test!(CSI::SizeUnit(CSI::Unit::Millimeter));
+			test!(CSI::SizeUnit(CSI::Unit::ComputerDecipoint));
+			test!(CSI::SizeUnit(CSI::Unit::Decidot));
+			test!(CSI::SizeUnit(CSI::Unit::Mil));
+			test!(CSI::SizeUnit(CSI::Unit::BasicMeasuringUnit));
+			test!(CSI::SizeUnit(CSI::Unit::Micrometer));
+			test!(CSI::SizeUnit(CSI::Unit::Pixel));
+			test!(CSI::SizeUnit(CSI::Unit::Decipoint));
+		}
+
+		#[test]
+		fn ssw() {
+			test!(CSI::SpaceWidth(1));
+			test!(CSI::SpaceWidth(12));
+		}
+
+		#[test]
+		fn su() {
+			test!(CSI::ScrollUp(1));
+			test!(CSI::ScrollUp(37));
+		}
+
+		#[test]
+		fn vpa() {
+			test!(CSI::LinePosition(1));
+			test!(CSI::CursorDown(42));
+		}
+
+		#[test]
+		fn vpb() {
+			test!(CSI::CursorUp(1));
+			test!(CSI::CursorUp(42));
+		}
+
+		#[test]
+		fn vpr() {
+			test!(CSI::CursorDown(1));
+			test!(CSI::CursorDown(42));
+		}
 	}
 }

@@ -23,9 +23,9 @@ pub enum Tabulation {
 	Line,
 	ClearCharacter,
 	ClearLine,
-	ClearLineAllCharacter,
-	ClearAllCharacter,
-	ClearAllLine,
+	ClearLineAllCharacters,
+	ClearAllCharacters,
+	ClearAllLines,
 }
 
 impl Tabulation {
@@ -35,9 +35,9 @@ impl Tabulation {
 			1 => Ok(Tabulation::Line),
 			2 => Ok(Tabulation::ClearCharacter),
 			3 => Ok(Tabulation::ClearLine),
-			4 => Ok(Tabulation::ClearLineAllCharacter),
-			5 => Ok(Tabulation::ClearAllCharacter),
-			6 => Ok(Tabulation::ClearAllLine),
+			4 => Ok(Tabulation::ClearLineAllCharacters),
+			5 => Ok(Tabulation::ClearAllCharacters),
+			6 => Ok(Tabulation::ClearAllLines),
 			_ => Err(nom::Err::Code(nom::ErrorKind::Custom(9003))),
 		}
 	}
@@ -46,13 +46,13 @@ impl Tabulation {
 impl Into<u32> for Tabulation {
 	fn into(self) -> u32 {
 		match self {
-			Tabulation::Character             => 0,
-			Tabulation::Line                  => 1,
-			Tabulation::ClearCharacter        => 2,
-			Tabulation::ClearLine             => 3,
-			Tabulation::ClearLineAllCharacter => 4,
-			Tabulation::ClearAllCharacter     => 5,
-			Tabulation::ClearAllLine          => 6,
+			Tabulation::Character              => 0,
+			Tabulation::Line                   => 1,
+			Tabulation::ClearCharacter         => 2,
+			Tabulation::ClearLine              => 3,
+			Tabulation::ClearLineAllCharacters => 4,
+			Tabulation::ClearAllCharacters     => 5,
+			Tabulation::ClearAllLines          => 6,
 		}
 	}
 }

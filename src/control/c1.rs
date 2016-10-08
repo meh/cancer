@@ -20,7 +20,6 @@ use control::{self, Format};
 
 #[derive(Eq, PartialEq, Clone, Debug)]
 pub enum C1 {
-	Delete,
 	PaddingCharacter,
 	HighOctetPreset,
 	BreakPermittedHere,
@@ -75,7 +74,7 @@ impl Format for C1 {
 		macro_rules! write {
 			($code:expr) => (
 				if wide {
-					f.write_all(&[0x1B, $code - 0x80])
+					f.write_all(&[0x1B, $code - 0x40])
 				}
 				else {
 					f.write_all(&[$code])
@@ -84,9 +83,6 @@ impl Format for C1 {
 		}
 
 		match *self {
-			Delete =>
-				write!(0x7f),
-
 			PaddingCharacter =>
 				write!(0x80),
 
@@ -187,13 +183,9 @@ impl Format for C1 {
 }
 
 named!(pub parse<C1>,
-	alt!(DEL | PAD | HOP | BPH | NBH | IND | NEL | SSA | ESA | HTS | HTJ | VTS |
+	alt!(PAD | HOP | BPH | NBH | IND | NEL | SSA | ESA | HTS | HTJ | VTS |
 	     PLD | PLU | RI | SS2 | SS3 | DCS | PU1 | PU2 | STS | CCH | MW | SPA |
 	     EPA | SOS | SGCI | SCI | CSI | ST | OSC | PM | APC));
-
-named!(DEL<C1>,
-	value!(Delete,
-		char!(0x7F)));
 
 named!(PAD<C1>,
 	value!(PaddingCharacter,
@@ -334,261 +326,376 @@ pub mod shim {
 
 #[cfg(test)]
 mod test {
-	pub use control::*;
+	mod parse {
+		pub use control::*;
 
-	#[test]
-	fn del() {
-		assert_eq!(Item::C1(C1::Delete),
-			parse(b"\x7F").unwrap().1);
+		macro_rules! test {
+			($id:expr => $attr:expr) => (
+				assert_eq!(Item::C1($attr),
+					parse(&[$id]).unwrap().1);
+
+				assert_eq!(Item::C1($attr),
+					parse(&[0x1B, $id - 0x40]).unwrap().1);
+			);
+		}
+
+		#[test]
+		fn pad() {
+			test!(0x80 =>
+				C1::PaddingCharacter);
+		}
+
+		#[test]
+		fn hop() {
+			test!(0x81 =>
+				C1::HighOctetPreset);
+		}
+
+		#[test]
+		fn bph() {
+			test!(0x82 =>
+				C1::BreakPermittedHere);
+		}
+
+		#[test]
+		fn nbh() {
+			test!(0x83 =>
+				C1::NoBreakHere);
+		}
+
+		#[test]
+		fn ind() {
+			test!(0x84 =>
+				C1::Index);
+		}
+
+		#[test]
+		fn nel() {
+			test!(0x85 =>
+				C1::NextLine);
+		}
+
+		#[test]
+		fn ssa() {
+			test!(0x86 =>
+				C1::StartSelectedArea);
+		}
+
+		#[test]
+		fn esa() {
+			test!(0x87 =>
+				C1::EndSelectedArea);
+		}
+
+		#[test]
+		fn hts() {
+			test!(0x88 =>
+				C1::HorizontalTabulationSet);
+		}
+
+		#[test]
+		fn htj() {
+			test!(0x89 =>
+				C1::HorizontalTabulationWithJustification);
+		}
+
+		#[test]
+		fn vts() {
+			test!(0x8A =>
+				C1::VerticalTabulationSet);
+		}
+
+		#[test]
+		fn pld() {
+			test!(0x8B =>
+				C1::PartialLineDown);
+		}
+
+		#[test]
+		fn plu() {
+			test!(0x8C =>
+				C1::PartialLineUp);
+		}
+
+		#[test]
+		fn ri() {
+			test!(0x8D =>
+				C1::ReverseIndex);
+		}
+
+		#[test]
+		fn ss2() {
+			test!(0x8E =>
+				C1::SingleShiftTwo);
+		}
+
+		#[test]
+		fn ss3() {
+			test!(0x8F =>
+				C1::SingleShiftThree);
+		}
+
+		#[test]
+		fn dcs() {
+			test!(0x90 =>
+				C1::DeviceControlString);
+		}
+
+		#[test]
+		fn pu1() {
+			test!(0x91 =>
+				C1::PrivateUseOne);
+		}
+
+		#[test]
+		fn pu2() {
+			test!(0x92 =>
+				C1::PrivateUseTwo);
+		}
+
+		#[test]
+		fn sts() {
+			test!(0x93 =>
+				C1::SetTransmitState);
+		}
+
+		#[test]
+		fn cch() {
+			test!(0x94 =>
+				C1::CancelCharacter);
+		}
+
+		#[test]
+		fn mw() {
+			test!(0x95 =>
+				C1::MessageWaiting);
+		}
+
+		#[test]
+		fn spa() {
+			test!(0x96 =>
+				C1::StartProtectedArea);
+		}
+
+		#[test]
+		fn epa() {
+			test!(0x97 =>
+				C1::EndProtectedArea);
+		}
+
+		#[test]
+		fn sos() {
+			test!(0x98 =>
+				C1::StartString);
+		}
+
+		#[test]
+		fn sgci() {
+			test!(0x99 =>
+				C1::SingleGraphicCharacterIntroducer);
+		}
+
+		#[test]
+		fn sci() {
+			test!(0x9A =>
+				C1::SingleCharacterIntroducer);
+		}
+
+		#[test]
+		fn st() {
+			test!(0x9C =>
+				C1::StringTerminator);
+		}
+
+		#[test]
+		fn osc() {
+			test!(0x9D =>
+				C1::OperatingSystemCommand);
+		}
+
+		#[test]
+		fn pn() {
+			test!(0x9E =>
+				C1::PrivacyMessage);
+		}
+
+		#[test]
+		fn apc() {
+			test!(0x9F =>
+				C1::ApplicationProgramCommand);
+		}
 	}
 
-	#[test]
-	fn pad() {
-		assert_eq!(Item::C1(C1::PaddingCharacter),
-			parse(b"\x80").unwrap().1);
-	}
+	mod format {
+		pub use control::*;
 
-	#[test]
-	fn hop() {
-		assert_eq!(Item::C1(C1::HighOctetPreset),
-			parse(b"\x81").unwrap().1);
-	}
+		macro_rules! test {
+			($code:expr) => (
+				let item = Item::C1($code);
 
-	#[test]
-	fn bph() {
-		assert_eq!(Item::C1(C1::BreakPermittedHere),
-			parse(b"\x82").unwrap().1);
+				let mut result = vec![];
+				item.fmt(&mut result, true).unwrap();
+				assert_eq!(item, parse(&result).unwrap().1);
 
-		assert_eq!(Item::C1(C1::BreakPermittedHere),
-			parse(b"\x1B\x42").unwrap().1);
-	}
+				let mut result = vec![];
+				item.fmt(&mut result, false).unwrap();
+				assert_eq!(item, parse(&result).unwrap().1);
+			);
+		}
 
-	#[test]
-	fn nbh() {
-		assert_eq!(Item::C1(C1::NoBreakHere),
-			parse(b"\x83").unwrap().1);
+		#[test]
+		fn pad() {
+			test!(C1::PaddingCharacter);
+		}
 
-		assert_eq!(Item::C1(C1::NoBreakHere),
-			parse(b"\x1B\x43").unwrap().1);
-	}
+		#[test]
+		fn hop() {
+			test!(C1::HighOctetPreset);
+		}
 
-	#[test]
-	fn ind() {
-		assert_eq!(Item::C1(C1::Index),
-			parse(b"\x84").unwrap().1);
-	}
+		#[test]
+		fn bph() {
+			test!(C1::BreakPermittedHere);
+		}
 
-	#[test]
-	fn nel() {
-		assert_eq!(Item::C1(C1::NextLine),
-			parse(b"\x85").unwrap().1);
+		#[test]
+		fn nbh() {
+			test!(C1::NoBreakHere);
+		}
 
-		assert_eq!(Item::C1(C1::NextLine),
-			parse(b"\x1B\x45").unwrap().1);
-	}
+		#[test]
+		fn ind() {
+			test!(C1::Index);
+		}
 
+		#[test]
+		fn nel() {
+			test!(C1::NextLine);
+		}
 
-	#[test]
-	fn ssa() {
-		assert_eq!(Item::C1(C1::StartSelectedArea),
-			parse(b"\x86").unwrap().1);
+		#[test]
+		fn ssa() {
+			test!(C1::StartSelectedArea);
+		}
 
-		assert_eq!(Item::C1(C1::StartSelectedArea),
-			parse(b"\x1B\x46").unwrap().1);
-	}
+		#[test]
+		fn esa() {
+			test!(C1::EndSelectedArea);
+		}
 
-	#[test]
-	fn esa() {
-		assert_eq!(Item::C1(C1::EndSelectedArea),
-			parse(b"\x87").unwrap().1);
+		#[test]
+		fn hts() {
+			test!(C1::HorizontalTabulationSet);
+		}
 
-		assert_eq!(Item::C1(C1::EndSelectedArea),
-			parse(b"\x1B\x47").unwrap().1);
-	}
+		#[test]
+		fn htj() {
+			test!(C1::HorizontalTabulationWithJustification);
+		}
 
-	#[test]
-	fn hts() {
-		assert_eq!(Item::C1(C1::HorizontalTabulationSet),
-			parse(b"\x88").unwrap().1);
-	}
+		#[test]
+		fn vts() {
+			test!(C1::VerticalTabulationSet);
+		}
 
-	#[test]
-	fn htj() {
-		assert_eq!(Item::C1(C1::HorizontalTabulationWithJustification),
-			parse(b"\x89").unwrap().1);
+		#[test]
+		fn pld() {
+			test!(C1::PartialLineDown);
+		}
 
-		assert_eq!(Item::C1(C1::HorizontalTabulationWithJustification),
-			parse(b"\x1B\x49").unwrap().1);
-	}
+		#[test]
+		fn plu() {
+			test!(C1::PartialLineUp);
+		}
 
-	#[test]
-	fn vts() {
-		assert_eq!(Item::C1(C1::VerticalTabulationSet),
-			parse(b"\x8A").unwrap().1);
+		#[test]
+		fn ri() {
+			test!(C1::ReverseIndex);
+		}
 
-		assert_eq!(Item::C1(C1::VerticalTabulationSet),
-			parse(b"\x1B\x4A").unwrap().1);
-	}
+		#[test]
+		fn ss2() {
+			test!(C1::SingleShiftTwo);
+		}
 
-	#[test]
-	fn pld() {
-		assert_eq!(Item::C1(C1::PartialLineDown),
-			parse(b"\x8B").unwrap().1);
+		#[test]
+		fn ss3() {
+			test!(C1::SingleShiftThree);
+		}
 
-		assert_eq!(Item::C1(C1::PartialLineDown),
-			parse(b"\x1B\x4B").unwrap().1);
-	}
+		#[test]
+		fn dcs() {
+			test!(C1::DeviceControlString);
+		}
 
-	#[test]
-	fn plu() {
-		assert_eq!(Item::C1(C1::PartialLineUp),
-			parse(b"\x8C").unwrap().1);
+		#[test]
+		fn pu1() {
+			test!(C1::PrivateUseOne);
+		}
 
-		assert_eq!(Item::C1(C1::PartialLineUp),
-			parse(b"\x1B\x4C").unwrap().1);
-	}
+		#[test]
+		fn pu2() {
+			test!(C1::PrivateUseTwo);
+		}
 
-	#[test]
-	fn ri() {
-		assert_eq!(Item::C1(C1::ReverseIndex),
-			parse(b"\x8D").unwrap().1);
+		#[test]
+		fn sts() {
+			test!(C1::SetTransmitState);
+		}
 
-		assert_eq!(Item::C1(C1::ReverseIndex),
-			parse(b"\x1B\x4D").unwrap().1);
-	}
+		#[test]
+		fn cch() {
+			test!(C1::CancelCharacter);
+		}
 
-	#[test]
-	fn ss2() {
-		assert_eq!(Item::C1(C1::SingleShiftTwo),
-			parse(b"\x8E").unwrap().1);
+		#[test]
+		fn mw() {
+			test!(C1::MessageWaiting);
+		}
 
-		assert_eq!(Item::C1(C1::SingleShiftTwo),
-			parse(b"\x1B\x4E").unwrap().1);
-	}
+		#[test]
+		fn spa() {
+			test!(C1::StartProtectedArea);
+		}
 
-	#[test]
-	fn ss3() {
-		assert_eq!(Item::C1(C1::SingleShiftThree),
-			parse(b"\x8F").unwrap().1);
+		#[test]
+		fn epa() {
+			test!(C1::EndProtectedArea);
+		}
 
-		assert_eq!(Item::C1(C1::SingleShiftThree),
-			parse(b"\x1B\x4F").unwrap().1);
-	}
+		#[test]
+		fn sos() {
+			test!(C1::StartString);
+		}
 
-	#[test]
-	fn dcs() {
-		assert_eq!(Item::C1(C1::DeviceControlString),
-			parse(b"\x90").unwrap().1);
+		#[test]
+		fn sgci() {
+			test!(C1::SingleGraphicCharacterIntroducer);
+		}
 
-		assert_eq!(Item::C1(C1::DeviceControlString),
-			parse(b"\x1B\x50").unwrap().1);
-	}
+		#[test]
+		fn sci() {
+			test!(C1::SingleCharacterIntroducer);
+		}
 
-	#[test]
-	fn pu1() {
-		assert_eq!(Item::C1(C1::PrivateUseOne),
-			parse(b"\x91").unwrap().1);
-	}
+		#[test]
+		fn st() {
+			test!(C1::StringTerminator);
+		}
 
-	#[test]
-	fn pu2() {
-		assert_eq!(Item::C1(C1::PrivateUseTwo),
-			parse(b"\x92").unwrap().1);
-	}
+		#[test]
+		fn osc() {
+			test!(C1::OperatingSystemCommand);
+		}
 
-	#[test]
-	fn sts() {
-		assert_eq!(Item::C1(C1::SetTransmitState),
-			parse(b"\x93").unwrap().1);
+		#[test]
+		fn pn() {
+			test!(C1::PrivacyMessage);
+		}
 
-		assert_eq!(Item::C1(C1::SetTransmitState),
-			parse(b"\x1B\x53").unwrap().1);
-	}
-
-	#[test]
-	fn cch() {
-		assert_eq!(Item::C1(C1::CancelCharacter),
-			parse(b"\x94").unwrap().1);
-
-		assert_eq!(Item::C1(C1::CancelCharacter),
-			parse(b"\x1B\x54").unwrap().1);
-	}
-
-	#[test]
-	fn mw() {
-		assert_eq!(Item::C1(C1::MessageWaiting),
-			parse(b"\x95").unwrap().1);
-	}
-
-	#[test]
-	fn spa() {
-		assert_eq!(Item::C1(C1::StartProtectedArea),
-			parse(b"\x96").unwrap().1);
-
-		assert_eq!(Item::C1(C1::StartProtectedArea),
-			parse(b"\x1B\x56").unwrap().1);
-	}
-
-	#[test]
-	fn epa() {
-		assert_eq!(Item::C1(C1::EndProtectedArea),
-			parse(b"\x97").unwrap().1);
-	}
-
-	#[test]
-	fn sos() {
-		assert_eq!(Item::C1(C1::StartString),
-			parse(b"\x98").unwrap().1);
-
-		assert_eq!(Item::C1(C1::StartString),
-			parse(b"\x1B\x58").unwrap().1);
-	}
-
-	#[test]
-	fn sgci() {
-		assert_eq!(Item::C1(C1::SingleGraphicCharacterIntroducer),
-			parse(b"\x99").unwrap().1);
-	}
-
-	#[test]
-	fn sci() {
-		assert_eq!(Item::C1(C1::SingleCharacterIntroducer),
-			parse(b"\x9A").unwrap().1);
-
-		assert_eq!(Item::C1(C1::SingleCharacterIntroducer),
-			parse(b"\x1B\x5A").unwrap().1);
-	}
-
-	#[test]
-	fn st() {
-		assert_eq!(Item::C1(C1::StringTerminator),
-			parse(b"\x9C").unwrap().1);
-
-		assert_eq!(Item::C1(C1::StringTerminator),
-			parse(b"\x1B\x5C").unwrap().1);
-	}
-
-	#[test]
-	fn osc() {
-		assert_eq!(Item::C1(C1::OperatingSystemCommand),
-			parse(b"\x9D").unwrap().1);
-
-		assert_eq!(Item::C1(C1::OperatingSystemCommand),
-			parse(b"\x1B\x5D").unwrap().1);
-	}
-
-	#[test]
-	fn pn() {
-		assert_eq!(Item::C1(C1::PrivacyMessage),
-			parse(b"\x9E").unwrap().1);
-	}
-
-	#[test]
-	fn apc() {
-		assert_eq!(Item::C1(C1::ApplicationProgramCommand),
-			parse(b"\x9F").unwrap().1);
-
-		assert_eq!(Item::C1(C1::ApplicationProgramCommand),
-			parse(b"\x1B\x5F").unwrap().1);
+		#[test]
+		fn apc() {
+			test!(C1::ApplicationProgramCommand);
+		}
 	}
 }

@@ -105,7 +105,7 @@ impl Into<Vec<u32>> for SGR {
 				vec![index as u32 + 30],
 
 			Foreground(Color::Index(index)) if index < 16 =>
-				vec![index as u32 + 90],
+				vec![index as u32 - 8 + 90],
 
 			Foreground(Color::Index(index)) =>
 				vec![38, 5, index as u32],
@@ -129,7 +129,7 @@ impl Into<Vec<u32>> for SGR {
 				vec![index as u32 + 40],
 
 			Background(Color::Index(index)) if index < 16 =>
-				vec![index as u32 + 100],
+				vec![index as u32 - 8 + 100],
 
 			Background(Color::Index(index)) =>
 				vec![48, 5, index as u32],
@@ -320,189 +320,256 @@ pub mod shim {
 
 #[cfg(test)]
 mod test {
-	pub use control::*;
+	mod parse {
+		pub use control::*;
 
-	#[test]
-	fn reset() {
-		assert_eq!(Item::C1(C1::ControlSequenceIntroducer(CSI::SelectGraphicalRendition(vec![
-			SGR::Reset]))),
-			parse(b"\x1B[0m").unwrap().1);
+		macro_rules! test {
+			($string:expr => $($attrs:expr),+) => (
+				assert_eq!(Item::C1(C1::ControlSequenceIntroducer(CSI::SelectGraphicalRendition(vec![$($attrs),*]))),
+					parse($string).unwrap().1);
+			);
+		}
 
-		assert_eq!(Item::C1(C1::ControlSequenceIntroducer(CSI::SelectGraphicalRendition(vec![
-			SGR::Reset]))),
-			parse(b"\x1B[m").unwrap().1);
+		#[test]
+		fn reset() {
+			test!(b"\x1B[0m" =>
+				SGR::Reset);
+
+			test!(b"\x1B[m" =>
+				SGR::Reset);
+		}
+
+		#[test]
+		fn font() {
+			test!(b"\x1B[1m" =>
+				SGR::Font(SGR::Weight::Bold));
+
+			test!(b"\x1B[2m" =>
+				SGR::Font(SGR::Weight::Faint));
+
+			test!(b"\x1B[22m" =>
+				SGR::Font(SGR::Weight::Normal));
+		}
+
+		#[test]
+		fn italic() {
+			test!(b"\x1B[3m" =>
+				SGR::Italic(true));
+
+			test!(b"\x1B[23m" =>
+				SGR::Italic(false));
+		}
+
+		#[test]
+		fn underline() {
+			test!(b"\x1B[4m" =>
+				SGR::Underline(true));
+
+			test!(b"\x1B[24m" =>
+				SGR::Underline(false));
+		}
+
+		#[test]
+		fn blink() {
+			test!(b"\x1B[5m" =>
+				SGR::Blink(true));
+
+			test!(b"\x1B[6m" =>
+				SGR::Blink(true));
+
+			test!(b"\x1B[25m" =>
+				SGR::Blink(false));
+		}
+
+		#[test]
+		fn reverse() {
+			test!(b"\x1B[7m" =>
+				SGR::Reverse(true));
+
+			test!(b"\x1B[27m" =>
+				SGR::Reverse(false));
+		}
+
+		#[test]
+		fn invisible() {
+			test!(b"\x1B[8m" =>
+				SGR::Invisible(true));
+
+			test!(b"\x1B[28m" =>
+				SGR::Invisible(false));
+		}
+
+		#[test]
+		fn struck() {
+			test!(b"\x1B[9m" =>
+				SGR::Struck(true));
+
+			test!(b"\x1B[29m" =>
+				SGR::Struck(false));
+		}
+
+		#[test]
+		fn foreground() {
+			test!(b"\x1B[38;0m" =>
+				SGR::Foreground(SGR::Color::Default));
+
+			test!(b"\x1B[39m" =>
+				SGR::Foreground(SGR::Color::Default));
+
+			test!(b"\x1B[38;1m" =>
+				SGR::Foreground(SGR::Color::Transparent));
+
+			test!(b"\x1B[30m" =>
+				SGR::Foreground(SGR::Color::Index(0)));
+
+			test!(b"\x1B[37m" =>
+				SGR::Foreground(SGR::Color::Index(7)));
+
+			test!(b"\x1B[38;2;255;;127m" =>
+				SGR::Foreground(SGR::Color::Rgb(255, 0, 127)));
+
+			test!(b"\x1B[38;5;235m" =>
+				SGR::Foreground(SGR::Color::Index(235)));
+
+			test!(b"\x1B[90m" =>
+				SGR::Foreground(SGR::Color::Index(8)));
+
+			test!(b"\x1B[97m" =>
+				SGR::Foreground(SGR::Color::Index(15)));
+		}
+
+		#[test]
+		fn background() {
+			test!(b"\x1B[48;0m" =>
+				SGR::Background(SGR::Color::Default));
+
+			test!(b"\x1B[49m" =>
+				SGR::Background(SGR::Color::Default));
+
+			test!(b"\x1B[48;1m" =>
+				SGR::Background(SGR::Color::Transparent));
+
+			test!(b"\x1B[40m" =>
+				SGR::Background(SGR::Color::Index(0)));
+
+			test!(b"\x1B[47m" =>
+				SGR::Background(SGR::Color::Index(7)));
+
+			test!(b"\x1B[48;2;255;;127m" =>
+				SGR::Background(SGR::Color::Rgb(255, 0, 127)));
+
+			test!(b"\x1B[48;5;235m" =>
+				SGR::Background(SGR::Color::Index(235)));
+
+			test!(b"\x1B[100m" =>
+				SGR::Background(SGR::Color::Index(8)));
+
+			test!(b"\x1B[107m" =>
+				SGR::Background(SGR::Color::Index(15)));
+		}
+
+		#[test]
+		fn sequence() {
+			test!(b"\x1B[38;2;0;255;127;48;2;127;255;0m" =>
+				SGR::Foreground(SGR::Color::Rgb(0, 255, 127)),
+				SGR::Background(SGR::Color::Rgb(127, 255, 0)));
+		}
 	}
 
-	#[test]
-	fn font() {
-		assert_eq!(Item::C1(C1::ControlSequenceIntroducer(CSI::SelectGraphicalRendition(vec![
-			SGR::Font(SGR::Weight::Bold)]))),
-			parse(b"\x1B[1m").unwrap().1);
+	mod format {
+		pub use control::*;
 
-		assert_eq!(Item::C1(C1::ControlSequenceIntroducer(CSI::SelectGraphicalRendition(vec![
-			SGR::Font(SGR::Weight::Faint)]))),
-			parse(b"\x1B[2m").unwrap().1);
+		macro_rules! test {
+			($($attr:expr),+) => (
+				let item = Item::C1(C1::ControlSequenceIntroducer(CSI::SelectGraphicalRendition(
+					vec![$($attr),*])));
 
-		assert_eq!(Item::C1(C1::ControlSequenceIntroducer(CSI::SelectGraphicalRendition(vec![
-			SGR::Font(SGR::Weight::Normal)]))),
-			parse(b"\x1B[22m").unwrap().1);
-	}
+				let mut result = vec![];
+				item.fmt(&mut result, true).unwrap();
+				assert_eq!(item, parse(&result).unwrap().1);
 
-	#[test]
-	fn italic() {
-		assert_eq!(Item::C1(C1::ControlSequenceIntroducer(CSI::SelectGraphicalRendition(vec![
-			SGR::Italic(true)]))),
-			parse(b"\x1B[3m").unwrap().1);
+				let mut result = vec![];
+				item.fmt(&mut result, false).unwrap();
+				assert_eq!(item, parse(&result).unwrap().1);
+			);
+		}
 
-		assert_eq!(Item::C1(C1::ControlSequenceIntroducer(CSI::SelectGraphicalRendition(vec![
-			SGR::Italic(false)]))),
-			parse(b"\x1B[23m").unwrap().1);
-	}
+		#[test]
+		fn reset() {
+			test!(SGR::Reset);
+		}
 
-	#[test]
-	fn underline() {
-		assert_eq!(Item::C1(C1::ControlSequenceIntroducer(CSI::SelectGraphicalRendition(vec![
-			SGR::Underline(true)]))),
-			parse(b"\x1B[4m").unwrap().1);
+		#[test]
+		fn font() {
+			test!(SGR::Font(SGR::Weight::Bold));
+			test!(SGR::Font(SGR::Weight::Faint));
+			test!(SGR::Font(SGR::Weight::Normal));
+		}
 
-		assert_eq!(Item::C1(C1::ControlSequenceIntroducer(CSI::SelectGraphicalRendition(vec![
-			SGR::Underline(false)]))),
-			parse(b"\x1B[24m").unwrap().1);
-	}
+		#[test]
+		fn italic() {
+			test!(SGR::Italic(true));
+			test!(SGR::Italic(false));
+		}
 
-	#[test]
-	fn blink() {
-		assert_eq!(Item::C1(C1::ControlSequenceIntroducer(CSI::SelectGraphicalRendition(vec![
-			SGR::Blink(true)]))),
-			parse(b"\x1B[5m").unwrap().1);
+		#[test]
+		fn underline() {
+			test!(SGR::Underline(true));
+			test!(SGR::Underline(false));
+		}
 
-		assert_eq!(Item::C1(C1::ControlSequenceIntroducer(CSI::SelectGraphicalRendition(vec![
-			SGR::Blink(true)]))),
-			parse(b"\x1B[6m").unwrap().1);
+		#[test]
+		fn blink() {
+			test!(SGR::Blink(true));
+			test!(SGR::Blink(false));
+		}
 
-		assert_eq!(Item::C1(C1::ControlSequenceIntroducer(CSI::SelectGraphicalRendition(vec![
-			SGR::Blink(false)]))),
-			parse(b"\x1B[25m").unwrap().1);
-	}
+		#[test]
+		fn reverse() {
+			test!(SGR::Reverse(true));
+			test!(SGR::Reverse(false));
+		}
 
-	#[test]
-	fn reverse() {
-		assert_eq!(Item::C1(C1::ControlSequenceIntroducer(CSI::SelectGraphicalRendition(vec![
-			SGR::Reverse(true)]))),
-			parse(b"\x1B[7m").unwrap().1);
+		#[test]
+		fn invisible() {
+			test!(SGR::Invisible(true));
+			test!(SGR::Invisible(false));
+		}
 
-		assert_eq!(Item::C1(C1::ControlSequenceIntroducer(CSI::SelectGraphicalRendition(vec![
-			SGR::Reverse(false)]))),
-			parse(b"\x1B[27m").unwrap().1);
-	}
+		#[test]
+		fn struck() {
+			test!(SGR::Struck(true));
+			test!(SGR::Struck(false));
+		}
 
-	#[test]
-	fn invisible() {
-		assert_eq!(Item::C1(C1::ControlSequenceIntroducer(CSI::SelectGraphicalRendition(vec![
-			SGR::Invisible(true)]))),
-			parse(b"\x1B[8m").unwrap().1);
+		#[test]
+		fn foreground() {
+			test!(SGR::Foreground(SGR::Color::Default));
+			test!(SGR::Foreground(SGR::Color::Transparent));
+			test!(SGR::Foreground(SGR::Color::Index(0)));
+			test!(SGR::Foreground(SGR::Color::Index(7)));
+			test!(SGR::Foreground(SGR::Color::Rgb(255, 0, 127)));
+			test!(SGR::Foreground(SGR::Color::Index(235)));
+			test!(SGR::Foreground(SGR::Color::Index(8)));
+			test!(SGR::Foreground(SGR::Color::Index(15)));
+		}
 
-		assert_eq!(Item::C1(C1::ControlSequenceIntroducer(CSI::SelectGraphicalRendition(vec![
-			SGR::Invisible(false)]))),
-			parse(b"\x1B[28m").unwrap().1);
-	}
+		#[test]
+		fn background() {
+			test!(SGR::Background(SGR::Color::Default));
+			test!(SGR::Background(SGR::Color::Transparent));
+			test!(SGR::Background(SGR::Color::Index(0)));
+			test!(SGR::Background(SGR::Color::Index(7)));
+			test!(SGR::Background(SGR::Color::Rgb(255, 0, 127)));
+			test!(SGR::Background(SGR::Color::Index(235)));
+			test!(SGR::Background(SGR::Color::Index(8)));
+			test!(SGR::Background(SGR::Color::Index(15)));
+		}
 
-	#[test]
-	fn struck() {
-		assert_eq!(Item::C1(C1::ControlSequenceIntroducer(CSI::SelectGraphicalRendition(vec![
-			SGR::Struck(true)]))),
-			parse(b"\x1B[9m").unwrap().1);
-
-		assert_eq!(Item::C1(C1::ControlSequenceIntroducer(CSI::SelectGraphicalRendition(vec![
-			SGR::Struck(false)]))),
-			parse(b"\x1B[29m").unwrap().1);
-	}
-
-	#[test]
-	fn foreground() {
-		assert_eq!(Item::C1(C1::ControlSequenceIntroducer(CSI::SelectGraphicalRendition(vec![
-			SGR::Foreground(SGR::Color::Default)]))),
-			parse(b"\x1B[38;0m").unwrap().1);
-
-		assert_eq!(Item::C1(C1::ControlSequenceIntroducer(CSI::SelectGraphicalRendition(vec![
-			SGR::Foreground(SGR::Color::Default)]))),
-			parse(b"\x1B[39m").unwrap().1);
-
-		assert_eq!(Item::C1(C1::ControlSequenceIntroducer(CSI::SelectGraphicalRendition(vec![
-			SGR::Foreground(SGR::Color::Transparent)]))),
-			parse(b"\x1B[38;1m").unwrap().1);
-
-		assert_eq!(Item::C1(C1::ControlSequenceIntroducer(CSI::SelectGraphicalRendition(vec![
-			SGR::Foreground(SGR::Color::Index(0))]))),
-			parse(b"\x1B[30m").unwrap().1);
-
-		assert_eq!(Item::C1(C1::ControlSequenceIntroducer(CSI::SelectGraphicalRendition(vec![
-			SGR::Foreground(SGR::Color::Index(7))]))),
-			parse(b"\x1B[37m").unwrap().1);
-
-		assert_eq!(Item::C1(C1::ControlSequenceIntroducer(CSI::SelectGraphicalRendition(vec![
-			SGR::Foreground(SGR::Color::Rgb(255, 0, 127))]))),
-			parse(b"\x1B[38;2;255;;127m").unwrap().1);
-
-		assert_eq!(Item::C1(C1::ControlSequenceIntroducer(CSI::SelectGraphicalRendition(vec![
-			SGR::Foreground(SGR::Color::Index(235))]))),
-			parse(b"\x1B[38;5;235m").unwrap().1);
-
-		assert_eq!(Item::C1(C1::ControlSequenceIntroducer(CSI::SelectGraphicalRendition(vec![
-			SGR::Foreground(SGR::Color::Index(8))]))),
-			parse(b"\x1B[90m").unwrap().1);
-
-		assert_eq!(Item::C1(C1::ControlSequenceIntroducer(CSI::SelectGraphicalRendition(vec![
-			SGR::Foreground(SGR::Color::Index(15))]))),
-			parse(b"\x1B[97m").unwrap().1);
-	}
-
-	#[test]
-	fn background() {
-		assert_eq!(Item::C1(C1::ControlSequenceIntroducer(CSI::SelectGraphicalRendition(vec![
-			SGR::Background(SGR::Color::Default)]))),
-			parse(b"\x1B[48;0m").unwrap().1);
-
-		assert_eq!(Item::C1(C1::ControlSequenceIntroducer(CSI::SelectGraphicalRendition(vec![
-			SGR::Background(SGR::Color::Default)]))),
-			parse(b"\x1B[49m").unwrap().1);
-
-		assert_eq!(Item::C1(C1::ControlSequenceIntroducer(CSI::SelectGraphicalRendition(vec![
-			SGR::Background(SGR::Color::Transparent)]))),
-			parse(b"\x1B[48;1m").unwrap().1);
-
-		assert_eq!(Item::C1(C1::ControlSequenceIntroducer(CSI::SelectGraphicalRendition(vec![
-			SGR::Background(SGR::Color::Index(0))]))),
-			parse(b"\x1B[40m").unwrap().1);
-
-		assert_eq!(Item::C1(C1::ControlSequenceIntroducer(CSI::SelectGraphicalRendition(vec![
-			SGR::Background(SGR::Color::Index(7))]))),
-			parse(b"\x1B[47m").unwrap().1);
-
-		assert_eq!(Item::C1(C1::ControlSequenceIntroducer(CSI::SelectGraphicalRendition(vec![
-			SGR::Background(SGR::Color::Rgb(255, 0, 127))]))),
-			parse(b"\x1B[48;2;255;;127m").unwrap().1);
-
-		assert_eq!(Item::C1(C1::ControlSequenceIntroducer(CSI::SelectGraphicalRendition(vec![
-			SGR::Background(SGR::Color::Index(235))]))),
-			parse(b"\x1B[48;5;235m").unwrap().1);
-
-		assert_eq!(Item::C1(C1::ControlSequenceIntroducer(CSI::SelectGraphicalRendition(vec![
-			SGR::Background(SGR::Color::Index(8))]))),
-			parse(b"\x1B[100m").unwrap().1);
-
-		assert_eq!(Item::C1(C1::ControlSequenceIntroducer(CSI::SelectGraphicalRendition(vec![
-			SGR::Background(SGR::Color::Index(15))]))),
-			parse(b"\x1B[107m").unwrap().1);
-	}
-
-	#[test]
-	fn sequence() {
-		assert_eq!(Item::C1(C1::ControlSequenceIntroducer(CSI::SelectGraphicalRendition(vec![
-			SGR::Foreground(SGR::Color::Rgb(0, 255, 127)),
-			SGR::Background(SGR::Color::Rgb(127, 255, 0))
-		]))),
-
-		parse(b"\x1B[38;2;0;255;127;48;2;127;255;0m").unwrap().1);
+		#[test]
+		fn sequence() {
+			test!(SGR::Foreground(SGR::Color::Rgb(0, 255, 127)),
+			      SGR::Background(SGR::Color::Rgb(127, 255, 0)));
+		}
 	}
 }

@@ -305,191 +305,373 @@ pub mod shim {
 
 #[cfg(test)]
 mod test {
-	pub use control::*;
+	mod parse {
+		pub use control::*;
 
-	#[test]
-	fn nul() {
-		assert_eq!(Item::C0(C0::Null),
-			parse(b"\x00").unwrap().1);
+		macro_rules! test {
+			($id:expr => $attr:expr) => (
+				assert_eq!(Item::C0($attr),
+					parse(&[$id]).unwrap().1);
+			);
+		}
+
+		#[test]
+		fn nul() {
+			test!(0x00 =>
+				C0::Null);
+		}
+
+		#[test]
+		fn soh() {
+			test!(0x01 =>
+				C0::StartHeading);
+		}
+
+		#[test]
+		fn stx() {
+			test!(0x02 =>
+				C0::StartText);
+		}
+
+		#[test]
+		fn etx() {
+			test!(0x03 =>
+				C0::EndText);
+		}
+
+		#[test]
+		fn eot() {
+			test!(0x04 =>
+				C0::EndTransmission);
+		}
+
+		#[test]
+		fn enq() {
+			test!(0x05 =>
+				C0::Enquiry);
+		}
+
+		#[test]
+		fn ack() {
+			test!(0x06 =>
+				C0::Acknowledge);
+		}
+
+		#[test]
+		fn bel() {
+			test!(0x07 =>
+				C0::Bell);
+		}
+
+		#[test]
+		fn bs() {
+			test!(0x08 =>
+				C0::Backspace);
+		}
+
+		#[test]
+		fn ht() {
+			test!(0x09 =>
+				C0::HorizontalTabulation);
+		}
+
+		#[test]
+		fn lf() {
+			test!(0x0A =>
+				C0::LineFeed);
+		}
+
+		#[test]
+		fn vf() {
+			test!(0x0B =>
+				C0::VerticalTabulation);
+		}
+
+		#[test]
+		fn ff() {
+			test!(0x0C =>
+				C0::FormFeed);
+		}
+
+		#[test]
+		fn cr() {
+			test!(0x0D =>
+				C0::CarriageReturn);
+		}
+
+		#[test]
+		fn ss() {
+			test!(0x0E =>
+				C0::ShiftOut);
+		}
+
+		#[test]
+		fn si() {
+			test!(0x0F =>
+				C0::ShiftIn);
+		}
+
+		#[test]
+		fn dle() {
+			test!(0x10 =>
+				C0::DataLinkEscape);
+		}
+
+		#[test]
+		fn dc1() {
+			test!(0x11 =>
+				C0::DeviceControlOne);
+		}
+
+		#[test]
+		fn dc2() {
+			test!(0x12 =>
+				C0::DeviceControlTwo);
+		}
+
+		#[test]
+		fn dc3() {
+			test!(0x13 =>
+				C0::DeviceControlThree);
+		}
+
+		#[test]
+		fn dc4() {
+			test!(0x14 =>
+				C0::DeviceControlFour);
+		}
+
+		#[test]
+		fn nak() {
+			test!(0x15 =>
+				C0::NegativeAcknowledge);
+		}
+
+		#[test]
+		fn syn() {
+			test!(0x16 =>
+				C0::SynchronousIdle);
+		}
+
+		#[test]
+		fn etb() {
+			test!(0x17 =>
+				C0::EndTransmissionBlock);
+		}
+
+		#[test]
+		fn can() {
+			test!(0x18 =>
+				C0::Cancel);
+		}
+
+		#[test]
+		fn em() {
+			test!(0x19 =>
+				C0::EndMedium);
+		}
+
+		#[test]
+		fn sub() {
+			test!(0x1A =>
+				C0::Substitute);
+		}
+
+		#[test]
+		fn fs() {
+			test!(0x1C =>
+				C0::FileSeparator);
+		}
+
+		#[test]
+		fn gs() {
+			test!(0x1D =>
+				C0::GroupSeparator);
+		}
+
+		#[test]
+		fn rs() {
+			test!(0x1E =>
+				C0::RecordSeparator);
+		}
+
+		#[test]
+		fn us() {
+			test!(0x1F =>
+				C0::UnitSeparator);
+		}
 	}
 
-	#[test]
-	fn soh() {
-		assert_eq!(Item::C0(C0::StartHeading),
-			parse(b"\x01").unwrap().1);
-	}
+	mod format {
+		pub use control::*;
 
-	#[test]
-	fn stx() {
-		assert_eq!(Item::C0(C0::StartText),
-			parse(b"\x02").unwrap().1);
-	}
+		macro_rules! test {
+			($code:expr) => (
+				let item = Item::C0($code);
 
-	#[test]
-	fn etx() {
-		assert_eq!(Item::C0(C0::EndText),
-			parse(b"\x03").unwrap().1);
-	}
+				let mut result = vec![];
+				item.fmt(&mut result, true).unwrap();
+				assert_eq!(item, parse(&result).unwrap().1);
 
-	#[test]
-	fn eot() {
-		assert_eq!(Item::C0(C0::EndTransmission),
-			parse(b"\x04").unwrap().1);
-	}
+				let mut result = vec![];
+				item.fmt(&mut result, false).unwrap();
+				assert_eq!(item, parse(&result).unwrap().1);
+			);
+		}
 
-	#[test]
-	fn enq() {
-		assert_eq!(Item::C0(C0::Enquiry),
-			parse(b"\x05").unwrap().1);
-	}
+		#[test]
+		fn nul() {
+			test!(C0::Null);
+		}
 
-	#[test]
-	fn ack() {
-		assert_eq!(Item::C0(C0::Acknowledge),
-			parse(b"\x06").unwrap().1);
-	}
+		#[test]
+		fn soh() {
+			test!(C0::StartHeading);
+		}
 
-	#[test]
-	fn bel() {
-		assert_eq!(Item::C0(C0::Bell),
-			parse(b"\x07").unwrap().1);
-	}
+		#[test]
+		fn stx() {
+			test!(C0::StartText);
+		}
 
-	#[test]
-	fn bs() {
-		assert_eq!(Item::C0(C0::Backspace),
-			parse(b"\x08").unwrap().1);
-	}
+		#[test]
+		fn etx() {
+			test!(C0::EndText);
+		}
 
-	#[test]
-	fn ht() {
-		assert_eq!(Item::C0(C0::HorizontalTabulation),
-			parse(b"\x09").unwrap().1);
-	}
+		#[test]
+		fn eot() {
+			test!(C0::EndTransmission);
+		}
 
-	#[test]
-	fn lf() {
-		assert_eq!(Item::C0(C0::LineFeed),
-			parse(b"\x0A").unwrap().1);
-	}
+		#[test]
+		fn enq() {
+			test!(C0::Enquiry);
+		}
 
-	#[test]
-	fn vf() {
-		assert_eq!(Item::C0(C0::VerticalTabulation),
-			parse(b"\x0B").unwrap().1);
-	}
+		#[test]
+		fn ack() {
+			test!(C0::Acknowledge);
+		}
 
-	#[test]
-	fn ff() {
-		assert_eq!(Item::C0(C0::FormFeed),
-			parse(b"\x0C").unwrap().1);
-	}
+		#[test]
+		fn bel() {
+			test!(C0::Bell);
+		}
 
-	#[test]
-	fn cr() {
-		assert_eq!(Item::C0(C0::CarriageReturn),
-			parse(b"\x0D").unwrap().1);
-	}
+		#[test]
+		fn bs() {
+			test!(C0::Backspace);
+		}
 
-	#[test]
-	fn ss() {
-		assert_eq!(Item::C0(C0::ShiftOut),
-			parse(b"\x0E").unwrap().1);
-	}
+		#[test]
+		fn ht() {
+			test!(C0::HorizontalTabulation);
+		}
 
-	#[test]
-	fn si() {
-		assert_eq!(Item::C0(C0::ShiftIn),
-			parse(b"\x0F").unwrap().1);
-	}
+		#[test]
+		fn lf() {
+			test!(C0::LineFeed);
+		}
 
-	#[test]
-	fn dle() {
-		assert_eq!(Item::C0(C0::DataLinkEscape),
-			parse(b"\x10").unwrap().1);
-	}
+		#[test]
+		fn vf() {
+			test!(C0::VerticalTabulation);
+		}
 
-	#[test]
-	fn dc1() {
-		assert_eq!(Item::C0(C0::DeviceControlOne),
-			parse(b"\x11").unwrap().1);
-	}
+		#[test]
+		fn ff() {
+			test!(C0::FormFeed);
+		}
 
-	#[test]
-	fn dc2() {
-		assert_eq!(Item::C0(C0::DeviceControlTwo),
-			parse(b"\x12").unwrap().1);
-	}
+		#[test]
+		fn cr() {
+			test!(C0::CarriageReturn);
+		}
 
-	#[test]
-	fn dc3() {
-		assert_eq!(Item::C0(C0::DeviceControlThree),
-			parse(b"\x13").unwrap().1);
-	}
+		#[test]
+		fn ss() {
+			test!(C0::ShiftOut);
+		}
 
-	#[test]
-	fn dc4() {
-		assert_eq!(Item::C0(C0::DeviceControlFour),
-			parse(b"\x14").unwrap().1);
-	}
+		#[test]
+		fn si() {
+			test!(C0::ShiftIn);
+		}
 
-	#[test]
-	fn nak() {
-		assert_eq!(Item::C0(C0::NegativeAcknowledge),
-			parse(b"\x15").unwrap().1);
-	}
+		#[test]
+		fn dle() {
+			test!(C0::DataLinkEscape);
+		}
 
-	#[test]
-	fn syn() {
-		assert_eq!(Item::C0(C0::SynchronousIdle),
-			parse(b"\x16").unwrap().1);
-	}
+		#[test]
+		fn dc1() {
+			test!(C0::DeviceControlOne);
+		}
 
-	#[test]
-	fn etb() {
-		assert_eq!(Item::C0(C0::EndTransmissionBlock),
-			parse(b"\x17").unwrap().1);
-	}
+		#[test]
+		fn dc2() {
+			test!(C0::DeviceControlTwo);
+		}
 
-	#[test]
-	fn can() {
-		assert_eq!(Item::C0(C0::Cancel),
-			parse(b"\x18").unwrap().1);
-	}
+		#[test]
+		fn dc3() {
+			test!(C0::DeviceControlThree);
+		}
 
-	#[test]
-	fn em() {
-		assert_eq!(Item::C0(C0::EndMedium),
-			parse(b"\x19").unwrap().1);
-	}
+		#[test]
+		fn dc4() {
+			test!(C0::DeviceControlFour);
+		}
 
-	#[test]
-	fn sub() {
-		assert_eq!(Item::C0(C0::Substitute),
-			parse(b"\x1A").unwrap().1);
-	}
+		#[test]
+		fn nak() {
+			test!(C0::NegativeAcknowledge);
+		}
 
-	#[test]
-	fn fs() {
-		assert_eq!(Item::C0(C0::FileSeparator),
-			parse(b"\x1C").unwrap().1);
-	}
+		#[test]
+		fn syn() {
+			test!(C0::SynchronousIdle);
+		}
 
-	#[test]
-	fn gs() {
-		assert_eq!(Item::C0(C0::GroupSeparator),
-			parse(b"\x1D").unwrap().1);
-	}
+		#[test]
+		fn etb() {
+			test!(C0::EndTransmissionBlock);
+		}
 
-	#[test]
-	fn rs() {
-		assert_eq!(Item::C0(C0::RecordSeparator),
-			parse(b"\x1E").unwrap().1);
-	}
+		#[test]
+		fn can() {
+			test!(C0::Cancel);
+		}
 
-	#[test]
-	fn us() {
-		assert_eq!(Item::C0(C0::UnitSeparator),
-			parse(b"\x1F").unwrap().1);
+		#[test]
+		fn em() {
+			test!(C0::EndMedium);
+		}
+
+		#[test]
+		fn sub() {
+			test!(C0::Substitute);
+		}
+
+		#[test]
+		fn fs() {
+			test!(C0::FileSeparator);
+		}
+
+		#[test]
+		fn gs() {
+			test!(C0::GroupSeparator);
+		}
+
+		#[test]
+		fn rs() {
+			test!(C0::RecordSeparator);
+		}
+
+		#[test]
+		fn us() {
+			test!(C0::UnitSeparator);
+		}
 	}
 }
