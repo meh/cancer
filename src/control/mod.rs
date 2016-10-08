@@ -44,6 +44,36 @@ pub enum Item<'a> {
 	C1(C1::T),
 }
 
+impl<'a> From<C0::T> for Item<'a> {
+	fn from(value: C0::T) -> Item<'a> {
+		Item::C0(value)
+	}
+}
+
+impl<'a> From<C1::T> for Item<'a> {
+	fn from(value: C1::T) -> Item<'a> {
+		Item::C1(value)
+	}
+}
+
+impl<'a> From<CSI::T> for Item<'a> {
+	fn from(value: CSI::T) -> Item<'a> {
+		Item::C1(C1::ControlSequenceIntroducer(value))
+	}
+}
+
+impl<'a> From<SGR::T> for Item<'a> {
+	fn from(value: SGR::T) -> Item<'a> {
+		Item::C1(C1::ControlSequenceIntroducer(CSI::SelectGraphicalRendition(vec![value])))
+	}
+}
+
+impl<'a> From<Vec<SGR::T>> for Item<'a> {
+	fn from(value: Vec<SGR::T>) -> Item<'a> {
+		Item::C1(C1::ControlSequenceIntroducer(CSI::SelectGraphicalRendition(value)))
+	}
+}
+
 pub trait Format {
 	fn fmt<W: Write>(&self, f: W, wide: bool) -> io::Result<()>;
 }
