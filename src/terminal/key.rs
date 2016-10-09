@@ -18,4 +18,5 @@
 #[derive(Eq, PartialEq, Copy, Clone, Debug)]
 pub enum Key {
 	Enter,
+	Escape,
 }

@@ -19,9 +19,10 @@ use std::sync::Arc;
 
 use xcb;
 use xcbu::ewmh;
-use xkbcommon::xkb;
+use xkbcommon::xkb::{self, keysyms};
 
 use error;
+use terminal;
 
 pub struct Keyboard {
 	connection: Arc<ewmh::Connection>,
@@ -128,5 +129,19 @@ impl Keyboard {
 	/// Translate a key code to an UTF-8 string.
 	pub fn string(&self, code: u8) -> String {
 		self.state.key_get_utf8(code as xkb::Keycode)
+	}
+}
+
+impl From<u32> for terminal::Key {
+	fn from(value: u32) -> terminal::Key {
+		match value {
+			keysyms::KEY_Return =>
+				terminal::Key::Enter,
+
+			keysyms::KEY_Escape =>
+				terminal::Key::Escape,
+
+			_ => unreachable!()
+		}
 	}
 }

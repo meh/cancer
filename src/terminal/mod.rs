@@ -15,8 +15,7 @@
 // You should have received a copy of the GNU General Public License
 // along with cancer.  If not, see <http://www.gnu.org/licenses/>.
 
-mod terminal;
-pub use self::terminal::Terminal;
+pub mod iter;
 
 mod key;
 pub use self::key::Key;
@@ -24,4 +23,5 @@ pub use self::key::Key;
 pub mod cell;
 pub use self::cell::Cell;
 
-pub mod iter;
+mod terminal;
+pub use self::terminal::Terminal;

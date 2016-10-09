@@ -127,6 +127,8 @@ fn open(matches: &ArgMatches) -> error::Result<()> {
 			let blinking = terminal.is_blinking();
 			let focused  = window.has_focus();
 
+			info!("render: 1 cells");
+
 			// Redraw the cursor.
 			render.update(|mut o| {
 				o.cursor(terminal.cursor(), blinking, focused);
@@ -139,6 +141,8 @@ fn open(matches: &ArgMatches) -> error::Result<()> {
 			let area     = $area;
 			let blinking = terminal.is_blinking();
 			let focused  = window.has_focus();
+
+			info!("render: {} cells", render.damaged(&area).absolute().count() + 1);
 
 			render.update(|mut o| {
 				// Redraw margins.
@@ -161,9 +165,14 @@ fn open(matches: &ArgMatches) -> error::Result<()> {
 			let focused  = window.has_focus();
 
 			render.update(|mut o| {
+				let mut count = 0;
+
 				for cell in $iter {
 					o.cell(cell, blinking);
+					count += 1;
 				}
+
+				info!("render: {} cells", count + 1);
 
 				o.cursor(terminal.cursor(), blinking, focused);
 			});
@@ -227,11 +236,13 @@ fn open(matches: &ArgMatches) -> error::Result<()> {
 					}
 
 					xcb::KEY_PRESS => {
-						let event = xcb::cast_event::<xcb::KeyPressEvent>(&event);
+						let event  = xcb::cast_event::<xcb::KeyPressEvent>(&event);
+						let symbol = keyboard.symbol(event.detail());
 
-						match keyboard.symbol(event.detail()) {
-							key::KEY_Return => {
-								render!(terminal.key(terminal::Key::Enter, &mut tty).unwrap());
+						match symbol {
+							key::KEY_Return |
+							key::KEY_Escape => {
+								render!(terminal.key(symbol.into(), &mut tty).unwrap());
 							}
 
 							_ => {

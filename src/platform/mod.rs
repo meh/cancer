@@ -20,5 +20,3 @@ pub use self::window::Window;
 
 mod keyboard;
 pub use self::keyboard::Keyboard;
-
-pub use xkbcommon::xkb::keysyms as key;
