@@ -30,7 +30,7 @@ use style::{self, Style};
 use terminal::{Dirty, Cell, Key, cell, iter};
 use terminal::mode::{self, Mode};
 use terminal::cursor::{self, Cursor, CursorCell};
-use control::{self, C0, C1, CSI, SGR, Format};
+use control::{self, Control, C0, C1, CSI, SGR};
 
 #[derive(Debug)]
 pub struct Terminal {
@@ -128,56 +128,69 @@ impl Terminal {
 		let     buffer = buffer.as_ref();
 		let mut input  = buffer.as_ref().map(AsRef::as_ref).unwrap_or(input);
 
+		// Input parsing loop.
 		loop {
 			match control::parse(input) {
 				control::Result::Error(e) => {
 					return Err(Error::Message(e.to_string()));
 				}
 
+				// The given input isn't a complete sequence, cache the current input.
 				control::Result::Incomplete(_) => {
 					self.cache = Some(input.to_vec());
 					break;
 				}
 
+				// We got a sequence or a raw input.
 				control::Result::Done(rest, item) => {
 					input = rest;
 
+					println!("{:?}", item);
+
 					match item {
-						control::Item::String(string) => {
+						Control::None(string) => {
 							for ch in string.graphemes(true) {
 								self.insert(ch.into());
 							}
 						}
 
-						control::Item::C1(C1::ControlSequence(CSI::CursorUp(n))) => {
+						Control::C1(C1::ControlSequence(CSI::CursorPosition { x, y })) => {
+							self.cursor.travel(cursor::Position(Some(x), Some(y)), &mut self.dirty);
+						}
+
+						Control::C1(C1::ControlSequence(CSI::CursorUp(n))) => {
 							self.cursor.travel(cursor::Up(n), &mut self.dirty);
 						}
 
-						control::Item::C1(C1::ControlSequence(CSI::CursorDown(n))) => {
+						Control::C1(C1::ControlSequence(CSI::CursorDown(n))) => {
 							self.cursor.travel(cursor::Down(n), &mut self.dirty);
 						}
 
-						control::Item::C1(C1::ControlSequence(CSI::CursorBack(n))) => {
+						Control::C1(C1::ControlSequence(CSI::CursorBack(n))) => {
 							self.cursor.travel(cursor::Left(n), &mut self.dirty);
 						}
 
-						control::Item::C1(C1::ControlSequence(CSI::CursorForward(n))) => {
+						Control::C1(C1::ControlSequence(CSI::CursorForward(n))) => {
 							self.cursor.travel(cursor::Right(n), &mut self.dirty);
 						}
 
-						control::Item::C0(C0::CarriageReturn) => {
+						Control::C0(C0::CarriageReturn) => {
 							self.cursor.travel(cursor::Position(Some(0), None), &mut self.dirty);
 						}
 
-						control::Item::C0(C0::LineFeed) => {
+						Control::C0(C0::LineFeed) => {
 							self.cursor.travel(cursor::Down(1), &mut self.dirty);
 						}
 
-						control::Item::C0(C0::Backspace) => {
+						Control::C0(C0::Backspace) => {
 							self.cursor.travel(cursor::Left(1), &mut self.dirty);
 						}
 
-						control::Item::C1(C1::ControlSequence(CSI::SelectGraphicalRendition(attrs))) => {
+						Control::C1(C1::ControlSequence(CSI::InsertBlankCharacter(n))) => {
+							self.blank(n);
+						}
+
+						Control::C1(C1::ControlSequence(CSI::SelectGraphicalRendition(attrs))) => {
 							let mut style = **self.cursor.style();
 
 							for attr in &attrs {
@@ -259,14 +272,25 @@ impl Terminal {
 		let cells = &mut self.cells[index as usize .. (index + width) as usize];
 
 		let (cell, rest) = cells.split_at_mut(1);
-		cell[0].make_char(ch, false);
-		cell[0].set_style(self.cursor.style().clone());
+		let cell         = &mut cell[0];
 
-		self.dirty.mark(cell[0].x(), cell[0].y());
+		let changed = if let Some(char) = cell.char() {
+			ch != char || cell.style() != &**self.cursor.style()
+		}
+		else {
+			true
+		};
 
-		for c in rest {
-			self.dirty.mark(c.x(), c.y());
-			c.make_reference(cell[0].x(), cell[0].y());
+		if changed {
+			cell.make_char(ch, false);
+			cell.set_style(self.cursor.style().clone());
+
+			self.dirty.mark(cell.x(), cell.y());
+
+			for c in rest {
+				self.dirty.mark(c.x(), c.y());
+				c.make_reference(cell.x(), cell.y());
+			}
 		}
 
 		self.cursor.travel(cursor::Right(width), &mut self.dirty);

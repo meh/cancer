@@ -124,14 +124,14 @@ fn open(matches: &ArgMatches) -> error::Result<()> {
 
 	macro_rules! render {
 		(cursor) => ({
-			let blinking = terminal.is_blinking();
+			let blinking = terminal.mode().contains(terminal::mode::BLINK);
 			let focused  = window.has_focus();
 
-			info!("render: 1 cells");
+			debug!(target: "cancer::render", "1 cells");
 
 			// Redraw the cursor.
 			render.update(|mut o| {
-				o.cursor(terminal.cursor(), blinking, focused);
+				o.cursor(&terminal.cursor(), blinking, focused);
 			});
 
 			window.flush();
@@ -139,10 +139,10 @@ fn open(matches: &ArgMatches) -> error::Result<()> {
 
 		(damaged $area:expr) => ({
 			let area     = $area;
-			let blinking = terminal.is_blinking();
+			let blinking = terminal.mode().contains(terminal::mode::BLINK);
 			let focused  = window.has_focus();
 
-			info!("render: {} cells", render.damaged(&area).absolute().count() + 1);
+			debug!(target: "cancer::render", "{} cells", render.damaged(&area).absolute().count() + 1);
 
 			render.update(|mut o| {
 				// Redraw margins.
@@ -154,14 +154,14 @@ fn open(matches: &ArgMatches) -> error::Result<()> {
 				}
 
 				// Redraw the cursor.
-				o.cursor(terminal.cursor(), blinking, focused);
+				o.cursor(&terminal.cursor(), blinking, focused);
 			});
 
 			window.flush();
 		});
 
 		($iter:expr) => ({
-			let blinking = terminal.is_blinking();
+			let blinking = terminal.mode().contains(terminal::mode::BLINK);
 			let focused  = window.has_focus();
 
 			render.update(|mut o| {
@@ -172,9 +172,9 @@ fn open(matches: &ArgMatches) -> error::Result<()> {
 					count += 1;
 				}
 
-				info!("render: {} cells", count + 1);
+				debug!(target: "cancer::render", "{} cells", count + 1);
 
-				o.cursor(terminal.cursor(), blinking, focused);
+				o.cursor(&terminal.cursor(), blinking, focused);
 			});
 
 			window.flush();
@@ -253,7 +253,7 @@ fn open(matches: &ArgMatches) -> error::Result<()> {
 					}
 
 					e => {
-						debug!("unhandled X event: {:?}", e);
+						debug!(target: "cancer::x11", "unhandled X event: {:?}", e);
 					}
 				}
 			},
