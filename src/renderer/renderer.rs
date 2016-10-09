@@ -28,6 +28,7 @@ use sys::pango;
 use font::Font;
 use style;
 use terminal::Cell;
+use super::Style;
 
 /// Renderer for a `cairo::Surface`.
 pub struct Renderer {
@@ -38,6 +39,7 @@ pub struct Renderer {
 
 	context: cairo::Context,
 	layout:  pango::Layout,
+	style:   Style,
 }
 
 impl Renderer {
@@ -45,6 +47,7 @@ impl Renderer {
 	pub fn new<S: AsRef<cairo::Surface>>(config: Arc<Config>, font: Arc<Font>, surface: S, width: u32, height: u32) -> Self {
 		let context = cairo::Context::new(surface);
 		let layout  = pango::Layout::new(font.as_ref());
+		let style   = Style::new(&config);
 
 		Renderer {
 			config: config,
@@ -54,6 +57,7 @@ impl Renderer {
 
 			context: context,
 			layout:  layout,
+			style:   style,
 		}
 	}
 
@@ -186,18 +190,19 @@ impl Renderer {
 		// Cache needed values in various places.
 		//
 		// FIXME(meh): Find better names/and or ways to deal with this stuff.
-		let (c, o, l, f) = (&self.config, &mut self.context, &mut self.layout, &self.font);
-		let     cb       = blinking && c.style().cursor().blink();
-		let     bc       = blinking && cell.style().attributes().contains(style::BLINK);
-		let mut fg       = cell.style().foreground().unwrap_or_else(|| c.style().color().foreground());
-		let mut bg       = cell.style().background().unwrap_or_else(|| c.style().color().background());
-		let     cfg      = c.style().cursor().foreground();
-		let     cbg      = c.style().cursor().background();
+		let (c, o, l, f, s) = (&self.config, &mut self.context, &mut self.layout, &self.font, &mut self.style);
+		let     cb  = blinking && c.style().cursor().blink();
+		let     bc  = blinking && cell.style().attributes().contains(style::BLINK);
+		let mut fg  = cell.style().foreground().unwrap_or_else(|| c.style().color().foreground());
+		let mut bg  = cell.style().background().unwrap_or_else(|| c.style().color().background());
+		let     cfg = c.style().cursor().foreground();
+		let     cbg = c.style().cursor().background();
 
 		if cell.style().attributes().contains(style::REVERSE) {
 			mem::swap(&mut fg, &mut bg);
 		}
 
+		s.update(cell);
 		o.save();
 		{
 			let w = f.width() * cell.width();
@@ -236,7 +241,7 @@ impl Renderer {
 
 			// Draw the text in the cell.
 			o.move_to(x as f64, y as f64);
-			l.attributes(attributes(c, cell));
+			l.attributes(s);
 
 			if cell.is_empty() {
 				o.text(l, " ");
@@ -293,15 +298,16 @@ impl Renderer {
 		// Cache needed values in various places.
 		//
 		// FIXME(meh): Find better names/and or ways to deal with this stuff.
-		let (c, o, l, f) = (&self.config, &mut self.context, &mut self.layout, &self.font);
-		let mut fg       = cell.style().foreground().unwrap_or_else(|| c.style().color().foreground());
-		let mut bg       = cell.style().background().unwrap_or_else(|| c.style().color().background());
-		let     bc       = blinking && cell.style().attributes().contains(style::BLINK);
+		let (c, o, l, f, s) = (&self.config, &mut self.context, &mut self.layout, &self.font, &mut self.style);
+		let mut fg = cell.style().foreground().unwrap_or_else(|| c.style().color().foreground());
+		let mut bg = cell.style().background().unwrap_or_else(|| c.style().color().background());
+		let     bc = blinking && cell.style().attributes().contains(style::BLINK);
 
 		if cell.style().attributes().contains(style::REVERSE) {
 			mem::swap(&mut fg, &mut bg);
 		}
 
+		s.update(cell);
 		o.save();
 		{
 			let w = f.width() * cell.width();
@@ -320,7 +326,7 @@ impl Renderer {
 			// Draw text in the cell.
 			o.rgba(fg);
 			o.move_to(x as f64, y as f64);
-			l.attributes(attributes(c, cell));
+			l.attributes(s);
 
 			if cell.is_empty() {
 				o.text(l, " ");
@@ -334,50 +340,6 @@ impl Renderer {
 		}
 		o.restore();
 	}
-}
-
-/// Pango attribute builder from configuration and cell.
-fn attributes(config: &Config, cell: &Cell) -> pango::Attributes {
-	let attrs = pango::Attributes::new();
-	let fg    = cell.style().foreground()
-		.unwrap_or_else(|| config.style().color().foreground());
-
-	// Set bold.
-	let attrs = if cell.style().attributes().contains(style::BOLD) {
-		attrs.weight(pango::Weight::Bold)
-	}
-	else if cell.style().attributes().contains(style::FAINT) {
-		attrs.weight(pango::Weight::Light)
-	}
-	else {
-		attrs.weight(pango::Weight::Normal)
-	};
-
-	// Set italic.
-	let attrs = if cell.style().attributes().contains(style::ITALIC) {
-		attrs.style(pango::Style::Italic)
-	}
-	else {
-		attrs.style(pango::Style::Normal)
-	};
-
-	// Set underline.
-	let attrs = if cell.style().attributes().contains(style::UNDERLINE) {
-		attrs.underline(Some(config.style().color().underline().unwrap_or(fg)))
-	}
-	else {
-		attrs.underline(None)
-	};
-
-	// Set strikethrough.
-	let attrs = if cell.style().attributes().contains(style::STRUCK) {
-		attrs.strikethrough(Some(config.style().color().strike().unwrap_or(fg)))
-	}
-	else {
-		attrs.strikethrough(None)
-	};
-
-	attrs
 }
 
 impl Deref for Renderer {

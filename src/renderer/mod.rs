@@ -15,30 +15,8 @@
 // You should have received a copy of the GNU General Public License
 // along with cancer.  If not, see <http://www.gnu.org/licenses/>.
 
-pub use ffi::pango::PangoWeight as Weight;
-pub use ffi::pango::PangoStyle as Style;
-pub use ffi::pango::PangoUnderline as Underline;
+mod renderer;
+pub use self::renderer::Renderer;
 
-mod map;
-pub use self::map::Map;
-
-mod set;
-pub use self::set::Set;
-
-mod attribute;
-pub use self::attribute::Attribute;
-
-mod attribute_list;
-pub use self::attribute_list::AttributeList;
-
-mod metrics;
-pub use self::metrics::Metrics;
-
-mod context;
-pub use self::context::Context;
-
-mod layout;
-pub use self::layout::Layout;
-
-mod description;
-pub use self::description::Description;
+mod style;
+pub use self::style::Style;

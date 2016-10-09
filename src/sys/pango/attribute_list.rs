@@ -15,30 +15,31 @@
 // You should have received a copy of the GNU General Public License
 // along with cancer.  If not, see <http://www.gnu.org/licenses/>.
 
-pub use ffi::pango::PangoWeight as Weight;
-pub use ffi::pango::PangoStyle as Style;
-pub use ffi::pango::PangoUnderline as Underline;
+use ffi::pango::*;
+use super::{Weight, Style, Attribute};
+use picto::color::Rgb;
 
-mod map;
-pub use self::map::Map;
+#[derive(Debug)]
+pub struct AttributeList(pub *mut PangoAttrList);
 
-mod set;
-pub use self::set::Set;
+impl AttributeList {
+	pub fn new() -> Self {
+		unsafe {
+			AttributeList(pango_attr_list_new())
+		}
+	}
 
-mod attribute;
-pub use self::attribute::Attribute;
+	pub fn change(&mut self, attr: Attribute) {
+		unsafe {
+			pango_attr_list_change(self.0, attr.take());
+		}
+	}
+}
 
-mod attribute_list;
-pub use self::attribute_list::AttributeList;
-
-mod metrics;
-pub use self::metrics::Metrics;
-
-mod context;
-pub use self::context::Context;
-
-mod layout;
-pub use self::layout::Layout;
-
-mod description;
-pub use self::description::Description;
+impl Drop for AttributeList {
+	fn drop(&mut self) {
+		unsafe {
+			pango_attr_list_unref(self.0)
+		}
+	}
+}

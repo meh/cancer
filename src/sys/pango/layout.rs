@@ -17,9 +17,10 @@
 
 use ffi::pango::*;
 
-use super::{Context, Attributes};
+use super::{Context, AttributeList};
 use sys::cairo;
 
+#[derive(Debug)]
 pub struct Layout(pub *mut PangoLayout);
 
 impl Layout {
@@ -29,7 +30,7 @@ impl Layout {
 		}
 	}
 
-	pub fn attributes(&mut self, list: Attributes) {
+	pub fn attributes(&mut self, list: &AttributeList) {
 		unsafe {
 			pango_layout_set_attributes(self.0, list.0)
 		}

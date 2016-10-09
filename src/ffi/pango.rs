@@ -57,6 +57,15 @@ pub enum PangoStyle {
 }
 
 #[repr(C)]
+pub enum PangoUnderline {
+	None,
+	Single,
+	Double,
+	Low,
+	Error,
+}
+
+#[repr(C)]
 pub struct PangoFontMap(c_void);
 
 #[repr(C)]
@@ -96,13 +105,16 @@ extern "C" {
 	pub fn pango_attr_list_new() -> *mut PangoAttrList;
 	pub fn pango_attr_list_unref(list: *mut PangoAttrList);
 	pub fn pango_attr_list_insert(list: *mut PangoAttrList, attr: *mut PangoAttribute);
+	pub fn pango_attr_list_change(list: *mut PangoAttrList, attr: *mut PangoAttribute);
 
+	pub fn pango_attribute_copy(attr: *const PangoAttribute) -> *mut PangoAttribute;
 	pub fn pango_attribute_destroy(attr: *mut PangoAttribute);
+
 	pub fn pango_attr_weight_new(weight: PangoWeight) -> *mut PangoAttribute;
 	pub fn pango_attr_style_new(style: PangoStyle) -> *mut PangoAttribute;
 	pub fn pango_attr_strikethrough_new(strike: bool) -> *mut PangoAttribute;
 	pub fn pango_attr_strikethrough_color_new(red: u16, green: u16, blue: u16) -> *mut PangoAttribute;
-	pub fn pango_attr_underline_new(underline: bool) -> *mut PangoAttribute;
+	pub fn pango_attr_underline_new(underline: PangoUnderline) -> *mut PangoAttribute;
 	pub fn pango_attr_underline_color_new(red: u16, green: u16, blue: u16) -> *mut PangoAttribute;
 }
 
