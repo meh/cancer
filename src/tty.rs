@@ -18,7 +18,7 @@
 use std::ptr;
 use std::fs::File;
 use std::os::unix::io::{RawFd, FromRawFd};
-use std::io::{self, Read, Write};
+use std::io::{self, Write, BufRead, BufReader};
 use std::thread;
 use std::sync::Arc;
 use std::sync::mpsc::{Sender, Receiver, channel};
@@ -94,16 +94,16 @@ impl Tty {
 
 					// Spawn the reader.
 					thread::spawn(move || {
-						let mut stream = File::from_raw_fd(master);
+						let mut stream = BufReader::new(File::from_raw_fd(master));
 
 						loop {
-							let mut buffer = vec![0; 4096];
+							let consumed = {
+								let buffer = stream.fill_buf().unwrap();
+								o_sender.send(buffer.to_vec()).unwrap();
+								buffer.len()
+							};
 
-							let read = stream.read(&mut buffer).unwrap();
-							buffer.set_len(read);
-							buffer.shrink_to_fit();
-
-							o_sender.send(buffer).unwrap();
+							stream.consume(consumed);
 						}
 					});
 
