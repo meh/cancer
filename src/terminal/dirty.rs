@@ -15,22 +15,30 @@
 // You should have received a copy of the GNU General Public License
 // along with cancer.  If not, see <http://www.gnu.org/licenses/>.
 
-pub mod iter;
+use std::mem;
+use std::collections::HashSet;
+use std::hash::BuildHasherDefault;
+use fnv::FnvHasher;
 
-mod dirty;
-pub use self::dirty::Dirty;
+use terminal::iter;
 
-pub mod mode;
-pub use self::mode::Mode;
+#[derive(Eq, PartialEq, Clone, Default, Debug)]
+pub struct Dirty {
+	marked: HashSet<(u32, u32), BuildHasherDefault<FnvHasher>>,
+}
 
-mod cursor;
-pub use self::cursor::{Cursor, CursorCell};
+impl Dirty {
+	pub fn mark(&mut self, x: u32, y: u32) -> &mut Self {
+		self.marked.insert((x, y));
+		self
+	}
 
-mod key;
-pub use self::key::Key;
+	pub fn push(&mut self, pair: (u32, u32)) -> &mut Self {
+		self.marked.insert(pair);
+		self
+	}
 
-pub mod cell;
-pub use self::cell::Cell;
-
-mod terminal;
-pub use self::terminal::Terminal;
+	pub fn take(&mut self) -> HashSet<(u32, u32), BuildHasherDefault<FnvHasher>> {
+		mem::replace(&mut self.marked, Default::default())
+	}
+}

@@ -15,22 +15,8 @@
 // You should have received a copy of the GNU General Public License
 // along with cancer.  If not, see <http://www.gnu.org/licenses/>.
 
-pub mod iter;
-
-mod dirty;
-pub use self::dirty::Dirty;
-
-pub mod mode;
-pub use self::mode::Mode;
-
-mod cursor;
-pub use self::cursor::{Cursor, CursorCell};
-
-mod key;
-pub use self::key::Key;
-
-pub mod cell;
-pub use self::cell::Cell;
-
-mod terminal;
-pub use self::terminal::Terminal;
+bitflags! {
+	pub flags Mode: u8 {
+		const BLINK = 1 << 0,
+	}
+}

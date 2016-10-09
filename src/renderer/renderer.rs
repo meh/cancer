@@ -27,7 +27,7 @@ use sys::cairo;
 use sys::pango;
 use font::Font;
 use style;
-use terminal::Cell;
+use terminal::{Cell, CursorCell};
 use super::Style;
 
 /// Renderer for a `cairo::Surface`.
@@ -184,19 +184,20 @@ impl Renderer {
 	}
 
 	/// Draw the cursor.
-	pub fn cursor(&mut self, cell: &Cell, blinking: bool, focus: bool) {
-		debug_assert!(!cell.is_reference());
+	pub fn cursor(&mut self, cursor: &CursorCell, blinking: bool, focus: bool) {
+		debug_assert!(!cursor.cell().is_reference());
 
 		// Cache needed values in various places.
 		//
 		// FIXME(meh): Find better names/and or ways to deal with this stuff.
 		let (c, o, l, f, s) = (&self.config, &mut self.context, &mut self.layout, &self.font, &mut self.style);
-		let     cb  = blinking && c.style().cursor().blink();
-		let     bc  = blinking && cell.style().attributes().contains(style::BLINK);
-		let mut fg  = cell.style().foreground().unwrap_or_else(|| c.style().color().foreground());
-		let mut bg  = cell.style().background().unwrap_or_else(|| c.style().color().background());
-		let     cfg = c.style().cursor().foreground();
-		let     cbg = c.style().cursor().background();
+		let     cell = cursor.cell();
+		let     cb   = blinking && c.style().cursor().blink();
+		let     bc   = blinking && cell.style().attributes().contains(style::BLINK);
+		let mut fg   = cell.style().foreground().unwrap_or_else(|| c.style().color().foreground());
+		let mut bg   = cell.style().background().unwrap_or_else(|| c.style().color().background());
+		let     cfg  = c.style().cursor().foreground();
+		let     cbg  = c.style().cursor().background();
 
 		if cell.style().attributes().contains(style::REVERSE) {
 			mem::swap(&mut fg, &mut bg);

@@ -18,27 +18,30 @@
 use std::rc::Rc;
 use std::sync::Arc;
 use std::io::Write;
+use std::mem;
 
 use unicode_segmentation::UnicodeSegmentation;
 use unicode_width::UnicodeWidthStr;
 use picto::Area;
 use picto::color::Rgba;
-use nom::IResult;
 use error::{self, Error};
 use config::Config;
 use style::{self, Style};
-use terminal::{Cell, Key, cell, iter};
+use terminal::{Dirty, Cell, Key, cell, iter};
+use terminal::mode::{self, Mode};
+use terminal::cursor::{self, Cursor, CursorCell};
 use control::{self, C0, C1, CSI, SGR, Format};
 
 #[derive(Debug)]
 pub struct Terminal {
 	config: Arc<Config>,
 	area:   Area,
+	cache:  Option<Vec<u8>>,
 
-	style:    Rc<Style>,
-	cells:    Vec<Cell>,
-	cursor:   (u32, u32),
-	blinking: bool,
+	mode:   Mode,
+	cursor: Cursor,
+	cells:  Vec<Cell>,
+	dirty:  Dirty,
 }
 
 impl Terminal {
@@ -50,11 +53,12 @@ impl Terminal {
 		Ok(Terminal {
 			config: config,
 			area:   area,
+			cache:  Default::default(),
 
-			style:    style.clone(),
-			cells:    cells.collect(),
-			cursor:   (0, 0),
-			blinking: false,
+			mode:   Mode::empty(),
+			cursor: Cursor::new(width, height),
+			cells:  cells.collect(),
+			dirty:  Dirty::default(),
 		})
 	}
 
@@ -66,12 +70,13 @@ impl Terminal {
 		self.area.height
 	}
 
-	pub fn is_blinking(&self) -> bool {
-		self.blinking
+	pub fn mode(&self) -> Mode {
+		self.mode
 	}
 
-	pub fn cursor(&self) -> &Cell {
-		self.get(self.cursor.0, self.cursor.1)
+	pub fn cursor(&self) -> CursorCell {
+		let (x, y) = self.cursor.position();
+		CursorCell::new(&self.cursor, self.get(x, y))
 	}
 
 	pub fn get(&self, x: u32, y: u32) -> &Cell {
@@ -91,7 +96,13 @@ impl Terminal {
 	}
 
 	pub fn blinking<'a>(&'a mut self, value: bool) -> impl Iterator<Item = &'a Cell> {
-		self.blinking = value;
+		if value {
+			self.mode.insert(mode::BLINK);
+		}
+		else {
+			self.mode.remove(mode::BLINK);
+		}
+
 		self.iter().filter(|c| c.style().attributes().contains(style::BLINK))
 	}
 
@@ -103,26 +114,46 @@ impl Terminal {
 		}
 
 		match key {
-			Key::Enter => {
-				write!(C0::LineFeed);
-			}
+			Key::Enter =>
+				write!(C0::LineFeed),
+
+			Key::Escape =>
+				write!(C0::Escape),
 		}
 
-		Ok(iter::Area::new(self, Area::from(0, 0, 0, 0)))
+		Ok(iter::empty())
 	}
 
 	pub fn input<'a, I: AsRef<str>, O: Write>(&'a mut self, input: I, mut output: O) -> error::Result<impl Iterator<Item = &'a Cell>> {
 		try!(output.write_all(input.as_ref().as_bytes()));
 
-		Ok(iter::Area::new(self, Area::from(0, 0, 0, 0)))
+		Ok(iter::empty())
 	}
 
 	pub fn handle<'a, I: AsRef<[u8]>, O: Write>(&'a mut self, input: I, mut output: O) -> error::Result<impl Iterator<Item = &'a Cell>> {
-		let mut input = input.as_ref();
+		// Juggle the incomplete buffer cache and the real input.
+		let     input  = input.as_ref();
+		let mut buffer = self.cache.take();
+
+		if let Some(buffer) = buffer.as_mut() {
+			buffer.extend_from_slice(input);
+		}
+
+		let     buffer = buffer.as_ref();
+		let mut input  = buffer.as_ref().map(AsRef::as_ref).unwrap_or(input);
 
 		loop {
 			match control::parse(input) {
-				IResult::Done(rest, item) => {
+				control::Result::Error(e) => {
+					return Err(Error::Message(e.to_string()));
+				}
+
+				control::Result::Incomplete(_) => {
+					self.cache = Some(input.to_vec());
+					break;
+				}
+
+				control::Result::Done(rest, item) => {
 					input = rest;
 
 					match item {
@@ -132,22 +163,36 @@ impl Terminal {
 							}
 						}
 
+						control::Item::C1(C1::ControlSequence(CSI::CursorUp(n))) => {
+							self.cursor.travel(cursor::Up(n), &mut self.dirty);
+						}
+
+						control::Item::C1(C1::ControlSequence(CSI::CursorDown(n))) => {
+							self.cursor.travel(cursor::Down(n), &mut self.dirty);
+						}
+
+						control::Item::C1(C1::ControlSequence(CSI::CursorBack(n))) => {
+							self.cursor.travel(cursor::Left(n), &mut self.dirty);
+						}
+
+						control::Item::C1(C1::ControlSequence(CSI::CursorForward(n))) => {
+							self.cursor.travel(cursor::Right(n), &mut self.dirty);
+						}
+
 						control::Item::C0(C0::CarriageReturn) => {
-							self.cursor.0 = 0;
+							self.cursor.travel(cursor::Position(Some(0), None), &mut self.dirty);
 						}
 
-						// TODO: properly scroll
 						control::Item::C0(C0::LineFeed) => {
-							self.cursor.1 += 1;
+							self.cursor.travel(cursor::Down(1), &mut self.dirty);
 						}
 
-						// TODO: properly wrap back
 						control::Item::C0(C0::Backspace) => {
-							self.cursor.0 -= 1;
+							self.cursor.travel(cursor::Left(1), &mut self.dirty);
 						}
 
 						control::Item::C1(C1::ControlSequence(CSI::SelectGraphicalRendition(attrs))) => {
-							let mut style = *self.style;
+							let mut style = **self.cursor.style();
 
 							for attr in &attrs {
 								match attr {
@@ -205,9 +250,7 @@ impl Terminal {
 								}
 							}
 
-							if style != *self.style {
-								self.style = Rc::new(style);
-							}
+							self.cursor.update(style);
 						}
 
 						control => {
@@ -215,37 +258,32 @@ impl Terminal {
 						}
 					}
 				}
-
-				IResult::Incomplete(_) => {
-					// TODO(meh): fill cache
-					break;
-				}
-
-				IResult::Error(e) => {
-					return Err(Error::Message(e.to_string()));
-				}
 			}
 		}
 
-		Ok(self.iter())
+		let dirty = self.dirty.take();
+		Ok(iter::Indexed::new(self, dirty.into_iter()))
 	}
 
 	// TODO(meh): handle wrapping.
 	// TODO(meh): collapse references
 	fn insert(&mut self, ch: String) -> u32 {
 		let width = ch.width() as u32;
-		let index = self.cursor.1 * self.area.width + self.cursor.0;
+		let index = self.cursor.y() * self.area.width + self.cursor.x();
 		let cells = &mut self.cells[index as usize .. (index + width) as usize];
 
 		let (cell, rest) = cells.split_at_mut(1);
 		cell[0].make_char(ch, false);
-		cell[0].set_style(self.style.clone());
+		cell[0].set_style(self.cursor.style().clone());
+
+		self.dirty.mark(cell[0].x(), cell[0].y());
 
 		for c in rest {
+			self.dirty.mark(c.x(), c.y());
 			c.make_reference(cell[0].x(), cell[0].y());
 		}
 
-		self.cursor.0 += width;
+		self.cursor.travel(cursor::Right(width), &mut self.dirty);
 		width
 	}
 
@@ -274,10 +312,8 @@ fn to_rgba(color: &SGR::Color, config: &Config, foreground: bool) -> Rgba<f64> {
 		&SGR::Color::Rgb(r, g, b) =>
 			Rgba::new_u8(r, g, b, 255),
 
-		&SGR::Color::Cmy(c, m, y) =>
-			unreachable!(),
-
-		&SGR::Color::Cmyk(c, m, y, k) =>
+		&SGR::Color::Cmy(..) |
+		&SGR::Color::Cmyk(..) =>
 			unreachable!(),
 	}
 }
