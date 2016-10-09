@@ -128,11 +128,12 @@ impl Terminal {
 		let     buffer = buffer.as_ref();
 		let mut input  = buffer.as_ref().map(AsRef::as_ref).unwrap_or(input);
 
-		// Input parsing loop.
 		loop {
-			match control::parse(input) {
+			// Try to parse the rest of the input.
+			let item = match control::parse(input) {
+				// This should never happen.
 				control::Result::Error(e) => {
-					return Err(Error::Message(e.to_string()));
+					break;
 				}
 
 				// The given input isn't a complete sequence, cache the current input.
@@ -144,161 +145,169 @@ impl Terminal {
 				// We got a sequence or a raw input.
 				control::Result::Done(rest, item) => {
 					input = rest;
+					item
+				}
+			};
 
-					println!("{:?}", item);
+			match item {
+				// Insert string.
+				Control::None(string) => {
+					for ch in string.graphemes(true) {
+						let width = ch.width() as u32;
+						let index = self.cursor.y() * self.area.width + self.cursor.x();
+						let cells = &mut self.cells[index as usize .. (index + width) as usize];
 
-					match item {
-						Control::None(string) => {
-							for ch in string.graphemes(true) {
-								self.insert(ch.into());
+						let (cell, rest) = cells.split_at_mut(1);
+						let cell         = &mut cell[0];
+
+						let changed = if let Some(char) = cell.char() {
+							ch != char || cell.style() != &**self.cursor.style()
+						}
+						else {
+							true
+						};
+
+						if changed {
+							cell.make_char(ch.into(), false);
+							cell.set_style(self.cursor.style().clone());
+
+							self.dirty.mark(cell.x(), cell.y());
+
+							for c in rest {
+								self.dirty.mark(c.x(), c.y());
+								c.make_reference(cell.x(), cell.y());
 							}
 						}
 
-						Control::C1(C1::ControlSequence(CSI::CursorPosition { x, y })) => {
-							self.cursor.travel(cursor::Position(Some(x), Some(y)), &mut self.dirty);
+						self.cursor.travel(cursor::Right(width), &mut self.dirty);
+					}
+				}
+
+				// Cursor movements.
+				Control::C1(C1::ControlSequence(CSI::CursorPosition { x, y })) => {
+					self.cursor.travel(cursor::Position(Some(x), Some(y)), &mut self.dirty);
+				}
+
+				Control::C1(C1::ControlSequence(CSI::CursorUp(n))) => {
+					self.cursor.travel(cursor::Up(n), &mut self.dirty);
+				}
+
+				Control::C1(C1::ControlSequence(CSI::CursorDown(n))) => {
+					self.cursor.travel(cursor::Down(n), &mut self.dirty);
+				}
+
+				Control::C1(C1::ControlSequence(CSI::CursorBack(n))) => {
+					self.cursor.travel(cursor::Left(n), &mut self.dirty);
+				}
+
+				Control::C1(C1::ControlSequence(CSI::CursorForward(n))) => {
+					self.cursor.travel(cursor::Right(n), &mut self.dirty);
+				}
+
+				Control::C0(C0::CarriageReturn) => {
+					self.cursor.travel(cursor::Position(Some(0), None), &mut self.dirty);
+				}
+
+				Control::C0(C0::LineFeed) => {
+					self.cursor.travel(cursor::Down(1), &mut self.dirty);
+				}
+
+				Control::C0(C0::Backspace) => {
+					self.cursor.travel(cursor::Left(1), &mut self.dirty);
+				}
+
+				Control::C1(C1::ControlSequence(CSI::InsertBlankCharacter(n))) => {
+					// TODO: dooo eeet
+				}
+
+				// Erasing.
+				Control::C1(C1::ControlSequence(CSI::EraseDisplay(erase))) => {
+					match erase {
+						CSI::Erase::ToEnd => {
+
 						}
 
-						Control::C1(C1::ControlSequence(CSI::CursorUp(n))) => {
-							self.cursor.travel(cursor::Up(n), &mut self.dirty);
+						CSI::Erase::ToStart => {
+
 						}
 
-						Control::C1(C1::ControlSequence(CSI::CursorDown(n))) => {
-							self.cursor.travel(cursor::Down(n), &mut self.dirty);
-						}
+						CSI::Erase::All => {
 
-						Control::C1(C1::ControlSequence(CSI::CursorBack(n))) => {
-							self.cursor.travel(cursor::Left(n), &mut self.dirty);
-						}
-
-						Control::C1(C1::ControlSequence(CSI::CursorForward(n))) => {
-							self.cursor.travel(cursor::Right(n), &mut self.dirty);
-						}
-
-						Control::C0(C0::CarriageReturn) => {
-							self.cursor.travel(cursor::Position(Some(0), None), &mut self.dirty);
-						}
-
-						Control::C0(C0::LineFeed) => {
-							self.cursor.travel(cursor::Down(1), &mut self.dirty);
-						}
-
-						Control::C0(C0::Backspace) => {
-							self.cursor.travel(cursor::Left(1), &mut self.dirty);
-						}
-
-						Control::C1(C1::ControlSequence(CSI::InsertBlankCharacter(n))) => {
-							self.blank(n);
-						}
-
-						Control::C1(C1::ControlSequence(CSI::SelectGraphicalRendition(attrs))) => {
-							let mut style = **self.cursor.style();
-
-							for attr in &attrs {
-								match attr {
-									&SGR::Reset =>
-										style = Style::default(),
-
-									&SGR::Font(SGR::Weight::Normal) =>
-										style.attributes.remove(style::BOLD | style::FAINT),
-
-									&SGR::Font(SGR::Weight::Bold) => {
-										style.attributes.remove(style::FAINT);
-										style.attributes.insert(style::BOLD);
-									}
-
-									&SGR::Font(SGR::Weight::Faint) => {
-										style.attributes.remove(style::BOLD);
-										style.attributes.insert(style::FAINT);
-									}
-
-									&SGR::Italic(true) =>
-										style.attributes.insert(style::ITALIC),
-									&SGR::Italic(false) =>
-										style.attributes.remove(style::ITALIC),
-
-									&SGR::Underline(true) =>
-										style.attributes.insert(style::UNDERLINE),
-									&SGR::Underline(false) =>
-										style.attributes.remove(style::UNDERLINE),
-
-									&SGR::Blink(true) =>
-										style.attributes.insert(style::BLINK),
-									&SGR::Blink(false) =>
-										style.attributes.remove(style::BLINK),
-
-									&SGR::Reverse(true) =>
-										style.attributes.insert(style::REVERSE),
-									&SGR::Reverse(false) =>
-										style.attributes.remove(style::REVERSE),
-
-									&SGR::Invisible(true) =>
-										style.attributes.insert(style::INVISIBLE),
-									&SGR::Invisible(false) =>
-										style.attributes.remove(style::INVISIBLE),
-
-									&SGR::Struck(true) =>
-										style.attributes.insert(style::STRUCK),
-									&SGR::Struck(false) =>
-										style.attributes.remove(style::STRUCK),
-
-									&SGR::Foreground(ref color) =>
-										style.foreground = Some(to_rgba(color, &self.config, true)),
-
-									&SGR::Background(ref color) =>
-										style.background = Some(to_rgba(color, &self.config, false)),
-								}
-							}
-
-							self.cursor.update(style);
-						}
-
-						control => {
-							debug!("unhandled control: {:?}", control);
 						}
 					}
+				}
+
+				// Style attributes.
+				Control::C1(C1::ControlSequence(CSI::SelectGraphicalRendition(attrs))) => {
+					let mut style = **self.cursor.style();
+
+					for attr in &attrs {
+						match attr {
+							&SGR::Reset =>
+								style = Style::default(),
+
+							&SGR::Font(SGR::Weight::Normal) =>
+								style.attributes.remove(style::BOLD | style::FAINT),
+
+							&SGR::Font(SGR::Weight::Bold) => {
+								style.attributes.remove(style::FAINT);
+								style.attributes.insert(style::BOLD);
+							}
+
+							&SGR::Font(SGR::Weight::Faint) => {
+								style.attributes.remove(style::BOLD);
+								style.attributes.insert(style::FAINT);
+							}
+
+							&SGR::Italic(true) =>
+								style.attributes.insert(style::ITALIC),
+							&SGR::Italic(false) =>
+								style.attributes.remove(style::ITALIC),
+
+							&SGR::Underline(true) =>
+								style.attributes.insert(style::UNDERLINE),
+							&SGR::Underline(false) =>
+								style.attributes.remove(style::UNDERLINE),
+
+							&SGR::Blink(true) =>
+								style.attributes.insert(style::BLINK),
+							&SGR::Blink(false) =>
+								style.attributes.remove(style::BLINK),
+
+							&SGR::Reverse(true) =>
+								style.attributes.insert(style::REVERSE),
+							&SGR::Reverse(false) =>
+								style.attributes.remove(style::REVERSE),
+
+							&SGR::Invisible(true) =>
+								style.attributes.insert(style::INVISIBLE),
+							&SGR::Invisible(false) =>
+								style.attributes.remove(style::INVISIBLE),
+
+							&SGR::Struck(true) =>
+								style.attributes.insert(style::STRUCK),
+							&SGR::Struck(false) =>
+								style.attributes.remove(style::STRUCK),
+
+							&SGR::Foreground(ref color) =>
+								style.foreground = Some(to_rgba(color, &self.config, true)),
+
+							&SGR::Background(ref color) =>
+								style.background = Some(to_rgba(color, &self.config, false)),
+						}
+					}
+
+					self.cursor.update(style);
+				}
+
+				control => {
+					debug!("unhandled control: {:?}", control);
 				}
 			}
 		}
 
 		let dirty = self.dirty.take();
 		Ok(iter::Indexed::new(self, dirty.into_iter()))
-	}
-
-	// TODO(meh): handle wrapping.
-	// TODO(meh): collapse references
-	fn insert(&mut self, ch: String) -> u32 {
-		let width = ch.width() as u32;
-		let index = self.cursor.y() * self.area.width + self.cursor.x();
-		let cells = &mut self.cells[index as usize .. (index + width) as usize];
-
-		let (cell, rest) = cells.split_at_mut(1);
-		let cell         = &mut cell[0];
-
-		let changed = if let Some(char) = cell.char() {
-			ch != char || cell.style() != &**self.cursor.style()
-		}
-		else {
-			true
-		};
-
-		if changed {
-			cell.make_char(ch, false);
-			cell.set_style(self.cursor.style().clone());
-
-			self.dirty.mark(cell.x(), cell.y());
-
-			for c in rest {
-				self.dirty.mark(c.x(), c.y());
-				c.make_reference(cell.x(), cell.y());
-			}
-		}
-
-		self.cursor.travel(cursor::Right(width), &mut self.dirty);
-		width
-	}
-
-	fn delete(&mut self) -> u32 {
-		0
 	}
 }
 
