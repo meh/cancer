@@ -100,6 +100,10 @@ impl Cell {
 		}
 	}
 
+	pub fn is_wide(&self) -> bool {
+		self.width() > 1
+	}
+
 	pub fn set_style(&mut self, style: Rc<Style>) {
 		self.style = style;
 	}

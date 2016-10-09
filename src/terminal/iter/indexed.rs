@@ -15,7 +15,10 @@
 // You should have received a copy of the GNU General Public License
 // along with cancer.  If not, see <http://www.gnu.org/licenses/>.
 
-use std::vec;
+use std::collections::HashSet;
+use std::hash::BuildHasherDefault;
+use fnv::FnvHasher;
+
 use terminal::{Terminal, Cell, cell};
 
 #[derive(Debug)]
@@ -24,6 +27,7 @@ pub struct Indexed<'a, T>
 {
 	iter:  T,
 	inner: &'a Terminal,
+	seen:  HashSet<(u32, u32), BuildHasherDefault<FnvHasher>>,
 }
 
 impl<'a, T> Indexed<'a, T>
@@ -33,6 +37,7 @@ impl<'a, T> Indexed<'a, T>
 		Indexed {
 			iter:  iter,
 			inner: inner,
+			seen:  Default::default(),
 		}
 	}
 }
@@ -43,19 +48,31 @@ impl<'a, T> Iterator for Indexed<'a, T>
 	type Item = &'a Cell;
 
 	fn next(&mut self) -> Option<Self::Item> {
-		if let Some((x, y)) = self.iter.next() {
+		loop {
+			let (x, y) = if let Some((x, y)) = self.iter.next() {
+				(x, y)
+			}
+			else {
+				return None;
+			};
+
 			let cell = self.inner.get(x, y);
 
-			match cell.state() {
-				&cell::State::Reference { x, y, .. } =>
-					Some(self.inner.get(x, y)),
+			if let &cell::State::Reference { x, y, .. } = cell.state() {
+				let cell = self.inner.get(x, y);
 
-				_ =>
-					Some(cell)
+				if !self.seen.contains(&(x, y)) {
+					self.seen.insert((x, y));
+					return Some(cell);
+				}
 			}
-		}
-		else {
-			None
+			else if cell.is_wide() {
+				self.seen.insert((x, y));
+				return Some(cell);
+			}
+			else {
+				return Some(cell);
+			}
 		}
 	}
 }
