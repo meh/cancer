@@ -15,8 +15,52 @@
 // You should have received a copy of the GNU General Public License
 // along with cancer.  If not, see <http://www.gnu.org/licenses/>.
 
+use std::io::{self, Write};
+use control::{Control, C0, C1, CSI, Format};
+
 #[derive(Eq, PartialEq, Copy, Clone, Debug)]
 pub enum Key {
 	Enter,
 	Escape,
+
+	Up,
+	Down,
+	Right,
+	Left,
+}
+
+impl Key {
+	pub fn write<W: Write>(&self, mut output: W) -> io::Result<()> {
+		macro_rules! write {
+			(raw $raw:expr) => (
+				try!(output.write_all($raw));
+			);
+
+			($item:expr) => (
+				try!(($item.into(): Control).fmt(output.by_ref(), false));
+			);
+		}
+
+		match *self {
+			Key::Enter =>
+				write!(C0::LineFeed),
+
+			Key::Escape =>
+				write!(C0::Escape),
+
+			Key::Up =>
+				write!(raw b"\x1BOA"),
+
+			Key::Down =>
+				write!(raw b"\x1BOB"),
+
+			Key::Right =>
+				write!(raw b"\x1BOC"),
+
+			Key::Left =>
+				write!(raw b"\x1BOD"),
+		}
+
+		Ok(())
+	}
 }

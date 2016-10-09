@@ -16,6 +16,7 @@
 // along with cancer.  If not, see <http://www.gnu.org/licenses/>.
 
 use std::sync::Arc;
+use std::convert::TryFrom;
 
 use xcb;
 use xcbu::ewmh;
@@ -132,16 +133,31 @@ impl Keyboard {
 	}
 }
 
-impl From<u32> for terminal::Key {
-	fn from(value: u32) -> terminal::Key {
-		match value {
+impl TryFrom<u32> for terminal::Key {
+	type Err = ();
+
+	fn try_from(value: u32) -> Result<Self, ()> {
+		Ok(match value {
 			keysyms::KEY_Return =>
 				terminal::Key::Enter,
 
 			keysyms::KEY_Escape =>
 				terminal::Key::Escape,
 
-			_ => unreachable!()
-		}
+			keysyms::KEY_Up =>
+				terminal::Key::Up,
+
+			keysyms::KEY_Down =>
+				terminal::Key::Down,
+
+			keysyms::KEY_Right =>
+				terminal::Key::Right,
+
+			keysyms::KEY_Left =>
+				terminal::Key::Left,
+
+			_ =>
+				return Err(())
+		})
 	}
 }

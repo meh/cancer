@@ -16,7 +16,7 @@
 // along with cancer.  If not, see <http://www.gnu.org/licenses/>.
 
 #![feature(question_mark, mpsc_select, conservative_impl_trait, slice_patterns)]
-#![feature(static_in_const, trace_macros, type_ascription)]
+#![feature(static_in_const, trace_macros, type_ascription, try_from)]
 #![recursion_limit="100"]
 
 #[macro_use]
@@ -107,8 +107,8 @@ fn main() {
 
 fn open(matches: &ArgMatches) -> error::Result<()> {
 	use std::sync::Arc;
+	use std::convert::TryFrom;
 	use std::io::Write;
-	use xkbcommon::xkb::keysyms as key;
 
 	let     config   = Arc::new(Config::load(matches.value_of("config"))?);
 	let     font     = Arc::new(Font::load(config.clone())?);
@@ -236,21 +236,16 @@ fn open(matches: &ArgMatches) -> error::Result<()> {
 					}
 
 					xcb::KEY_PRESS => {
-						let event  = xcb::cast_event::<xcb::KeyPressEvent>(&event);
-						let symbol = keyboard.symbol(event.detail());
+						let event = xcb::cast_event::<xcb::KeyPressEvent>(&event);
 
-						match symbol {
-							key::KEY_Return |
-							key::KEY_Escape => {
-								render!(terminal.key(symbol.into(), &mut tty).unwrap());
-							}
+						if let Ok(key) = terminal::Key::try_from(keyboard.symbol(event.detail())) {
+							render!(terminal.key(key, &mut tty).unwrap());
+						}
+						else {
+							let string = keyboard.string(event.detail());
 
-							_ => {
-								let string = keyboard.string(event.detail());
-
-								if !string.is_empty() {
-									render!(terminal.input(&string, &mut tty).unwrap());
-								}
+							if !string.is_empty() {
+								render!(terminal.input(&string, &mut tty).unwrap());
 							}
 						}
 

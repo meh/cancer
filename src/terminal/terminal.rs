@@ -106,27 +106,13 @@ impl Terminal {
 		self.iter().filter(|c| c.style().attributes().contains(style::BLINK))
 	}
 
-	pub fn key<'a, O: Write>(&'a mut self, key: Key, mut output: O) -> error::Result<impl Iterator<Item = &'a Cell>> {
-		macro_rules! write {
-			($item:expr) => (
-				try!(($item.into(): control::Item).fmt(output.by_ref(), true));
-			);
-		}
-
-		match key {
-			Key::Enter =>
-				write!(C0::LineFeed),
-
-			Key::Escape =>
-				write!(C0::Escape),
-		}
-
+	pub fn key<'a, O: Write>(&'a mut self, key: Key, output: O) -> error::Result<impl Iterator<Item = &'a Cell>> {
+		try!(key.write(output));
 		Ok(iter::empty())
 	}
 
 	pub fn input<'a, I: AsRef<str>, O: Write>(&'a mut self, input: I, mut output: O) -> error::Result<impl Iterator<Item = &'a Cell>> {
 		try!(output.write_all(input.as_ref().as_bytes()));
-
 		Ok(iter::empty())
 	}
 
