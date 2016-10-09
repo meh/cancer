@@ -19,21 +19,27 @@ use std::vec;
 use terminal::{Terminal, Cell, cell};
 
 #[derive(Debug)]
-pub struct Indexed<'a> {
-	iter:  vec::IntoIter<(u32, u32)>,
+pub struct Indexed<'a, T>
+	where T: Iterator<Item = (u32, u32)>
+{
+	iter:  T,
 	inner: &'a Terminal,
 }
 
-impl<'a> Indexed<'a> {
-	pub fn new(inner: &Terminal, list: Vec<(u32, u32)>) -> Indexed {
+impl<'a, T> Indexed<'a, T>
+	where T: Iterator<Item = (u32, u32)>
+{
+	pub fn new(inner: &Terminal, iter: T) -> Indexed<T> {
 		Indexed {
-			iter:  list.into_iter(),
+			iter:  iter,
 			inner: inner,
 		}
 	}
 }
 
-impl<'a> Iterator for Indexed<'a> {
+impl<'a, T> Iterator for Indexed<'a, T>
+	where T: Iterator<Item = (u32, u32)>
+{
 	type Item = &'a Cell;
 
 	fn next(&mut self) -> Option<Self::Item> {
