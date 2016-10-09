@@ -13,10 +13,10 @@ keywords    = ["term", "pty"]
 log        = "0.3"
 env_logger = "0.3"
 
-bitflags = "0.7"
-fnv      = "1.0"
-shlex    = "0.1"
-nom      = "1.0"
+bitflags     = "0.7"
+fnv          = "1.0"
+shlex        = "0.1"
+control-code = "0.1"
 
 clap  = "2"
 xdg   = "2"

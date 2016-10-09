@@ -27,8 +27,7 @@ extern crate env_logger;
 extern crate bitflags;
 extern crate fnv;
 extern crate shlex;
-#[macro_use]
-extern crate nom;
+extern crate control_code as control;
 
 extern crate xdg;
 extern crate toml;
@@ -58,8 +57,6 @@ use font::Font;
 
 mod timer;
 use timer::Timer;
-
-mod control;
 
 mod terminal;
 use terminal::Terminal;
