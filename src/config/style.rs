@@ -36,8 +36,8 @@ pub struct Color {
 	foreground: Rgba<f64>,
 	background: Rgba<f64>,
 
-	underline: Option<Rgba<f64>>,
-	strike:    Option<Rgba<f64>>,
+	underline:     Option<Rgba<f64>>,
+	strikethrough: Option<Rgba<f64>>,
 }
 
 #[derive(Eq, PartialEq, Copy, Clone, Debug)]
@@ -77,7 +77,7 @@ impl Default for Color {
 			foreground: to_color("#c0c0c0").unwrap(),
 			background: to_color("#000").unwrap(),
 			underline:  None,
-			strike:     None,
+			strikethrough:     None,
 		}
 	}
 }
@@ -133,8 +133,8 @@ impl Style {
 				self.color.underline = Some(value);
 			}
 
-			if let Some(value) = table.get("strike").and_then(|v| v.as_str()).and_then(|v| to_color(v)) {
-				self.color.strike = Some(value);
+			if let Some(value) = table.get("strikethrough").and_then(|v| v.as_str()).and_then(|v| to_color(v)) {
+				self.color.strikethrough = Some(value);
 			}
 		}
 
@@ -206,8 +206,8 @@ impl Color {
 		self.underline.as_ref()
 	}
 
-	pub fn strike(&self) -> Option<&Rgba<f64>> {
-		self.strike.as_ref()
+	pub fn strikethrough(&self) -> Option<&Rgba<f64>> {
+		self.strikethrough.as_ref()
 	}
 }
 
