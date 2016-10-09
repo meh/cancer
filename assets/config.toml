@@ -6,18 +6,18 @@ program = "zsh"
 font  = "monospace 11px"
 blink = 800
 
-margin  = 0
+margin  = 2
 spacing = 0
 
 [style.color]
-foreground = "#c6c6c6"
-background = "#000000"
-underline  = "#060"
-strike     = "#f00"
+foreground    = "#c6c6c6"
+background    = "#000000"
+underline     = "#060"
+strikethrough = "#f00"
 
 [style.cursor]
-shape = "beam"
-blink = true
+shape = "block"
+blink = false
 
 foreground = "#fff"
 background = "#b21818"
