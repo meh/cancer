@@ -27,7 +27,7 @@ use sys::cairo;
 use sys::pango;
 use font::Font;
 use style;
-use terminal::{Cell, CursorCell};
+use terminal::{cell, cursor};
 use super::Style;
 
 /// Renderer for a `cairo::Surface`.
@@ -184,7 +184,7 @@ impl Renderer {
 	}
 
 	/// Draw the cursor.
-	pub fn cursor(&mut self, cursor: &CursorCell, blinking: bool, focus: bool) {
+	pub fn cursor(&mut self, cursor: &cursor::Cell, blinking: bool, focus: bool) {
 		debug_assert!(!cursor.cell().is_reference());
 
 		// Cache needed values in various places.
@@ -203,7 +203,7 @@ impl Renderer {
 			mem::swap(&mut fg, &mut bg);
 		}
 
-		s.update(cell);
+		s.update(&cell);
 		o.save();
 		{
 			let w = f.width() * cell.width();
@@ -251,7 +251,7 @@ impl Renderer {
 				o.text(l, &iter::repeat(' ').take(cell.width() as usize).collect::<String>());
 			}
 			else {
-				o.text(l, cell.char().unwrap());
+				o.text(l, cell.value());
 			}
 
 			// Render cursors that require to be on top.
@@ -293,7 +293,7 @@ impl Renderer {
 	}
 
 	/// Draw the given cell.
-	pub fn cell(&mut self, cell: &Cell, blinking: bool) {
+	pub fn cell(&mut self, cell: cell::Position, blinking: bool) {
 		debug_assert!(!cell.is_reference());
 
 		// Cache needed values in various places.
@@ -308,7 +308,7 @@ impl Renderer {
 			mem::swap(&mut fg, &mut bg);
 		}
 
-		s.update(cell);
+		s.update(&cell);
 		o.save();
 		{
 			let w = f.width() * cell.width();
@@ -336,7 +336,7 @@ impl Renderer {
 				o.text(l, &iter::repeat(' ').take(cell.width() as usize).collect::<String>());
 			}
 			else {
-				o.text(l, cell.char().unwrap());
+				o.text(l, cell.value());
 			}
 		}
 		o.restore();

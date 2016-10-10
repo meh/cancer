@@ -15,30 +15,170 @@
 // You should have received a copy of the GNU General Public License
 // along with cancer.  If not, see <http://www.gnu.org/licenses/>.
 
+use std::iter;
 use std::mem;
-use std::collections::HashSet;
+use std::collections::{hash_set, HashSet};
 use std::hash::BuildHasherDefault;
 use fnv::FnvHasher;
-
-use terminal::iter;
+use picto::Area;
+use picto::iter::Coordinates;
 
 #[derive(Eq, PartialEq, Clone, Default, Debug)]
 pub struct Dirty {
-	marked: HashSet<(u32, u32), BuildHasherDefault<FnvHasher>>,
+	all:      bool,
+	line:     HashSet<u32, BuildHasherDefault<FnvHasher>>,
+	position: HashSet<(u32, u32), BuildHasherDefault<FnvHasher>>,
 }
 
 impl Dirty {
+	pub fn all(&mut self) -> &mut Self {
+		self.all = true;
+		self
+	}
+
+	pub fn line(&mut self, line: u32) -> &mut Self {
+		if !self.all {
+			self.line.insert(line);
+		}
+
+		self
+	}
+
 	pub fn mark(&mut self, x: u32, y: u32) -> &mut Self {
-		self.marked.insert((x, y));
+		if !self.all {
+			self.position.insert((x, y));
+		}
+
 		self
 	}
 
 	pub fn push(&mut self, pair: (u32, u32)) -> &mut Self {
-		self.marked.insert(pair);
+		if !self.all {
+			self.position.insert(pair);
+		}
+
 		self
 	}
 
-	pub fn take(&mut self) -> HashSet<(u32, u32), BuildHasherDefault<FnvHasher>> {
-		mem::replace(&mut self.marked, Default::default())
+	pub fn iter(&mut self, area: Area) -> Iter {
+		Iter::new(area,
+			mem::replace(&mut self.all, false),
+			mem::replace(&mut self.line, Default::default()),
+			mem::replace(&mut self.position, Default::default()))
+	}
+}
+
+pub struct Iter {
+	area:  Area,
+	state: State,
+	lines: HashSet<u32, BuildHasherDefault<FnvHasher>>,
+
+	all:      bool,
+	line:     Option<HashSet<u32, BuildHasherDefault<FnvHasher>>>,
+	position: Option<HashSet<(u32, u32), BuildHasherDefault<FnvHasher>>>,
+}
+
+enum State {
+	None,
+	Done,
+
+	All(Coordinates),
+	Lines(Option<(u32, u32)>, hash_set::IntoIter<u32>),
+	Positions(hash_set::IntoIter<(u32, u32)>),
+}
+
+impl Iter {
+	pub fn new(area:     Area,
+	           all:      bool,
+	           line:     HashSet<u32, BuildHasherDefault<FnvHasher>>,
+	           position: HashSet<(u32, u32), BuildHasherDefault<FnvHasher>>) -> Self {
+
+		Iter {
+			area:  area,
+			state: State::None,
+			lines: line.clone(),
+
+			all:      all,
+			line:     if line.is_empty() { None } else { Some(line) },
+			position: if position.is_empty() { None } else { Some(position) },
+		}
+	}
+}
+
+impl Iterator for Iter {
+	type Item = (u32, u32);
+
+	fn next(&mut self) -> Option<Self::Item> {
+		loop {
+			match mem::replace(&mut self.state, State::None) {
+				State::Done => {
+					self.state = State::Done;
+
+					return None;
+				}
+
+				State::None => {
+					self.state = if self.all {
+						State::All(self.area.absolute())
+					}
+					else if let Some(line) = self.line.take() {
+						State::Lines(None, line.into_iter())
+					}
+					else if let Some(position) = self.position.take() {
+						State::Positions(position.into_iter())
+					}
+					else {
+						State::Done
+					};
+				}
+
+				State::All(mut iter) => {
+					if let Some(value) = iter.next() {
+						self.state = State::All(iter);
+
+						return Some(value);
+					}
+					else {
+						self.state = State::Done;
+					}
+				}
+
+				State::Lines(mut cur, mut iter) => {
+					if let Some((mut x, y)) = cur.take() {
+						x += 1;
+
+						if x < self.area.width {
+							cur = Some((x, y));
+						}
+
+						self.state = State::Lines(cur, iter);
+
+						return Some((x, y));
+					}
+					else if let Some(y) = iter.next() {
+						self.state = State::Lines(Some((0, y)), iter);
+					}
+					else if let Some(position) = self.position.take() {
+						self.state = State::Positions(position.into_iter());
+					}
+					else {
+						self.state = State::Done;
+					}
+				}
+
+				State::Positions(mut iter) => {
+					if let Some((x, y)) = iter.next() {
+						self.state = State::Positions(iter);
+
+						if !self.lines.contains(&y) {
+							return Some((x, y));
+						}
+					}
+					else {
+						self.state = State::Done;
+					}
+				}
+			}
+		}
 	}
 }

@@ -19,29 +19,32 @@ use std::collections::HashSet;
 use std::hash::BuildHasherDefault;
 use fnv::FnvHasher;
 
-use picto;
-use picto::iter::Coordinates;
 use terminal::{Terminal, Cell, cell};
 
-#[derive(Debug)]
-pub struct Area<'a> {
-	iter:  Coordinates,
+pub struct Iter<'a, T>
+	where T: Iterator<Item = (u32, u32)>
+{
+	iter:  T,
 	inner: &'a Terminal,
 	seen:  HashSet<(u32, u32), BuildHasherDefault<FnvHasher>>,
 }
 
-impl<'a> Area<'a> {
-	pub fn new(inner: &Terminal, area: picto::Area) -> Area {
-		Area {
-			iter:  area.relative(),
+impl<'a, T> Iter<'a, T>
+	where T: Iterator<Item = (u32, u32)>
+{
+	pub fn new(inner: &Terminal, iter: T) -> Iter<T> {
+		Iter {
+			iter:  iter,
 			inner: inner,
 			seen:  Default::default(),
 		}
 	}
 }
 
-impl<'a> Iterator for Area<'a> {
-	type Item = &'a Cell;
+impl<'a, T> Iterator for Iter<'a, T>
+	where T: Iterator<Item = (u32, u32)>
+{
+	type Item = cell::Position<'a>;
 
 	fn next(&mut self) -> Option<Self::Item> {
 		loop {
@@ -52,23 +55,23 @@ impl<'a> Iterator for Area<'a> {
 				return None;
 			};
 
-			let cell = self.inner.get(x, y);
+			let mut cell = self.inner.get(x, y);
 
-			if let &cell::State::Reference { x, y, .. } = cell.state() {
-				let cell = self.inner.get(x, y);
+			if cell.is_reference() {
+				let offset = cell.offset();
+				let x      = x - offset;
 
-				if !self.seen.contains(&(x, y)) {
-					self.seen.insert((x, y));
-					return Some(cell);
+				if self.seen.contains(&(x, y)) {
+					continue;
 				}
+
+				cell = self.inner.get(x, y);
 			}
 			else if cell.is_wide() {
 				self.seen.insert((x, y));
-				return Some(cell);
 			}
-			else {
-				return Some(cell);
-			}
+
+			return Some(cell);
 		}
 	}
 }

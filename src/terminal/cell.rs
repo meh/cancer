@@ -15,43 +15,171 @@
 // You should have received a copy of the GNU General Public License
 // along with cancer.  If not, see <http://www.gnu.org/licenses/>.
 
+use std::ops::Deref;
+use std::mem;
 use std::rc::Rc;
 use unicode_width::UnicodeWidthStr;
 
 use style::Style;
 
 #[derive(PartialEq, Clone, Debug)]
-pub struct Cell {
+pub enum Cell {
+	Empty {
+		style: Rc<Style>,
+	},
+
+	Occupied {
+		style: Rc<Style>,
+		value: String,
+	},
+
+	Reference(u8),
+}
+
+#[derive(PartialEq, Copy, Clone, Debug)]
+pub struct Position<'a> {
 	x: u32,
 	y: u32,
 
-	style: Rc<Style>,
-	state: State,
-}
-
-#[derive(PartialEq, Clone, Debug)]
-pub enum State {
-	Empty,
-
-	Reference {
-		x: u32,
-		y: u32,
-	},
-
-	Char {
-		value: String,
-		wrap:  bool,
-	}
+	inner: &'a Cell,
 }
 
 impl Cell {
-	pub fn new(x: u32, y: u32, style: Rc<Style>) -> Self {
-		Cell {
+	/// Create an empty cell.
+	pub fn empty(style: Rc<Style>) -> Self {
+		Cell::Empty {
+			style: style
+		}
+	}
+
+	/// Create an occupied cell.
+	pub fn occupied(value: String, style: Rc<Style>) -> Self {
+		Cell::Occupied {
+			value: value,
+			style: style,
+		}
+	}
+
+	/// Create a referencing cell.
+	pub fn reference(offset: u8) -> Self {
+		Cell::Reference(offset)
+	}
+
+	/// Check if the cell is empty.
+	pub fn is_empty(&self) -> bool {
+		if let &Cell::Empty { .. } = self {
+			true
+		}
+		else {
+			false
+		}
+	}
+
+	/// Check if the cell is occupied.
+	pub fn is_occupied(&self) -> bool {
+		if let &Cell::Occupied { .. } = self {
+			true
+		}
+		else {
+			false
+		}
+	}
+
+	/// Check if the cell is a reference.
+	pub fn is_reference(&self) -> bool {
+		if let &Cell::Reference(..) = self {
+			true
+		}
+		else {
+			false
+		}
+	}
+
+	/// Check if the cell is wide.
+	pub fn is_wide(&self) -> bool {
+		match self {
+			&Cell::Empty { .. } =>
+				false,
+
+			&Cell::Occupied { ref value, .. } =>
+				value.width() > 1,
+
+			&Cell::Reference(..) =>
+				unreachable!()
+		}
+	}
+
+	/// Make the cell empty.
+	pub fn into_empty(&mut self, style: Rc<Style>) {
+		mem::replace(self, Cell::Empty {
+			style: style,
+		});
+	}
+
+	/// Make the cell occupied.
+	pub fn into_occupied(&mut self, value: String, style: Rc<Style>) {
+		mem::replace(self, Cell::Occupied {
+			value: value,
+			style: style,
+		});
+	}
+
+	/// Make the cell into a reference.
+	pub fn into_reference(&mut self, offset: u8) {
+		mem::replace(self, Cell::Reference(offset));
+	}
+
+	/// Get the cell style.
+	pub fn style(&self) -> &Style {
+		match self {
+			&Cell::Empty { ref style, .. } =>
+				style,
+
+			&Cell::Occupied { ref style, .. } =>
+				style,
+
+			&Cell::Reference(..) =>
+				unreachable!(),
+		}
+	}
+
+	/// Get the value if any.
+	pub fn value(&self) -> &str {
+		match self {
+			&Cell::Empty { .. } =>
+				" ",
+
+			&Cell::Occupied { ref value, .. } =>
+				value,
+
+			_ =>
+				unreachable!()
+		}
+	}
+
+	pub fn width(&self) -> u32 {
+		self.value().width() as u32
+	}
+
+	/// Get the reference offset.
+	pub fn offset(&self) -> u32 {
+		match self {
+			&Cell::Reference(offset) =>
+				offset as u32,
+
+			_ =>
+				unreachable!()
+		}
+	}
+}
+
+impl<'a> Position<'a> {
+	pub fn new(x: u32, y: u32, inner: &Cell) -> Position {
+		Position {
 			x: x,
 			y: y,
 
-			style: style,
-			state: State::Empty
+			inner: inner
 		}
 	}
 
@@ -62,94 +190,12 @@ impl Cell {
 	pub fn y(&self) -> u32 {
 		self.y
 	}
+}
 
-	pub fn wrap(&self) -> bool {
-		match &self.state {
-			&State::Char { wrap, .. } =>
-				wrap,
+impl<'a> Deref for Position<'a> {
+	type Target = Cell;
 
-			_ =>
-				false
-		}
-	}
-
-	pub fn is_empty(&self) -> bool {
-		if let &State::Empty = &self.state {
-			true
-		}
-		else {
-			false
-		}
-	}
-
-	pub fn is_reference(&self) -> bool {
-		if let &State::Reference { .. } = &self.state {
-			true
-		}
-		else {
-			false
-		}
-	}
-
-	pub fn is_character(&self) -> bool {
-		if let &State::Char { .. } = &self.state {
-			true
-		}
-		else {
-			false
-		}
-	}
-
-	pub fn is_wide(&self) -> bool {
-		self.width() > 1
-	}
-
-	pub fn set_style(&mut self, style: Rc<Style>) {
-		self.style = style;
-	}
-
-	pub fn make_char(&mut self, ch: String, wrap: bool) {
-		self.state = State::Char {
-			value: ch,
-			wrap:  wrap,
-		}
-	}
-
-	pub fn make_reference(&mut self, x: u32, y: u32) {
-		self.state = State::Reference {
-			x: x,
-			y: y,
-		}
-	}
-
-	pub fn style(&self) -> &Style {
-		&self.style
-	}
-	
-	pub fn state(&self) -> &State {
-		&self.state
-	}
-
-	pub fn char(&self) -> Option<&str> {
-		match &self.state {
-			&State::Char { ref value, .. } =>
-				Some(value),
-
-			_ =>
-				None
-		}
-	}
-
-	pub fn width(&self) -> u32 {
-		match &self.state {
-			&State::Empty =>
-				1,
-
-			&State::Char { ref value, .. } =>
-				value.width() as u32,
-
-			&State::Reference { .. } =>
-				0,
-		}
+	fn deref(&self) -> &Self::Target {
+		self.inner
 	}
 }

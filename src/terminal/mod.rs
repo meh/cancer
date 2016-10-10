@@ -15,7 +15,8 @@
 // You should have received a copy of the GNU General Public License
 // along with cancer.  If not, see <http://www.gnu.org/licenses/>.
 
-pub mod iter;
+mod iter;
+pub use self::iter::Iter;
 
 mod dirty;
 pub use self::dirty::Dirty;
@@ -23,8 +24,8 @@ pub use self::dirty::Dirty;
 pub mod mode;
 pub use self::mode::Mode;
 
-mod cursor;
-pub use self::cursor::{Cursor, CursorCell};
+pub mod cursor;
+pub use self::cursor::Cursor;
 
 mod key;
 pub use self::key::Key;

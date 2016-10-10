@@ -19,7 +19,7 @@ use std::rc::Rc;
 use std::ops::Deref;
 
 use style::{self, Style};
-use terminal::{Cell, Dirty};
+use terminal::{cell, Dirty};
 
 #[derive(PartialEq, Clone, Default, Debug)]
 pub struct Cursor {
@@ -70,81 +70,88 @@ impl Cursor {
 		}
 	}
 
-	pub fn travel(&mut self, value: Travel, dirty: &mut Dirty) {
+	pub fn travel(&mut self, value: Travel, dirty: &mut Dirty) -> Option<u32> {
 		dirty.push(self.position);
 
 		match value {
 			Position(x, y) => {
 				if let Some(x) = x {
-					if x <= self.limits.0 {
+					if x < self.limits.0 {
 						self.position.0 = x;
+					}
+					else {
+						self.position.0 = self.limits.0 - 1;
 					}
 				}
 
 				if let Some(y) = y {
-					if y <= self.limits.1 {
-						self.position.1 = y;
-					}
+					self.position.1 = y;
 				}
 			}
 
 			Up(n) => {
-				if self.position.1 > 0 {
-					self.position.1 -= n;
-				}
+				self.position.1 = self.position.1.saturating_sub(n);
 			}
 
 			Down(n) => {
-				if self.position.1 < self.limits.1 {
-					self.position.1 += n;
-				}
+				self.position.1 += n;
 			}
 
 			Left(n) => {
-				if self.position.0 > 0 {
-					self.position.0 -= n;
+				if n > self.position.0 {
+					self.position.0 = 0;
+					self.position.1 = self.position.1.saturating_sub(1);
 				}
-				else if self.position.1 > 0 {
-					self.position.0  = self.limits.0 - 1;
-					self.position.1 -= 1;
+				else {
+					self.position.0 -= n;
 				}
 			}
 
 			Right(n) => {
-				if self.position.0 < self.limits.0 {
-					self.position.0 += n;
-				}
-				else if self.position.1 < self.limits.1 {
+				if self.position.0 + n >= self.limits.0 {
 					self.position.0  = 0;
 					self.position.1 += 1;
+				}
+				else {
+					self.position.0 += n;
 				}
 			}
 		}
 
 		dirty.push(self.position);
+
+		if self.position.1 >= self.limits.1 {
+			let overflow = self.position.1 - (self.limits.1 - 1);
+			self.position.1 = self.limits.1 - 1;
+
+			Some(overflow)
+		}
+		else {
+			None
+		}
 	}
 }
 
 /// A wrapper for a cursor and the cell it's on.
-pub struct CursorCell<'a> {
+pub struct Cell<'a> {
 	cursor: &'a Cursor,
-	cell:   &'a Cell,
+	cell:   cell::Position<'a>,
 }
 
-impl<'a> CursorCell<'a> {
-	pub fn new(cursor: &'a Cursor, cell: &'a Cell) -> CursorCell<'a> {
-		CursorCell {
+impl<'a> Cell<'a> {
+	pub fn new(cursor: &'a Cursor, cell: cell::Position<'a>) -> Cell<'a> {
+		Cell {
 			cursor: cursor,
 			cell:   cell,
 		}
 	}
 
-	pub fn cell(&self) -> &Cell {
+	pub fn cell(&self) -> cell::Position {
 		self.cell
 	}
 }
 
-impl<'a> Deref for CursorCell<'a> {
+impl<'a> Deref for Cell<'a> {
 	type Target = Cursor;
 
 	fn deref(&self) -> &Self::Target {
