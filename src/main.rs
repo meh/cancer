@@ -226,6 +226,7 @@ fn open(matches: &ArgMatches) -> error::Result<()> {
 
 							if terminal.columns() != columns || terminal.rows() != rows {
 								render!(terminal.resize(columns, rows));
+								tty.resize(columns, rows).unwrap();
 							}
 						}
 					}

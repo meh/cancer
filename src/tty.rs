@@ -24,7 +24,7 @@ use std::sync::Arc;
 use std::sync::mpsc::{Sender, Receiver, channel};
 
 use libc::{c_void, c_char, c_ushort, c_int, winsize};
-use libc::{SIGCHLD, SIGHUP, SIGINT, SIGQUIT, SIGTERM, SIGALRM, SIG_DFL, TIOCSCTTY};
+use libc::{SIGCHLD, SIGHUP, SIGINT, SIGQUIT, SIGTERM, SIGALRM, SIG_DFL, TIOCSCTTY, TIOCSWINSZ};
 use libc::{close, openpty, fork, setsid, dup2, signal, ioctl, getpwuid, getuid, execvp};
 
 use config::Config;
@@ -131,6 +131,23 @@ impl Tty {
 
 	pub fn output(&mut self) -> Receiver<Vec<u8>> {
 		self.output.take().unwrap()
+	}
+
+	pub fn resize(&mut self, width: u32, height: u32) -> error::Result<()> {
+		unsafe {
+			let size = winsize {
+				ws_row:    height as c_ushort,
+				ws_col:    width as c_ushort,
+				ws_xpixel: 0,
+				ws_ypixel: 0,
+			};
+
+			if ioctl(self.fd, TIOCSWINSZ, &size) < 0 {
+				return Err(Error::Message("failed to resize tty".into()));
+			}
+		}
+
+		Ok(())
 	}
 }
 
