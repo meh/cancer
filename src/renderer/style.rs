@@ -112,7 +112,7 @@ impl Style {
 			self.list.change(self.strikethrough_no.clone());
 		}
 
-		self.style = cell.style().clone();
+		self.style = *cell.style();
 	}
 }
 
