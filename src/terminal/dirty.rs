@@ -144,16 +144,15 @@ impl Iterator for Iter {
 				}
 
 				State::Lines(mut cur, mut iter) => {
-					if let Some((mut x, y)) = cur.take() {
-						x += 1;
-
+					if let Some((x, y)) = cur.take() {
 						if x < self.area.width {
-							cur = Some((x, y));
+							self.state = State::Lines(Some((x + 1, y)), iter);
+
+							return Some((x, y));
 						}
-
-						self.state = State::Lines(cur, iter);
-
-						return Some((x, y));
+						else {
+							self.state = State::Lines(None, iter);
+						}
 					}
 					else if let Some(y) = iter.next() {
 						self.state = State::Lines(Some((0, y)), iter);
