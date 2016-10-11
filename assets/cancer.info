@@ -4,6 +4,10 @@ cancer+base| terminal cancer base features,
 	lines#24,
 	it#8,
 
+#	Functionality.
+	am,
+	mir,
+
 #	Style.
 	acsc=``aaffggiijjkkllmmnnooppqqrrssttuuvvwwxxyyzz{{||}}~~,
 	bce,
@@ -25,10 +29,15 @@ cancer+base| terminal cancer base features,
 	il1=\233L,
 
 #	Erase.
+	clear=\233H\2332J,
 	ech=\233%p1%dX,
 	ed=\233J,
 	el=\233K,
 	el1=\2331K,
+	dch=\233%p1%dP,
+	dch1=\233P,
+	dl=\233%p1%dM,
+	dl1=\233M,
 
 #	Movement.
 	home=\233H,
