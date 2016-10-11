@@ -52,21 +52,40 @@ macro_rules! term {
 		($y + $term.scroll.unwrap_or_else(|| $term.rows.len() as u32 - $term.area.height)) as usize
 	);
 
+	($term:ident; extend) => (
+		$term.rows.push_back(vec![Cell::empty($term.empty.clone()); $term.area.width as usize]);
+	);
+
 	($term:ident; cursor $($travel:tt)*) => (
 		if let Some(n) = $term.cursor.travel(cursor::$($travel)*, &mut $term.dirty) {
-			println!("SCROLL MOTHERFUCKER: {}", n);
-
 			$term.dirty.all();
 
 			for _ in 0 .. n {
-				$term.rows.push_back(vec![Cell::empty($term.empty.clone()); $term.area.width as usize]);
+				term!($term; extend);
 			}
 		}
 	);
 
-	($term:ident; dirty $x:expr, $y:expr) => (
+	($term:ident; dirty) => (
+		$term.dirty.all();
+	);
+
+	($term:ident; dirty line $y:expr) => (
+		$term.dirty.line($y);
+	);
+
+	($term:ident; dirty ($x:expr, $y:expr)) => (
 		$term.dirty.mark($x, $y);
 	);
+
+	($term:ident; dirty $pair:expr) => (
+		$term.dirty.push($pair);
+	);
+
+	($term:ident; mut cell $x:expr, $y:expr) => ({
+		let row = term!($term; row for $y);
+		&mut $term.rows[row][$x as usize]
+	})
 }
 
 impl Terminal {
@@ -107,6 +126,7 @@ impl Terminal {
 		cursor::Cell::new(&self.cursor, self.get(self.cursor.x(), self.cursor.y()))
 	}
 
+	/// Get the cell at the given position.
 	pub fn get(&self, x: u32, y: u32) -> cell::Position {
 		cell::Position::new(x, y, &self.rows[term!(self; row for y)][x as usize])
 	}
@@ -121,6 +141,7 @@ impl Terminal {
 		Iter::new(self, self.area.absolute())
 	}
 
+	/// Resize the terminal.
 	// TODO: handle resize
 	pub fn resize<'a>(&'a mut self, width: u32, height: u32) -> impl Iterator<Item = cell::Position<'a>> {
 		self.iter()
@@ -184,10 +205,8 @@ impl Terminal {
 				}
 			};
 
-			println!("{:?}", item);
-
 			match item {
-				// Cursor movements.
+				// Movement functions.
 				Control::C0(C0::CarriageReturn) => {
 					term!(self; cursor Position(Some(0), None));
 				}
@@ -220,28 +239,169 @@ impl Terminal {
 					term!(self; cursor Right(n));
 				}
 
-				Control::C1(C1::ControlSequence(CSI::InsertBlankCharacter(n))) => {
-					// TODO: dooo eeet
-				}
+				// Erase functions.
+				Control::C1(C1::ControlSequence(CSI::EraseDisplay(CSI::Erase::ToEnd))) => {
+					let (x, y) = self.cursor.position();
 
-				// Erasing.
-				Control::C1(C1::ControlSequence(CSI::EraseDisplay(erase))) => {
-					match erase {
-						CSI::Erase::ToEnd => {
+					for x in x .. self.area.width {
+						term!(self; dirty (x, y));
+						term!(self; mut cell x, y).into_empty(self.empty.clone());
+					}
 
-						}
+					for y in y .. self.area.height {
+						term!(self; dirty line y);
 
-						CSI::Erase::ToStart => {
-
-						}
-
-						CSI::Erase::All => {
-
+						for x in 0 .. self.area.width {
+							term!(self; mut cell x, y).into_empty(self.empty.clone());
 						}
 					}
 				}
 
-				// Style attributes.
+				Control::C1(C1::ControlSequence(CSI::EraseDisplay(CSI::Erase::ToStart))) => {
+					let (x, y) = self.cursor.position();
+
+					for x in 0 .. x {
+						term!(self; dirty (x, y));
+						term!(self; mut cell x, y).into_empty(self.empty.clone());
+					}
+
+					for y in 0 .. y {
+						term!(self; dirty line y);
+
+						for x in 0 .. self.area.width {
+							term!(self; mut cell x, y).into_empty(self.empty.clone());
+						}
+					}
+				}
+
+				Control::C1(C1::ControlSequence(CSI::EraseDisplay(CSI::Erase::All))) => {
+					term!(self; dirty);
+
+					for y in 0 .. self.area.height {
+						for x in 0 .. self.area.width {
+							term!(self; mut cell x, y).into_empty(self.empty.clone());
+						}
+					}
+				}
+
+				Control::C1(C1::ControlSequence(CSI::EraseLine(CSI::Erase::ToEnd))) => {
+					let (x, y) = self.cursor.position();
+
+					for x in x .. self.area.width {
+						term!(self; dirty (x, y));
+						term!(self; mut cell x, y).into_empty(self.empty.clone());
+					}
+				}
+
+				Control::C1(C1::ControlSequence(CSI::EraseLine(CSI::Erase::ToStart))) => {
+					let (x, y) = self.cursor.position();
+
+					for x in 0 .. x {
+						term!(self; dirty (x, y));
+						term!(self; mut cell x, y).into_empty(self.empty.clone());
+					}
+				}
+
+				Control::C1(C1::ControlSequence(CSI::EraseLine(CSI::Erase::All))) => {
+					let y = self.cursor.y();
+
+					term!(self; dirty line y);
+
+					for x in 0 .. self.area.width {
+						term!(self; mut cell x, y).into_empty(self.empty.clone());
+					}
+				}
+
+				Control::C1(C1::ControlSequence(CSI::DeleteLine(n))) => {
+					let y   = self.cursor.y();
+					let row = term!(self; row for y);
+
+					// Remove the lines.
+					self.rows.drain(y as usize .. (y + n) as usize);
+
+					// Fill missing lines.
+					for _ in 0 .. n {
+						term!(self; extend);
+					}
+
+					// Mark the affected lines as dirty.
+					for y in y .. self.area.height {
+						term!(self; dirty line y);
+					}
+				}
+
+				// Insertion functions.
+				Control::C1(C1::ControlSequence(CSI::InsertCharacter(n))) => {
+					println!("BLANK: {}", n);
+				}
+
+				Control::C1(C1::ControlSequence(CSI::InsertLine(n))) => {
+					let y   = self.cursor.y();
+					let row = term!(self; row for y);
+
+					// Split the rows at the current line.
+					let mut rest = self.rows.split_off(row);
+
+					// Extend with new lines.
+					for _ in 0 .. n {
+						term!(self; extend);
+					}
+
+					// Remove the scrolled off lines.
+					rest.drain((self.area.height - y - n) as usize ..);
+					self.rows.append(&mut rest);
+
+					// Mark the affected lines as dirty.
+					for y in y .. self.area.height {
+						term!(self; dirty line y);
+					}
+				}
+
+				Control::None(string) => {
+					for ch in string.graphemes(true) {
+						let width = ch.width() as u32;
+
+						// If the character overflows the area, wrap it down.
+						if self.cursor.x() + width > self.area.width {
+							term!(self; cursor Down(1));
+							term!(self; cursor Position(Some(1), None));
+						}
+
+						// Change the cells appropriately.
+						{
+							let x            = self.cursor.x();
+							let y            = self.cursor.y();
+							let row          = term!(self; row for y);
+							let cells        = &mut self.rows[row][x as usize .. (x + width) as usize];
+							let (cell, rest) = cells.split_at_mut(1);
+							let cell         = &mut cell[0];
+
+							let changed = match cell {
+								&mut Cell::Empty { .. } =>
+									true,
+
+								&mut Cell::Occupied { ref style, ref value, .. } =>
+									value != ch || style != self.cursor.style(),
+
+								&mut Cell::Reference(..) =>
+									false
+							};
+
+							if changed {
+								cell.into_occupied(ch.into(), self.cursor.style().clone());
+
+								term!(self; dirty (x, y));
+								for (i, c) in rest.iter_mut().enumerate() {
+									c.into_reference(i as u8 + 1);
+								}
+							}
+						}
+
+						term!(self; cursor Right(width));
+					}
+				}
+
+				// Style functions.
 				Control::C1(C1::ControlSequence(CSI::SelectGraphicalRendition(attrs))) => {
 					let mut style = **self.cursor.style();
 
@@ -302,51 +462,6 @@ impl Terminal {
 					}
 
 					self.cursor.update(style);
-				}
-
-				// Insert string.
-				Control::None(string) => {
-					for ch in string.graphemes(true) {
-						let width = ch.width() as u32;
-
-						// If the character overflows the area, wrap it down.
-						if self.cursor.x() + width > self.area.width {
-							term!(self; cursor Down(1));
-							term!(self; cursor Position(Some(1), None));
-						}
-
-						// Change the cells appropriately.
-						{
-							let x            = self.cursor.x();
-							let y            = self.cursor.y();
-							let row          = term!(self; row for y);
-							let cells        = &mut self.rows[row][x as usize .. (x + width) as usize];
-							let (cell, rest) = cells.split_at_mut(1);
-							let cell         = &mut cell[0];
-
-							let changed = match cell {
-								&mut Cell::Empty { .. } =>
-									true,
-
-								&mut Cell::Occupied { ref style, ref value, .. } =>
-									value != ch || style != self.cursor.style(),
-
-								&mut Cell::Reference(..) =>
-									false
-							};
-
-							if changed {
-								cell.into_occupied(ch.into(), self.cursor.style().clone());
-
-								term!(self; dirty x, y);
-								for (i, c) in rest.iter_mut().enumerate() {
-									c.into_reference(i as u8 + 1);
-								}
-							}
-						}
-
-						term!(self; cursor Right(width));
-					}
 				}
 
 				code => {
