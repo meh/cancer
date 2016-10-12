@@ -18,6 +18,7 @@
 use ffi::pango::*;
 use ffi::glib::*;
 
+#[derive(Debug)]
 pub struct Map(pub *mut PangoFontMap);
 
 impl Map {

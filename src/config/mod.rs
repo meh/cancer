@@ -19,7 +19,7 @@ use std::fs::File;
 use std::io::Read;
 use std::path::Path;
 
-use toml::{self, Value};
+use toml;
 use xdg;
 use picto::color::Rgba;
 

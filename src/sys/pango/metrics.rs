@@ -19,6 +19,7 @@ use libc::c_int;
 
 use ffi::pango::*;
 
+#[derive(Debug)]
 pub struct Metrics(pub *mut PangoFontMetrics);
 
 impl Metrics {
@@ -49,11 +50,10 @@ impl Metrics {
 			(pixels(pango_font_metrics_get_underline_thickness(self.0)),
 			 position(pango_font_metrics_get_underline_position(self.0),
 			          pango_font_metrics_get_ascent(self.0)))
-
 		}
 	}
 
-	pub fn strike(&self) -> (u32, u32) {
+	pub fn strikethrough(&self) -> (u32, u32) {
 		unsafe {
 			(pixels(pango_font_metrics_get_strikethrough_thickness(self.0)),
 			 position(pango_font_metrics_get_strikethrough_position(self.0),

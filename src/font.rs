@@ -17,12 +17,18 @@
 
 use std::sync::Arc;
 use std::ops::Deref;
+use std::ptr;
 
+use libc::c_int;
+use ffi::pango::*;
+use sys::glib;
 use sys::pango;
 use config::Config;
+use style;
 use error;
 
 /// The font to use for rendering.
+#[derive(Debug)]
 pub struct Font {
 	map:     pango::Map,
 	context: pango::Context,
@@ -35,7 +41,7 @@ impl Font {
 	pub fn load(config: Arc<Config>) -> error::Result<Self> {
 		let map     = pango::Map::new();
 		let context = pango::Context::new(&map);
-		let set     = context.font(config.style().font()).ok_or(error::Error::Message("missing font".into()))?;
+		let set     = context.fonts(&pango::Description::from(config.style().font())).ok_or(error::Error::Message("missing font".into()))?;
 		let metrics = set.metrics();
 
 		Ok(Font {
@@ -44,6 +50,48 @@ impl Font {
 			set:     set,
 			metrics: metrics,
 		})
+	}
+
+	/// Load the proper font for the given attributes.
+	pub fn font(&self, ch: char, style: style::Attributes) -> pango::Font {
+		let font = self.set.font(ch);
+
+		if !style.intersects(style::BOLD | style::FAINT | style::ITALIC) {
+			return font;
+		}
+
+		let mut desc = font.description();
+
+		if style.contains(style::BOLD) {
+			desc.weight(pango::Weight::Bold);
+		}
+		else if style.contains(style::FAINT) {
+			desc.weight(pango::Weight::Light);
+		}
+		else {
+			desc.weight(pango::Weight::Normal);
+		}
+
+		if style.contains(style::ITALIC) {
+			desc.style(pango::Style::Italic);
+		}
+
+		self.context.font(&desc).unwrap_or(font)
+	}
+
+	/// Shape the string.
+	pub fn shape<T: AsRef<str>>(&self, text: T) -> pango::GlyphString {
+		let text = text.as_ref();
+
+		unsafe {
+			let result = pango::GlyphString::new();
+			let list   = glib::List(pango_itemize(self.context.0, text.as_ptr() as *const _, 0, text.len() as c_int, ptr::null(), ptr::null()));
+			let item   = pango::Item((*list.0).data as *mut _);
+
+			pango_shape(text.as_ptr() as *const _, text.len() as c_int, &(*item.0).analysis, result.0);
+
+			result
+		}
 	}
 }
 

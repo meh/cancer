@@ -19,7 +19,7 @@ use std::collections::HashSet;
 use std::hash::BuildHasherDefault;
 use fnv::FnvHasher;
 
-use terminal::{Terminal, Cell, cell};
+use terminal::{Terminal, cell};
 
 pub struct Iter<'a, T>
 	where T: Iterator<Item = (u32, u32)>

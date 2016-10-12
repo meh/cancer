@@ -17,28 +17,29 @@
 
 use ffi::pango::*;
 
-use super::{Context, AttributeList};
-use sys::cairo;
-
 #[derive(Debug)]
-pub struct Layout(pub *mut PangoLayout);
+pub struct GlyphString(pub *mut PangoGlyphString);
 
-impl Layout {
-	pub fn new<C: AsRef<Context>>(context: C) -> Self {
+impl GlyphString {
+	pub fn new() -> Self {
 		unsafe {
-			Layout(pango_layout_new(context.as_ref().0))
+			GlyphString(pango_glyph_string_new())
 		}
 	}
+}
 
-	pub fn attributes(&mut self, list: &AttributeList) {
+impl Clone for GlyphString {
+	fn clone(&self) -> Self {
 		unsafe {
-			pango_layout_set_attributes(self.0, list.0)
+			GlyphString(pango_glyph_string_copy(self.0))
 		}
 	}
+}
 
-	pub fn update<C: AsRef<cairo::Context>>(&mut self, context: C) {
+impl Drop for GlyphString {
+	fn drop(&mut self) {
 		unsafe {
-			pango_cairo_update_layout(context.as_ref().0, self.0);
+			pango_glyph_string_free(self.0);
 		}
 	}
 }

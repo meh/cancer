@@ -15,12 +15,11 @@
 // You should have received a copy of the GNU General Public License
 // along with cancer.  If not, see <http://www.gnu.org/licenses/>.
 
-use libc::c_int;
 use picto::color::{Rgb, Rgba};
 
 use ffi::cairo::*;
 use ffi::pango::*;
-use sys::pango::Layout;
+use sys::pango;
 use super::Surface;
 
 pub struct Context(pub *mut cairo_t);
@@ -121,12 +120,9 @@ impl Context {
 		}
 	}
 
-	pub fn text<S: AsRef<str>>(&mut self, layout: &Layout, text: S) {
-		let text = text.as_ref();
-
+	pub fn glyph(&mut self, font: &pango::Font, glyph: &pango::GlyphString) {
 		unsafe {
-			pango_layout_set_text(layout.0, text.as_ptr() as *const _, text.len() as c_int);
-			pango_cairo_show_layout(self.0, layout.0);
+			pango_cairo_show_glyph_string(self.0, font.0, glyph.0);
 		}
 	}
 }

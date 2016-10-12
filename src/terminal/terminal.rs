@@ -25,10 +25,10 @@ use unicode_segmentation::UnicodeSegmentation;
 use unicode_width::UnicodeWidthStr;
 use picto::Area;
 use picto::color::Rgba;
-use error::{self, Error};
+use error;
 use config::Config;
 use style::{self, Style};
-use terminal::{Iter, Dirty, Cell, Key, cell};
+use terminal::{Iter, Touched, Cell, Key, cell};
 use terminal::mode::{self, Mode};
 use terminal::cursor::{self, Cursor};
 use control::{self, Control, C0, C1, CSI, SGR};
@@ -39,12 +39,12 @@ pub struct Terminal {
 	area:   Area,
 	cache:  Option<Vec<u8>>,
 
-	mode:   Mode,
-	cursor: Cursor,
-	rows:   VecDeque<Vec<Cell>>,
-	dirty:  Dirty,
-	scroll: Option<u32>,
-	empty:  Rc<Style>,
+	mode:    Mode,
+	cursor:  Cursor,
+	rows:    VecDeque<Vec<Cell>>,
+	touched: Touched,
+	scroll:  Option<u32>,
+	empty:   Rc<Style>,
 }
 
 macro_rules! term {
@@ -57,8 +57,8 @@ macro_rules! term {
 	);
 
 	($term:ident; cursor $($travel:tt)*) => (
-		if let Some(n) = $term.cursor.travel(cursor::$($travel)*, &mut $term.dirty) {
-			$term.dirty.all();
+		if let Some(n) = $term.cursor.travel(cursor::$($travel)*, &mut $term.touched) {
+			$term.touched.all();
 
 			for _ in 0 .. n {
 				term!($term; extend);
@@ -66,20 +66,20 @@ macro_rules! term {
 		}
 	);
 
-	($term:ident; dirty) => (
-		$term.dirty.all();
+	($term:ident; touched all) => (
+		$term.touched.all();
 	);
 
-	($term:ident; dirty line $y:expr) => (
-		$term.dirty.line($y);
+	($term:ident; touched line $y:expr) => (
+		$term.touched.line($y);
 	);
 
-	($term:ident; dirty ($x:expr, $y:expr)) => (
-		$term.dirty.mark($x, $y);
+	($term:ident; touched ($x:expr, $y:expr)) => (
+		$term.touched.mark($x, $y);
 	);
 
-	($term:ident; dirty $pair:expr) => (
-		$term.dirty.push($pair);
+	($term:ident; touched $pair:expr) => (
+		$term.touched.push($pair);
 	);
 
 	($term:ident; mut cell $x:expr, $y:expr) => ({
@@ -100,12 +100,12 @@ impl Terminal {
 			area:   area,
 			cache:  Default::default(),
 
-			mode:   Mode::empty(),
-			cursor: Cursor::new(width, height),
-			rows:   rows,
-			dirty:  Dirty::default(),
-			scroll: None,
-			empty:  style.clone(),
+			mode:    Mode::empty(),
+			cursor:  Cursor::new(width, height),
+			rows:    rows,
+			touched: Touched::default(),
+			scroll:  None,
+			empty:   style.clone(),
 		})
 	}
 
@@ -188,7 +188,7 @@ impl Terminal {
 			// Try to parse the rest of the input.
 			let item = match control::parse(input) {
 				// This should never happen.
-				control::Result::Error(e) => {
+				control::Result::Error(_) => {
 					break;
 				}
 
@@ -244,12 +244,12 @@ impl Terminal {
 					let (x, y) = self.cursor.position();
 
 					for x in x .. self.area.width {
-						term!(self; dirty (x, y));
+						term!(self; touched (x, y));
 						term!(self; mut cell x, y).into_empty(self.empty.clone());
 					}
 
 					for y in y .. self.area.height {
-						term!(self; dirty line y);
+						term!(self; touched line y);
 
 						for x in 0 .. self.area.width {
 							term!(self; mut cell x, y).into_empty(self.empty.clone());
@@ -261,12 +261,12 @@ impl Terminal {
 					let (x, y) = self.cursor.position();
 
 					for x in 0 .. x {
-						term!(self; dirty (x, y));
+						term!(self; touched (x, y));
 						term!(self; mut cell x, y).into_empty(self.empty.clone());
 					}
 
 					for y in 0 .. y {
-						term!(self; dirty line y);
+						term!(self; touched line y);
 
 						for x in 0 .. self.area.width {
 							term!(self; mut cell x, y).into_empty(self.empty.clone());
@@ -275,7 +275,7 @@ impl Terminal {
 				}
 
 				Control::C1(C1::ControlSequence(CSI::EraseDisplay(CSI::Erase::All))) => {
-					term!(self; dirty);
+					term!(self; touched all);
 
 					for y in 0 .. self.area.height {
 						for x in 0 .. self.area.width {
@@ -288,7 +288,7 @@ impl Terminal {
 					let (x, y) = self.cursor.position();
 
 					for x in x .. self.area.width {
-						term!(self; dirty (x, y));
+						term!(self; touched (x, y));
 						term!(self; mut cell x, y).into_empty(self.empty.clone());
 					}
 				}
@@ -297,7 +297,7 @@ impl Terminal {
 					let (x, y) = self.cursor.position();
 
 					for x in 0 .. x {
-						term!(self; dirty (x, y));
+						term!(self; touched (x, y));
 						term!(self; mut cell x, y).into_empty(self.empty.clone());
 					}
 				}
@@ -305,7 +305,7 @@ impl Terminal {
 				Control::C1(C1::ControlSequence(CSI::EraseLine(CSI::Erase::All))) => {
 					let y = self.cursor.y();
 
-					term!(self; dirty line y);
+					term!(self; touched line y);
 
 					for x in 0 .. self.area.width {
 						term!(self; mut cell x, y).into_empty(self.empty.clone());
@@ -317,16 +317,16 @@ impl Terminal {
 					let row = term!(self; row for y);
 
 					// Remove the lines.
-					self.rows.drain(y as usize .. (y + n) as usize);
+					self.rows.drain(row as usize .. (row + n as usize));
 
 					// Fill missing lines.
 					for _ in 0 .. n {
 						term!(self; extend);
 					}
 
-					// Mark the affected lines as dirty.
+					// Mark the affected lines as touched.
 					for y in y .. self.area.height {
-						term!(self; dirty line y);
+						term!(self; touched line y);
 					}
 				}
 
@@ -351,9 +351,9 @@ impl Terminal {
 					rest.drain((self.area.height - y - n) as usize ..);
 					self.rows.append(&mut rest);
 
-					// Mark the affected lines as dirty.
+					// Mark the affected lines as touched.
 					for y in y .. self.area.height {
-						term!(self; dirty line y);
+						term!(self; touched line y);
 					}
 				}
 
@@ -390,7 +390,7 @@ impl Terminal {
 							if changed {
 								cell.into_occupied(ch.into(), self.cursor.style().clone());
 
-								term!(self; dirty (x, y));
+								term!(self; touched (x, y));
 								for (i, c) in rest.iter_mut().enumerate() {
 									c.into_reference(i as u8 + 1);
 								}
@@ -470,8 +470,8 @@ impl Terminal {
 			}
 		}
 
-		let dirty = self.dirty.iter(self.area);
-		Ok(Iter::new(self, dirty))
+		let touched = self.touched.iter(self.area);
+		Ok(Iter::new(self, touched))
 	}
 }
 

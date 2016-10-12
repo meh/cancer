@@ -18,5 +18,5 @@
 mod renderer;
 pub use self::renderer::Renderer;
 
-mod style;
-pub use self::style::Style;
+mod cache;
+pub use self::cache::Cache;

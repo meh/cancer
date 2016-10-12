@@ -20,8 +20,9 @@ use std::ptr;
 use ffi::pango::*;
 use ffi::glib::*;
 
-use super::{Description, Map, Set};
+use super::{Description, Map, Set, Font};
 
+#[derive(Debug)]
 pub struct Context(pub *mut PangoContext);
 
 impl Context {
@@ -31,12 +32,17 @@ impl Context {
 		}
 	}
 
-	pub fn font<S: AsRef<str>>(&self, name: S) -> Option<Set> {
-		let description = Description::from(name);
-
+	pub fn font(&self, desc: &Description) -> Option<Font> {
 		unsafe {
-			pango_context_set_font_description(self.0, description.0);
-			pango_context_load_fontset(self.0, description.0, ptr::null_mut())
+			pango_context_load_font(self.0, desc.0)
+				.as_mut().map(|v| Font(v as *mut _))
+		}
+	}
+
+	pub fn fonts(&self, desc: &Description) -> Option<Set> {
+		unsafe {
+			pango_context_set_font_description(self.0, desc.0);
+			pango_context_load_fontset(self.0, desc.0, ptr::null_mut())
 				.as_mut().map(|v| Set(v as *mut _))
 		}
 	}

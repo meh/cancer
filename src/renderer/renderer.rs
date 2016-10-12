@@ -15,7 +15,6 @@
 // You should have received a copy of the GNU General Public License
 // along with cancer.  If not, see <http://www.gnu.org/licenses/>.
 
-use std::iter;
 use std::mem;
 use std::sync::Arc;
 use std::ops::{Deref, DerefMut};
@@ -24,40 +23,38 @@ use picto::Area;
 use config::Config;
 use config::style::Shape;
 use sys::cairo;
-use sys::pango;
 use font::Font;
 use style;
 use terminal::{cell, cursor};
-use super::Style;
+use super::{cache, Cache};
 
 /// Renderer for a `cairo::Surface`.
 pub struct Renderer {
 	config: Arc<Config>,
-	font:   Arc<Font>,
 	width:  u32,
 	height: u32,
 
 	context: cairo::Context,
-	layout:  pango::Layout,
-	style:   Style,
+	font:    Arc<Font>,
+	cache:   Cache,
 }
 
 impl Renderer {
 	/// Create a new renderer for the given settings and surface.
 	pub fn new<S: AsRef<cairo::Surface>>(config: Arc<Config>, font: Arc<Font>, surface: S, width: u32, height: u32) -> Self {
 		let context = cairo::Context::new(surface);
-		let layout  = pango::Layout::new(font.as_ref());
-		let style   = Style::new(&config);
+		let cache   = Cache::new(
+			(width - (config.style().margin() * 2)) / font.width(),
+			(height - (config.style().margin() * 2)) / (font.height() + config.style().spacing()));
 
 		Renderer {
 			config: config,
-			font:   font,
 			width:  width,
 			height: height,
 
 			context: context,
-			layout:  layout,
-			style:   style,
+			font:    font,
+			cache:   cache,
 		}
 	}
 
@@ -77,19 +74,24 @@ impl Renderer {
 	pub fn resize(&mut self, width: u32, height: u32) {
 		self.width  = width;
 		self.height = height;
+
+		let rows    = self.rows();
+		let columns = self.columns();
+		self.cache.resize(columns, rows);
 	}
 
 	/// Turn the damaged area to cell-space.
-	pub fn damaged(&self, area: &Area) -> Area {
+	pub fn damaged(&mut self, area: &Area) -> Area {
 		let (c, f) = (&self.config, &self.font);
 		let m      = c.style().margin();
 		let s      = c.style().spacing();
 
 		// Check if the area falls exactly within a margin, if so bail out.
-		if (area.x < m && area.width <= m - area.x) ||
-		   (area.x >= self.width - m) ||
-		   (area.y < m && area.height <= m - area.y) ||
-		   (area.y >= self.height - m)
+		if m != 0 &&
+		   ((area.x < m && area.width <= m - area.x) ||
+		    (area.x >= self.width - m) ||
+		    (area.y < m && area.height <= m - area.y) ||
+		    (area.y >= self.height - m))
 		{
 			return Area::from(0, 0, 0, 0);
 		}
@@ -185,161 +187,174 @@ impl Renderer {
 
 	/// Draw the cursor.
 	pub fn cursor(&mut self, cursor: &cursor::Cell, blinking: bool, focus: bool) {
-		debug_assert!(!cursor.cell().is_reference());
+		self.cache.invalidate(&cursor.cell());
 
 		// Cache needed values in various places.
 		//
 		// FIXME(meh): Find better names/and or ways to deal with this stuff.
-		let (c, o, l, f, s) = (&self.config, &mut self.context, &mut self.layout, &self.font, &mut self.style);
-		let     cell = cursor.cell();
-		let     cb   = blinking && c.style().cursor().blink();
-		let     bc   = blinking && cell.style().attributes().contains(style::BLINK);
-		let mut fg   = cell.style().foreground().unwrap_or_else(|| c.style().color().foreground());
-		let mut bg   = cell.style().background().unwrap_or_else(|| c.style().color().background());
-		let     cfg  = c.style().cursor().foreground();
-		let     cbg  = c.style().cursor().background();
+		let (c, o, f) = (&self.config, &mut self.context, &self.font);
+		let cell = cursor.cell();
+		let bc   = blinking && c.style().cursor().blink();
+		let fg   = c.style().cursor().foreground();
+		let bg   = c.style().cursor().background();
 
-		if cell.style().attributes().contains(style::REVERSE) {
-			mem::swap(&mut fg, &mut bg);
+		let w = f.width() * cell.width();
+		let h = f.height() + c.style().spacing();
+		let x = c.style().margin() + (cell.x() * f.width());
+		let y = c.style().margin() + (cell.y() * h);
+
+		// Render cursors that require to be on the bottom.
+		match c.style().cursor().shape() {
+			Shape::Block => {
+				if focus && !bc {
+					o.rgba(bg);
+					o.fill(false);
+				}
+				else {
+					o.rgba(c.style().color().background());
+				}
+
+				o.rectangle(x as f64, y as f64, w as f64, h as f64);
+				o.line_width(1.0);
+				o.fill(false);
+
+				o.rgba(fg);
+			}
+
+			Shape::Beam | Shape::Line => {
+				o.rgba(cell.style().foreground().unwrap_or(
+					c.style().color().foreground()));
+			}
 		}
 
-		s.update(&cell);
-		o.save();
-		{
-			let w = f.width() * cell.width();
-			let h = f.height() + c.style().spacing();
-			let x = c.style().margin() + (cell.x() * f.width());
-			let y = c.style().margin() + (cell.y() * h);
+		if cell.is_occupied() && !(blinking && cell.style().attributes().contains(style::BLINK)) {
+			// Draw the glyph.
+			o.move_to(x as f64, (y + f.ascent()) as f64);
 
-			// Clip to the cell area.
-			o.rectangle(x as f64, y as f64, w as f64, h as f64);
-			o.clip();
+			if !cell.data().is::<cache::Computed>() {
+				let string = cell.value();
+				let ch     = string.chars().next().unwrap();
 
-			// Clear the area for rendering.
-			o.rgba(bg);
-			o.paint();
+				*cell.data_mut() = Box::new(cache::Computed {
+					font:   f.font(ch, cell.style().attributes()),
+					glyphs: f.shape(string),
+				});
+			}
 
-			// Render cursors that require to be on the bottom.
-			match c.style().cursor().shape() {
-				// The block cursor only requires to be fully drawn when the window is
-				// focused or when the terminal is blinking.
-				//
-				// It also changes the foreground color to the appropriate value.
-				Shape::Block => {
-					if focus && !cb {
-						o.rgba(cbg);
-						o.paint();
-					}
+			if let Some(&cache::Computed { ref font, ref glyphs }) = cell.data().downcast_ref::<cache::Computed>() {
+				o.glyph(font, glyphs);
+			}
+		}
 
-					o.rgba(cfg);
-				}
-
-				// Other cursors keep the foreground color normal.
-				Shape::Beam | Shape::Line => {
-					o.rgba(fg);
+		// Render cursors that require to be on top.
+		match c.style().cursor().shape() {
+			// If the window is not focused or the terminal is blinking draw an
+			// outline of the cell.
+			Shape::Block => {
+				if !focus || bc {
+					o.rgba(bg);
+					o.rectangle(x as f64 + 0.5, y as f64 + 0.5, w as f64 - 1.0, h as f64 - 1.0);
+					o.line_width(1.0);
+					o.stroke();
 				}
 			}
 
-			// Draw the text in the cell.
-			o.move_to(x as f64, y as f64);
-			l.attributes(s);
-
-			if cell.is_empty() {
-				o.text(l, " ");
-			}
-			else if bc || cell.style().attributes().contains(style::INVISIBLE) {
-				o.text(l, &iter::repeat(' ').take(cell.width() as usize).collect::<String>());
-			}
-			else {
-				o.text(l, cell.value());
-			}
-
-			// Render cursors that require to be on top.
-			match c.style().cursor().shape() {
-				// If the window is not focused or the terminal is blinking draw an
-				// outline of the cell.
-				Shape::Block => {
-					if !focus || cb {
-						o.rgba(cbg);
-						o.rectangle(x as f64, y as f64, w as f64, h as f64);
-						o.stroke();
-					}
+			// The line always covers any glyph underneath, unless it's blinking.
+			Shape::Line => {
+				if !(bc && focus) {
+					o.rgba(bg);
+					o.move_to(x as f64, (y + f.underline().1) as f64 + 0.5);
+					o.line_to((x + w) as f64, (y + f.underline().1) as f64 + 0.5);
+					o.line_width(f.underline().0 as f64);
+					o.stroke();
 				}
+			}
 
-				// The line always covers any glyph underneath, unless it's blinking.
-				Shape::Line => {
-					if !(cb && focus) {
-						o.rgba(cbg);
-						o.move_to(x as f64, (y + f.underline().1) as f64 + 0.5);
-						o.line_to((x + w) as f64, (y + f.underline().1) as f64 + 0.5);
-						o.line_width(f.underline().0 as f64);
-						o.stroke();
-					}
-				}
-
-				// The beam always covers any glyph underneath, unless it's blinking.
-				Shape::Beam => {
-					if !(cb && focus) {
-						o.rgba(cbg);
-						o.move_to(x as f64 + 0.5, y as f64);
-						o.line_to(x as f64 + 0.5, (y + h) as f64);
-						o.line_width(f.underline().0 as f64);
-						o.stroke();
-					}
+			// The beam always covers any glyph underneath, unless it's blinking.
+			Shape::Beam => {
+				if !(bc && focus) {
+					o.rgba(bg);
+					o.move_to(x as f64 + 0.5, y as f64);
+					o.line_to(x as f64 + 0.5, (y + h) as f64);
+					o.line_width(f.underline().0 as f64);
+					o.stroke();
 				}
 			}
 		}
-		o.restore();
 	}
 
 	/// Draw the given cell.
-	pub fn cell(&mut self, cell: cell::Position, blinking: bool) {
-		debug_assert!(!cell.is_reference());
+	pub fn cell(&mut self, cell: &cell::Position, blinking: bool, force: bool) -> bool {
+		// Bail out if the character is up to date.
+		if !force && !self.cache.update(&cell) {
+			return false;
+		}
 
 		// Cache needed values in various places.
-		//
-		// FIXME(meh): Find better names/and or ways to deal with this stuff.
-		let (c, o, l, f, s) = (&self.config, &mut self.context, &mut self.layout, &self.font, &mut self.style);
-		let mut fg = cell.style().foreground().unwrap_or_else(|| c.style().color().foreground());
-		let mut bg = cell.style().background().unwrap_or_else(|| c.style().color().background());
-		let     bc = blinking && cell.style().attributes().contains(style::BLINK);
+		let (c, o, f) = (&self.config, &mut self.context, &self.font);
+
+		let mut fg = cell.style().foreground().unwrap_or_else(||
+			c.style().color().foreground());
+
+		let mut bg = cell.style().background().unwrap_or_else(||
+			c.style().color().background());
 
 		if cell.style().attributes().contains(style::REVERSE) {
 			mem::swap(&mut fg, &mut bg);
 		}
 
-		s.update(&cell);
-		o.save();
-		{
-			let w = f.width() * cell.width();
-			let h = f.height() + c.style().spacing();
-			let x = c.style().margin() + (cell.x() * f.width());
-			let y = c.style().margin() + (cell.y() * h);
+		let w = f.width() * cell.width();
+		let h = f.height() + c.style().spacing();
+		let x = c.style().margin() + (cell.x() * f.width());
+		let y = c.style().margin() + (cell.y() * h);
 
-			// Clip to the cell area.
-			o.rectangle(x as f64, y as f64, w as f64, h as f64);
-			o.clip();
+		// Draw the background.
+		o.rectangle(x as f64, y as f64, w as f64, h as f64);
+		o.line_width(1.0);
+		o.rgba(bg);
+		o.fill(false);
 
-			// Draw background.
-			o.rgba(bg);
-			o.paint();
-
-			// Draw text in the cell.
+		if cell.is_occupied() && !(blinking && cell.style().attributes().contains(style::BLINK)) {
+			// Draw the glyph.
+			o.move_to(x as f64, (y + f.ascent()) as f64);
 			o.rgba(fg);
-			o.move_to(x as f64, y as f64);
-			l.attributes(s);
 
-			if cell.is_empty() {
-				o.text(l, " ");
+			if !cell.data().is::<cache::Computed>() {
+				let string = cell.value();
+				let ch     = string.chars().next().unwrap();
+
+				*cell.data_mut() = Box::new(cache::Computed {
+					font:   f.font(ch, cell.style().attributes()),
+					glyphs: f.shape(string),
+				});
 			}
-			else if bc || cell.style().attributes().contains(style::INVISIBLE) {
-				o.text(l, &iter::repeat(' ').take(cell.width() as usize).collect::<String>());
-			}
-			else {
-				o.text(l, cell.value());
+
+			if let Some(&cache::Computed { ref font, ref glyphs }) = cell.data().downcast_ref::<cache::Computed>() {
+				o.glyph(font, glyphs);
 			}
 		}
-		o.restore();
+
+		// Draw underline.
+		if cell.style().attributes().contains(style::UNDERLINE) {
+			let (thickness, position) = f.underline();
+
+			o.rgba(c.style().color().underline().unwrap_or(fg));
+			o.rectangle(x as f64, (y + position) as f64, w as f64, thickness as f64);
+			o.line_width(1.0);
+			o.fill(false);
+		}
+
+		// Draw strikethrough.
+		if cell.style().attributes().contains(style::STRUCK) {
+			let (thickness, position) = f.strikethrough();
+
+			o.rgba(c.style().color().strikethrough().unwrap_or(fg));
+			o.rectangle(x as f64, (y + position) as f64, w as f64, thickness as f64);
+			o.line_width(1.0);
+			o.fill(false);
+		}
+
+		true
 	}
 }
 

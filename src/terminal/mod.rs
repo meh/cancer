@@ -18,8 +18,8 @@
 mod iter;
 pub use self::iter::Iter;
 
-mod dirty;
-pub use self::dirty::Dirty;
+mod touched;
+pub use self::touched::Touched;
 
 pub mod mode;
 pub use self::mode::Mode;

@@ -15,20 +15,14 @@
 // You should have received a copy of the GNU General Public License
 // along with cancer.  If not, see <http://www.gnu.org/licenses/>.
 
-use libc::c_void;
+use ffi::pango::*;
 
-#[repr(C)]
-pub struct GList {
-	pub data: *mut c_void,
-	pub next: *mut GList,
-	pub prev: *mut GList,
-}
+pub struct Item(pub *mut PangoItem);
 
-#[link(name = "gobject-2.0")]
-#[link(name = "glib-2.0")]
-extern "C" {
-	pub fn g_list_free(ptr: *mut GList);
-
-	pub fn g_object_unref(ptr: *mut c_void);
-	pub fn g_object_ref(ptr: *mut c_void) -> *mut c_void;
+impl Drop for Item {
+	fn drop(&mut self) {
+		unsafe {
+			pango_item_free(self.0);
+		}
+	}
 }

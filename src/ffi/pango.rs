@@ -15,23 +15,42 @@
 // You should have received a copy of the GNU General Public License
 // along with cancer.  If not, see <http://www.gnu.org/licenses/>.
 
-use libc::{c_void, c_char, c_int};
+use libc::{c_void, c_char, c_int, c_uint};
 use super::cairo::*;
+use super::glib::*;
+
+#[repr(C)]
+pub struct PangoItem {
+	pub offset:    c_int,
+	pub length:    c_int,
+	pub num_chars: c_int,
+	pub analysis:  PangoAnalysis,
+}
 
 #[repr(C)]
 pub struct PangoContext(c_void);
 
 #[repr(C)]
-pub struct PangoLayout(c_void);
-
-#[repr(C)]
 pub struct PangoLanguage(c_void);
 
 #[repr(C)]
-pub struct PangoAttribute(c_void);
+pub struct PangoAnalysis {
+	pub shape_engine: *mut c_void,
+	pub lang_engine:  *mut c_void,
+	pub font:         *mut PangoFont,
+
+	pub level:   u8,
+	pub gravity: u8,
+	pub flags:   u8,
+
+	pub script: u8,
+	pub language: *mut c_void,
+
+	pub extra_attrs: *mut GList,
+}
 
 #[repr(C)]
-pub struct PangoAttrList(c_void);
+pub struct PangoGlyphString(c_void);
 
 #[repr(C)]
 pub enum PangoWeight {
@@ -66,6 +85,9 @@ pub enum PangoUnderline {
 }
 
 #[repr(C)]
+pub struct PangoFont(c_void);
+
+#[repr(C)]
 pub struct PangoFontMap(c_void);
 
 #[repr(C)]
@@ -82,6 +104,8 @@ extern "C" {
 	pub fn pango_font_map_create_context(fontmap: *mut PangoFontMap) -> *mut PangoContext;
 	pub fn pango_context_set_font_description(context: *mut PangoContext, desc: *const PangoFontDescription);
 	pub fn pango_context_load_fontset(context: *mut PangoContext, desc: *const PangoFontDescription, language: *mut PangoLanguage) -> *mut PangoFontset;
+	pub fn pango_context_load_font(context: *mut PangoContext, desc: *const PangoFontDescription) -> *mut PangoFont;
+	pub fn pango_fontset_get_font(fontset: *mut PangoFontset, ch: c_uint) -> *mut PangoFont;
 	pub fn pango_fontset_get_metrics(fontset: *mut PangoFontset) -> *mut PangoFontMetrics;
 
 	pub fn pango_font_metrics_unref(metrics: *mut PangoFontMetrics);
@@ -93,36 +117,25 @@ extern "C" {
 	pub fn pango_font_metrics_get_strikethrough_thickness(metrics: *mut PangoFontMetrics) -> c_int;
 	pub fn pango_font_metrics_get_strikethrough_position(metrics: *mut PangoFontMetrics) -> c_int;
 
-	pub fn pango_layout_new(ctx: *mut PangoContext) -> *mut PangoLayout;
-
 	pub fn pango_font_description_from_string(string: *const c_char) -> *mut PangoFontDescription;
 	pub fn pango_font_description_free(desc: *mut PangoFontDescription);
+	pub fn pango_font_description_set_weight(desc: *mut PangoFontDescription, weight: PangoWeight);
+	pub fn pango_font_description_set_style(desc: *mut PangoFontDescription, style: PangoStyle);
 
-	pub fn pango_layout_set_font_description(layout: *mut PangoLayout, description: *mut PangoFontDescription);
-	pub fn pango_layout_set_text(layout: *mut PangoLayout, text: *const c_char, length: c_int);
-	pub fn pango_layout_set_attributes(layout: *mut PangoLayout, list: *mut PangoAttrList);
+	pub fn pango_font_describe(font: *mut PangoFont) -> *mut PangoFontDescription;
 
-	pub fn pango_attr_list_new() -> *mut PangoAttrList;
-	pub fn pango_attr_list_unref(list: *mut PangoAttrList);
-	pub fn pango_attr_list_insert(list: *mut PangoAttrList, attr: *mut PangoAttribute);
-	pub fn pango_attr_list_change(list: *mut PangoAttrList, attr: *mut PangoAttribute);
+	pub fn pango_glyph_string_new() -> *mut PangoGlyphString;
+	pub fn pango_glyph_string_copy(glyphs: *mut PangoGlyphString) -> *mut PangoGlyphString;
+	pub fn pango_glyph_string_free(glyphs: *mut PangoGlyphString);
 
-	pub fn pango_attribute_copy(attr: *const PangoAttribute) -> *mut PangoAttribute;
-	pub fn pango_attribute_destroy(attr: *mut PangoAttribute);
-
-	pub fn pango_attr_weight_new(weight: PangoWeight) -> *mut PangoAttribute;
-	pub fn pango_attr_style_new(style: PangoStyle) -> *mut PangoAttribute;
-	pub fn pango_attr_strikethrough_new(strike: bool) -> *mut PangoAttribute;
-	pub fn pango_attr_strikethrough_color_new(red: u16, green: u16, blue: u16) -> *mut PangoAttribute;
-	pub fn pango_attr_underline_new(underline: PangoUnderline) -> *mut PangoAttribute;
-	pub fn pango_attr_underline_color_new(red: u16, green: u16, blue: u16) -> *mut PangoAttribute;
+	pub fn pango_itemize(context: *mut PangoContext, text: *const c_char, start_index: c_int, length: c_int, attrs: *const c_void, cached_iter: *const c_void) -> *mut GList;
+	pub fn pango_shape(text: *const c_char, length: c_int, analysis: *const PangoAnalysis, glyphs: *mut PangoGlyphString);
+	pub fn pango_item_free(item: *mut PangoItem);
 }
 
 #[link(name = "pangocairo-1.0")]
 extern "C" {
 	pub fn pango_cairo_font_map_new() -> *mut PangoFontMap;
-
-	pub fn pango_cairo_create_layout(cr: *mut cairo_t) -> *mut PangoLayout;
-	pub fn pango_cairo_update_layout(cr: *mut cairo_t, layout: *mut PangoLayout);
-	pub fn pango_cairo_show_layout(cr: *mut cairo_t, layout: *mut PangoLayout);
+	pub fn pango_cairo_show_glyph_string(cr: *mut cairo_t, font: *mut PangoFont, glyphs: *mut PangoGlyphString);
+	pub fn pango_cairo_glyph_string_path(cr: *mut cairo_t, font: *mut PangoFont, glyphs: *mut PangoGlyphString);
 }

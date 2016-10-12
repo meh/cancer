@@ -15,20 +15,14 @@
 // You should have received a copy of the GNU General Public License
 // along with cancer.  If not, see <http://www.gnu.org/licenses/>.
 
-use libc::c_void;
+use ffi::glib::*;
 
-#[repr(C)]
-pub struct GList {
-	pub data: *mut c_void,
-	pub next: *mut GList,
-	pub prev: *mut GList,
-}
+pub struct List(pub *mut GList);
 
-#[link(name = "gobject-2.0")]
-#[link(name = "glib-2.0")]
-extern "C" {
-	pub fn g_list_free(ptr: *mut GList);
-
-	pub fn g_object_unref(ptr: *mut c_void);
-	pub fn g_object_ref(ptr: *mut c_void) -> *mut c_void;
+impl Drop for List {
+	fn drop(&mut self) {
+		unsafe {
+			g_list_free(self.0);
+		}
+	}
 }

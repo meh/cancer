@@ -127,8 +127,6 @@ fn open(matches: &ArgMatches) -> error::Result<()> {
 			let blinking = terminal.mode().contains(terminal::mode::BLINK);
 			let focused  = window.has_focus();
 
-			debug!(target: "cancer::render", "1 cells");
-
 			// Redraw the cursor.
 			render.update(|mut o| {
 				o.cursor(&terminal.cursor(), blinking, focused);
@@ -142,15 +140,13 @@ fn open(matches: &ArgMatches) -> error::Result<()> {
 			let blinking = terminal.mode().contains(terminal::mode::BLINK);
 			let focused  = window.has_focus();
 
-			debug!(target: "cancer::render", "{} cells", render.damaged(&area).absolute().count() + 1);
-
 			render.update(|mut o| {
 				// Redraw margins.
 				o.margin(&area);
 
 				// Redraw the cells that fall within the damaged area.
 				for cell in terminal.area(o.damaged(&area)) {
-					o.cell(cell, blinking);
+					o.cell(&cell, blinking, true);
 				}
 
 				// Redraw the cursor.
@@ -165,14 +161,9 @@ fn open(matches: &ArgMatches) -> error::Result<()> {
 			let focused  = window.has_focus();
 
 			render.update(|mut o| {
-				let mut count = 0;
-
 				for cell in $iter {
-					o.cell(cell, blinking);
-					count += 1;
+					o.cell(&cell, blinking, false);
 				}
-
-				debug!(target: "cancer::render", "{} cells", count + 1);
 
 				o.cursor(&terminal.cursor(), blinking, focused);
 			});

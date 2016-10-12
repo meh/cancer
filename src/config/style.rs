@@ -74,10 +74,10 @@ impl Default for Style {
 impl Default for Color {
 	fn default() -> Self {
 		Color {
-			foreground: to_color("#c0c0c0").unwrap(),
-			background: to_color("#000").unwrap(),
-			underline:  None,
-			strikethrough:     None,
+			foreground:    to_color("#c0c0c0").unwrap(),
+			background:    to_color("#000").unwrap(),
+			underline:     None,
+			strikethrough: None,
 		}
 	}
 }

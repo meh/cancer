@@ -18,8 +18,8 @@
 use std::rc::Rc;
 use std::ops::Deref;
 
-use style::{self, Style};
-use terminal::{cell, Dirty};
+use style::Style;
+use terminal::{cell, Touched};
 
 #[derive(PartialEq, Clone, Default, Debug)]
 pub struct Cursor {
@@ -70,8 +70,8 @@ impl Cursor {
 		}
 	}
 
-	pub fn travel(&mut self, value: Travel, dirty: &mut Dirty) -> Option<u32> {
-		dirty.push(self.position);
+	pub fn travel(&mut self, value: Travel, touched: &mut Touched) -> Option<u32> {
+		touched.push(self.position);
 
 		match value {
 			Position(x, y) => {
@@ -118,7 +118,7 @@ impl Cursor {
 			}
 		}
 
-		dirty.push(self.position);
+		touched.push(self.position);
 
 		if self.position.1 >= self.limits.1 {
 			let overflow = self.position.1 - (self.limits.1 - 1);

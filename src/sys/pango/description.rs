@@ -16,8 +16,9 @@
 // along with cancer.  If not, see <http://www.gnu.org/licenses/>.
 
 use std::ffi::CString;
-
 use ffi::pango::*;
+
+use super::{Weight, Style};
 
 pub struct Description(pub *mut PangoFontDescription);
 
@@ -27,6 +28,18 @@ impl Description {
 
 		unsafe {
 			Description(pango_font_description_from_string(name.as_ptr()))
+		}
+	}
+
+	pub fn weight(&mut self, weight: Weight) {
+		unsafe {
+			pango_font_description_set_weight(self.0, weight);
+		}
+	}
+
+	pub fn style(&mut self, style: Style) {
+		unsafe {
+			pango_font_description_set_style(self.0, style);
 		}
 	}
 }

@@ -19,26 +19,26 @@ pub use ffi::pango::PangoWeight as Weight;
 pub use ffi::pango::PangoStyle as Style;
 pub use ffi::pango::PangoUnderline as Underline;
 
+mod font;
+pub use self::font::Font;
+
+mod item;
+pub use self::item::Item;
+
+mod glyph_string;
+pub use self::glyph_string::GlyphString;
+
 mod map;
 pub use self::map::Map;
 
 mod set;
 pub use self::set::Set;
 
-mod attribute;
-pub use self::attribute::Attribute;
-
-mod attribute_list;
-pub use self::attribute_list::AttributeList;
-
 mod metrics;
 pub use self::metrics::Metrics;
 
 mod context;
 pub use self::context::Context;
-
-mod layout;
-pub use self::layout::Layout;
 
 mod description;
 pub use self::description::Description;

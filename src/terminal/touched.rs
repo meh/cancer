@@ -15,7 +15,6 @@
 // You should have received a copy of the GNU General Public License
 // along with cancer.  If not, see <http://www.gnu.org/licenses/>.
 
-use std::iter;
 use std::mem;
 use std::collections::{hash_set, HashSet};
 use std::hash::BuildHasherDefault;
@@ -24,13 +23,13 @@ use picto::Area;
 use picto::iter::Coordinates;
 
 #[derive(Eq, PartialEq, Clone, Default, Debug)]
-pub struct Dirty {
+pub struct Touched {
 	all:      bool,
 	line:     HashSet<u32, BuildHasherDefault<FnvHasher>>,
 	position: HashSet<(u32, u32), BuildHasherDefault<FnvHasher>>,
 }
 
-impl Dirty {
+impl Touched {
 	pub fn all(&mut self) -> &mut Self {
 		self.all = true;
 		self
