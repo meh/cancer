@@ -9,6 +9,10 @@ description = "Terminal cancer."
 repository  = "https://github.com/meh/terme"
 keywords    = ["term", "pty"]
 
+[profile.release]
+lto   = true
+panic = "abort"
+
 [dependencies]
 log        = "0.3"
 env_logger = "0.3"
