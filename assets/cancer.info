@@ -26,8 +26,8 @@ cancer+base| terminal cancer base features,
 	dim=\2332m,
 	blink=\2335m,
 	invis=\2338m,
-	civis=\233?0c,
-	cnorm=\233?1c,
+	civis=\235cursor:hide\234
+	cnorm=\233cursor:show\234,
 
 #	Insert.
 	ich=\233%p1%d@,
@@ -77,9 +77,9 @@ cancer+base| terminal cancer base features,
 
 # This will warn about unknown capabilities, that's okay.
 cancer+advanced| advanced features,
-	Cr=\235cr:-\234,
-	Cs=\235cr:%p1%s\234,
-	Ms=\235cb:%p1%s;%p2%s\234,
+	Cr=\235cursor:color:-\234,
+	Cs=\235cursor:color:%p1%s\234,
+	Ms=\235clipboard:set:%p1%s:%p2%s\234,
 	Se=\2332 q,
 	Ss=\233%p1%d q,
 
