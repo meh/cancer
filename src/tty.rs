@@ -21,7 +21,7 @@ use std::os::unix::io::{RawFd, FromRawFd};
 use std::io::{self, Write, BufRead, BufReader};
 use std::thread;
 use std::sync::Arc;
-use std::sync::mpsc::{Sender, Receiver, channel};
+use std::sync::mpsc::{SyncSender, Receiver, sync_channel};
 
 use libc::{c_void, c_char, c_ushort, c_int, winsize};
 use libc::{SIGCHLD, SIGHUP, SIGINT, SIGQUIT, SIGTERM, SIGALRM, SIG_DFL, TIOCSCTTY, TIOCSWINSZ};
@@ -35,7 +35,7 @@ pub struct Tty {
 	id: c_int,
 	fd: RawFd,
 
-	input:  Sender<Vec<u8>>,
+	input:  SyncSender<Vec<u8>>,
 	output: Option<Receiver<Vec<u8>>>,
 	buffer: Option<Vec<u8>>,
 }
@@ -89,8 +89,8 @@ impl Tty {
 				id => {
 					close(slave);
 
-					let (i_sender, i_receiver) = channel::<Vec<u8>>();
-					let (o_sender, o_receiver) = channel::<Vec<u8>>();
+					let (i_sender, i_receiver) = sync_channel::<Vec<u8>>(16);
+					let (o_sender, o_receiver) = sync_channel::<Vec<u8>>(16);
 
 					// Spawn the reader.
 					thread::spawn(move || {
