@@ -238,6 +238,10 @@ impl Terminal {
 					term!(self; cursor Right(n));
 				}
 
+				Control::C1(C1::ControlSequence(CSI::LinePosition(n))) => {
+					term!(self; cursor Position(None, Some(n)));
+				}
+
 				// Erase functions.
 				Control::C1(C1::ControlSequence(CSI::EraseDisplay(CSI::Erase::ToEnd))) => {
 					let (x, y) = self.cursor.position();
