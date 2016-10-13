@@ -44,7 +44,6 @@ pub struct Terminal {
 	rows:    VecDeque<Vec<Cell>>,
 	touched: Touched,
 	scroll:  Option<u32>,
-	empty:   Rc<Style>,
 }
 
 macro_rules! term {
@@ -53,7 +52,7 @@ macro_rules! term {
 	);
 
 	($term:ident; extend) => (
-		$term.rows.push_back(vec![Cell::empty($term.empty.clone()); $term.area.width as usize]);
+		$term.rows.push_back(vec![Cell::empty($term.cursor.style().clone()); $term.area.width as usize]);
 	);
 
 	($term:ident; cursor $($travel:tt)*) => (
@@ -105,7 +104,6 @@ impl Terminal {
 			rows:    rows,
 			touched: Touched::default(),
 			scroll:  None,
-			empty:   style.clone(),
 		})
 	}
 
@@ -188,7 +186,8 @@ impl Terminal {
 			// Try to parse the rest of the input.
 			let item = match control::parse(input) {
 				// This should never happen.
-				control::Result::Error(_) => {
+				control::Result::Error(err) => {
+					error!("cannot parse control code: {:?}", err);
 					break;
 				}
 
@@ -245,14 +244,14 @@ impl Terminal {
 
 					for x in x .. self.area.width {
 						term!(self; touched (x, y));
-						term!(self; mut cell x, y).into_empty(self.empty.clone());
+						term!(self; mut cell x, y).into_empty(self.cursor.style().clone());
 					}
 
 					for y in y .. self.area.height {
 						term!(self; touched line y);
 
 						for x in 0 .. self.area.width {
-							term!(self; mut cell x, y).into_empty(self.empty.clone());
+							term!(self; mut cell x, y).into_empty(self.cursor.style().clone());
 						}
 					}
 				}
@@ -262,14 +261,14 @@ impl Terminal {
 
 					for x in 0 .. x {
 						term!(self; touched (x, y));
-						term!(self; mut cell x, y).into_empty(self.empty.clone());
+						term!(self; mut cell x, y).into_empty(self.cursor.style().clone());
 					}
 
 					for y in 0 .. y {
 						term!(self; touched line y);
 
 						for x in 0 .. self.area.width {
-							term!(self; mut cell x, y).into_empty(self.empty.clone());
+							term!(self; mut cell x, y).into_empty(self.cursor.style().clone());
 						}
 					}
 				}
@@ -279,7 +278,7 @@ impl Terminal {
 
 					for y in 0 .. self.area.height {
 						for x in 0 .. self.area.width {
-							term!(self; mut cell x, y).into_empty(self.empty.clone());
+							term!(self; mut cell x, y).into_empty(self.cursor.style().clone());
 						}
 					}
 				}
@@ -289,7 +288,7 @@ impl Terminal {
 
 					for x in x .. self.area.width {
 						term!(self; touched (x, y));
-						term!(self; mut cell x, y).into_empty(self.empty.clone());
+						term!(self; mut cell x, y).into_empty(self.cursor.style().clone());
 					}
 				}
 
@@ -298,7 +297,7 @@ impl Terminal {
 
 					for x in 0 .. x {
 						term!(self; touched (x, y));
-						term!(self; mut cell x, y).into_empty(self.empty.clone());
+						term!(self; mut cell x, y).into_empty(self.cursor.style().clone());
 					}
 				}
 
@@ -308,7 +307,7 @@ impl Terminal {
 					term!(self; touched line y);
 
 					for x in 0 .. self.area.width {
-						term!(self; mut cell x, y).into_empty(self.empty.clone());
+						term!(self; mut cell x, y).into_empty(self.cursor.style().clone());
 					}
 				}
 
