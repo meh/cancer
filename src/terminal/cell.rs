@@ -16,15 +16,13 @@
 // along with cancer.  If not, see <http://www.gnu.org/licenses/>.
 
 use std::ops::Deref;
-use std::cell::{RefCell, Ref, RefMut};
-use std::any::Any;
 use std::mem;
 use std::rc::Rc;
 use unicode_width::UnicodeWidthStr;
 
 use style::Style;
 
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub enum Cell {
 	Empty {
 		style: Rc<Style>,
@@ -33,7 +31,6 @@ pub enum Cell {
 	Occupied {
 		style: Rc<Style>,
 		value: String,
-		data:  RefCell<Box<Any>>,
 	},
 
 	Reference(u8),
@@ -60,7 +57,6 @@ impl Cell {
 		Cell::Occupied {
 			value: value,
 			style: style,
-			data:  RefCell::new(Box::new(())),
 		}
 	}
 
@@ -125,7 +121,6 @@ impl Cell {
 		mem::replace(self, Cell::Occupied {
 			value: value,
 			style: style,
-			data:  RefCell::new(Box::new(())),
 		});
 	}
 
@@ -162,28 +157,6 @@ impl Cell {
 		}
 	}
 
-	/// Get the data as immutable.
-	pub fn data(&self) -> Ref<Box<Any>> {
-		match self {
-			&Cell::Occupied { ref data, .. } =>
-				data.borrow(),
-
-			_ =>
-				unreachable!()
-		}
-	}
-
-	/// Get the data as mutable.
-	pub fn data_mut(&self) -> RefMut<Box<Any>> {
-		match self {
-			&Cell::Occupied { ref data, .. } =>
-				data.borrow_mut(),
-
-			_ =>
-				unreachable!()
-		}
-	}
-
 	/// Get the cell width.
 	pub fn width(&self) -> u32 {
 		self.value().width() as u32
@@ -197,30 +170,6 @@ impl Cell {
 
 			_ =>
 				unreachable!()
-		}
-	}
-}
-
-impl Clone for Cell {
-	fn clone(&self) -> Self {
-		match self {
-			&Cell::Empty { ref style } => {
-				Cell::Empty {
-					style: style.clone()
-				}
-			}
-
-			&Cell::Reference(offset) => {
-				Cell::Reference(offset)
-			}
-
-			&Cell::Occupied { ref style, ref value, .. } => {
-				Cell::Occupied {
-					style: style.clone(),
-					value: value.clone(),
-					data:  RefCell::new(Box::new(())),
-				}
-			}
 		}
 	}
 }

@@ -15,12 +15,13 @@
 // You should have received a copy of the GNU General Public License
 // along with cancer.  If not, see <http://www.gnu.org/licenses/>.
 
-use toml;
+use toml::{self, Value};
 
 #[derive(PartialEq, Clone, Debug)]
 pub struct Environment {
 	display: Option<String>,
 	program: Option<String>,
+	cache:   usize,
 }
 
 impl Default for Environment {
@@ -28,6 +29,7 @@ impl Default for Environment {
 		Environment {
 			display: None,
 			program: None,
+			cache:   4096,
 		}
 	}
 }
@@ -41,6 +43,18 @@ impl Environment {
 		if let Some(value) = table.get("program").and_then(|v| v.as_str()) {
 			self.program = Some(value.into());
 		}
+
+		if let Some(value) = table.get("cache") {
+			match value {
+				&Value::Integer(value) =>
+					self.cache = value as usize,
+
+				&Value::Boolean(false) =>
+					self.cache = 0,
+
+				_ => ()
+			}
+		}
 	}
 
 	pub fn display(&self) -> Option<&str> {
@@ -49,5 +63,9 @@ impl Environment {
 
 	pub fn program(&self) -> Option<&str> {
 		self.program.as_ref().map(AsRef::as_ref)
+	}
+
+	pub fn cache(&self) -> usize {
+		self.cache
 	}
 }

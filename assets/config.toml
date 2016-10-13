@@ -1,6 +1,7 @@
 [environment]
 display = ":0.0"
 program = "zsh"
+cache   = 2048
 
 [style]
 font  = "monospace 11px"
@@ -24,13 +25,13 @@ background = "#b21818"
 
 [color]
 0  = "#000000"
-1  = "#b21818"
-2  = "#18b218"
+1  = "#B21818"
+2  = "#18B218"
 3  = "#BE5F00"
 4  = "#6D85BA"
-5  = "#b218b2"
-6  = "#18b2b2"
-7  = "#b2b2b2"
+5  = "#B218B2"
+6  = "#18B2B2"
+7  = "#B2B2B2"
 8  = "#686868"
 9  = "#FF5454"
 10 = "#54FF54"
@@ -38,4 +39,4 @@ background = "#b21818"
 12 = "#73A5FF"
 13 = "#FF54FF"
 14 = "#54FFFF"
-15 = "#ffffff"
+15 = "#FFFFFF"

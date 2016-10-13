@@ -80,7 +80,7 @@ impl Font {
 	}
 
 	/// Shape the string.
-	pub fn shape<T: AsRef<str>>(&self, text: T) -> pango::GlyphString {
+	pub fn shape<T: AsRef<str>>(&self, text: T, style: style::Attributes) -> pango::GlyphString {
 		let text = text.as_ref();
 
 		unsafe {

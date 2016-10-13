@@ -16,16 +16,25 @@
 // along with cancer.  If not, see <http://www.gnu.org/licenses/>.
 
 use std::rc::Rc;
+use std::sync::Arc;
+
+use lru::LruCache;
+use std::hash::BuildHasherDefault;
+use fnv::FnvHasher;
 
 use sys::pango;
-use style::Style;
+use style::{self, Style};
 use terminal::cell;
+use font::Font;
 
 #[derive(Debug)]
 pub struct Cache {
 	width:  u32,
 	height: u32,
 	inner:  Vec<Cell>,
+
+	font:   Arc<Font>,
+	glyphs: LruCache<Glyph, Computed, BuildHasherDefault<FnvHasher>>,
 }
 
 #[derive(Clone, Default, Debug)]
@@ -35,21 +44,39 @@ pub struct Cell {
 	valid: bool,
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct Computed {
-	pub font:   pango::Font,
-	pub glyphs: pango::GlyphString,
+	font:  pango::Font,
+	shape: pango::GlyphString,
+}
+
+#[derive(Hash, Eq, PartialEq, Clone, Debug)]
+pub struct Glyph {
+	value: String,
+	attrs: style::Attributes,
+}
+
+impl Glyph {
+	pub fn new<T: Into<String>>(value: T, attrs: style::Attributes) -> Self {
+		Glyph {
+			value: value.into(),
+			attrs: attrs & (style::BOLD | style::FAINT | style::ITALIC),
+		}
+	}
 }
 
 impl Cache {
 	/// Create a new cache of the given size.
-	pub fn new(width: u32, height: u32) -> Self {
+	pub fn new(capacity: usize, font: Arc<Font>, width: u32, height: u32) -> Self {
 		let style = Rc::new(Style::default());
 
 		Cache {
 			width:  width,
 			height: height,
-			inner:  vec![Cell::empty(style.clone()); (width * height) as usize]
+			inner:  vec![Cell::empty(style.clone()); (width * height) as usize],
+
+			font:   font,
+			glyphs: LruCache::with_hasher(capacity, Default::default()),
 		}
 	}
 
@@ -92,6 +119,22 @@ impl Cache {
 
 		true
 	}
+
+	pub fn compute<T: AsRef<str>>(&mut self, string: T, attrs: style::Attributes) -> Computed {
+		let glyph = Glyph::new(string.as_ref(), attrs);
+
+		if let Some(computed) = self.glyphs.get_mut(&glyph) {
+			return computed.clone();
+		}
+
+		let computed = Computed {
+			font:  self.font.font(glyph.value.chars().next().unwrap(), glyph.attrs),
+			shape: self.font.shape(&glyph.value, glyph.attrs),
+		};
+
+		self.glyphs.insert(glyph, computed.clone());
+		computed
+	}
 }
 
 impl Cell {
@@ -101,5 +144,15 @@ impl Cell {
 			value: None,
 			valid: true,
 		}
+	}
+}
+
+impl Computed {
+	pub fn font(&self) -> &pango::Font {
+		&self.font
+	}
+
+	pub fn shape(&self) -> &pango::GlyphString {
+		&self.shape
 	}
 }

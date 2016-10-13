@@ -26,7 +26,7 @@ use sys::cairo;
 use font::Font;
 use style;
 use terminal::{cell, cursor};
-use super::{cache, Cache};
+use super::Cache;
 
 /// Renderer for a `cairo::Surface`.
 pub struct Renderer {
@@ -43,7 +43,7 @@ impl Renderer {
 	/// Create a new renderer for the given settings and surface.
 	pub fn new<S: AsRef<cairo::Surface>>(config: Arc<Config>, font: Arc<Font>, surface: S, width: u32, height: u32) -> Self {
 		let context = cairo::Context::new(surface);
-		let cache   = Cache::new(
+		let cache   = Cache::new(config.environment().cache(), font.clone(),
 			(width - (config.style().margin() * 2)) / font.width(),
 			(height - (config.style().margin() * 2)) / (font.height() + config.style().spacing()));
 
@@ -231,19 +231,8 @@ impl Renderer {
 			// Draw the glyph.
 			o.move_to(x as f64, (y + f.ascent()) as f64);
 
-			if !cell.data().is::<cache::Computed>() {
-				let string = cell.value();
-				let ch     = string.chars().next().unwrap();
-
-				*cell.data_mut() = Box::new(cache::Computed {
-					font:   f.font(ch, cell.style().attributes()),
-					glyphs: f.shape(string),
-				});
-			}
-
-			if let Some(&cache::Computed { ref font, ref glyphs }) = cell.data().downcast_ref::<cache::Computed>() {
-				o.glyph(font, glyphs);
-			}
+			let computed = self.cache.compute(cell.value(), cell.style().attributes());
+			o.glyph(computed.font(), computed.shape());
 		}
 
 		// Render cursors that require to be on top.
@@ -319,19 +308,8 @@ impl Renderer {
 			o.move_to(x as f64, (y + f.ascent()) as f64);
 			o.rgba(fg);
 
-			if !cell.data().is::<cache::Computed>() {
-				let string = cell.value();
-				let ch     = string.chars().next().unwrap();
-
-				*cell.data_mut() = Box::new(cache::Computed {
-					font:   f.font(ch, cell.style().attributes()),
-					glyphs: f.shape(string),
-				});
-			}
-
-			if let Some(&cache::Computed { ref font, ref glyphs }) = cell.data().downcast_ref::<cache::Computed>() {
-				o.glyph(font, glyphs);
-			}
+			let computed = self.cache.compute(cell.value(), cell.style().attributes());
+			o.glyph(computed.font(), computed.shape());
 		}
 
 		// Draw underline.
