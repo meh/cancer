@@ -15,33 +15,43 @@
 // You should have received a copy of the GNU General Public License
 // along with cancer.  If not, see <http://www.gnu.org/licenses/>.
 
-pub use ffi::pango::PangoWeight as Weight;
-pub use ffi::pango::PangoStyle as Style;
-pub use ffi::pango::PangoUnderline as Underline;
 
-mod font;
-pub use self::font::Font;
+use ffi::pango::*;
+use super::{Weight, Style};
+use picto::color::Rgb;
 
-mod item;
-pub use self::item::Item;
+pub struct Attributes(pub *mut PangoAttrList);
 
-mod glyph_string;
-pub use self::glyph_string::GlyphString;
+impl Attributes {
+	pub fn new() -> Self {
+		unsafe {
+			Attributes(pango_attr_list_new())
+		}
+	}
 
-mod map;
-pub use self::map::Map;
+	pub fn weight(self, weight: Weight) -> Self {
+		unsafe {
+			pango_attr_list_insert(self.0,
+				pango_attr_weight_new(weight));
+		}
 
-mod set;
-pub use self::set::Set;
+		self
+	}
 
-mod metrics;
-pub use self::metrics::Metrics;
+	pub fn style(self, style: Style) -> Self {
+		unsafe {
+			pango_attr_list_insert(self.0,
+				pango_attr_style_new(style));
+		}
 
-mod context;
-pub use self::context::Context;
+		self
+	}
+}
 
-mod description;
-pub use self::description::Description;
-
-mod attributes;
-pub use self::attributes::Attributes;
+impl Drop for Attributes {
+	fn drop(&mut self) {
+		unsafe {
+			pango_attr_list_unref(self.0)
+		}
+	}
+}

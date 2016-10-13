@@ -84,12 +84,39 @@ impl Font {
 		let text = text.as_ref();
 
 		unsafe {
+			let attrs = pango::Attributes::new();
+			let attrs = if style.contains(style::BOLD) {
+				attrs.weight(pango::Weight::Bold)
+			}
+			else if style.contains(style::FAINT) {
+				attrs.weight(pango::Weight::Light)
+			}
+			else {
+				attrs.weight(pango::Weight::Normal)
+			};
+
+			let attrs = if style.contains(style::ITALIC) {
+				attrs.style(pango::Style::Italic)
+			}
+			else {
+				attrs.style(pango::Style::Normal)
+			};
+
+			let list = glib::List(pango_itemize(self.context.0, text.as_ptr() as *const _, 0, text.len() as c_int, attrs.0, ptr::null()));
+			let item = pango::Item((*list.0).data as *mut _);
+
+			// Properly free additional items.
+			{
+				let mut list = list.0;
+
+				while let Some(ptr) = (*list).next.as_ref() {
+					pango::Item((*ptr).data as *mut _);
+					list = (*ptr).next;
+				}
+			}
+
 			let result = pango::GlyphString::new();
-			let list   = glib::List(pango_itemize(self.context.0, text.as_ptr() as *const _, 0, text.len() as c_int, ptr::null(), ptr::null()));
-			let item   = pango::Item((*list.0).data as *mut _);
-
 			pango_shape(text.as_ptr() as *const _, text.len() as c_int, &(*item.0).analysis, result.0);
-
 			result
 		}
 	}

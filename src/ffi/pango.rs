@@ -99,6 +99,12 @@ pub struct PangoFontDescription(c_void);
 #[repr(C)]
 pub struct PangoFontMetrics(c_void);
 
+#[repr(C)]
+pub struct PangoAttrList(c_void);
+
+#[repr(C)]
+pub struct PangoAttribute(c_void);
+
 #[link(name = "pango-1.0")]
 extern "C" {
 	pub fn pango_font_map_create_context(fontmap: *mut PangoFontMap) -> *mut PangoContext;
@@ -128,7 +134,14 @@ extern "C" {
 	pub fn pango_glyph_string_copy(glyphs: *mut PangoGlyphString) -> *mut PangoGlyphString;
 	pub fn pango_glyph_string_free(glyphs: *mut PangoGlyphString);
 
-	pub fn pango_itemize(context: *mut PangoContext, text: *const c_char, start_index: c_int, length: c_int, attrs: *const c_void, cached_iter: *const c_void) -> *mut GList;
+	pub fn pango_attr_list_new() -> *mut PangoAttrList;
+	pub fn pango_attr_list_unref(list: *mut PangoAttrList);
+	pub fn pango_attr_list_insert(list: *mut PangoAttrList, attr: *mut PangoAttribute);
+
+	pub fn pango_attr_weight_new(weight: PangoWeight) -> *mut PangoAttribute;
+	pub fn pango_attr_style_new(style: PangoStyle) -> *mut PangoAttribute;
+
+	pub fn pango_itemize(context: *mut PangoContext, text: *const c_char, start_index: c_int, length: c_int, attrs: *const PangoAttrList, cached_iter: *const c_void) -> *mut GList;
 	pub fn pango_shape(text: *const c_char, length: c_int, analysis: *const PangoAnalysis, glyphs: *mut PangoGlyphString);
 	pub fn pango_item_free(item: *mut PangoItem);
 }
