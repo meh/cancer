@@ -17,6 +17,7 @@
 
 #![feature(question_mark, mpsc_select, conservative_impl_trait, slice_patterns)]
 #![feature(static_in_const, trace_macros, type_ascription, try_from)]
+#![feature(pub_restricted)]
 #![recursion_limit="100"]
 
 #[macro_use]
@@ -27,6 +28,7 @@ extern crate env_logger;
 extern crate bitflags;
 extern crate fnv;
 extern crate shlex;
+#[macro_use]
 extern crate control_code as control;
 
 extern crate xdg;
@@ -131,7 +133,12 @@ fn open(matches: &ArgMatches) -> error::Result<()> {
 
 			// Redraw the cursor.
 			render.update(|mut o| {
-				o.cursor(&terminal.cursor(), blinking, focused);
+				if terminal.cursor().is_visible() {
+					o.cursor(&terminal.cursor(), blinking, focused);
+				}
+				else {
+					o.cell(&terminal.cursor().cell(), blinking, true);
+				}
 			});
 
 			window.flush();
@@ -152,7 +159,9 @@ fn open(matches: &ArgMatches) -> error::Result<()> {
 				}
 
 				// Redraw the cursor.
-				o.cursor(&terminal.cursor(), blinking, focused);
+				if terminal.cursor().is_visible() {
+					o.cursor(&terminal.cursor(), blinking, focused);
+				}
 			});
 
 			window.flush();
@@ -167,7 +176,9 @@ fn open(matches: &ArgMatches) -> error::Result<()> {
 					o.cell(&cell, blinking, false);
 				}
 
-				o.cursor(&terminal.cursor(), blinking, focused);
+				if terminal.cursor().is_visible() {
+					o.cursor(&terminal.cursor(), blinking, focused);
+				}
 			});
 
 			window.flush();

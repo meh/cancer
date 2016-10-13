@@ -195,8 +195,8 @@ impl Renderer {
 		let (c, o, f) = (&self.config, &mut self.context, &self.font);
 		let cell = cursor.cell();
 		let bc   = blinking && c.style().cursor().blink();
-		let fg   = c.style().cursor().foreground();
-		let bg   = c.style().cursor().background();
+		let fg   = cursor.foreground();
+		let bg   = cursor.background();
 
 		let w = f.width() * cell.width();
 		let h = f.height() + c.style().spacing();

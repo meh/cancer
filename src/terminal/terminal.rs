@@ -26,7 +26,7 @@ use unicode_width::UnicodeWidthStr;
 use picto::Area;
 use picto::color::Rgba;
 use error;
-use config::Config;
+use config::{self, Config};
 use style::{self, Style};
 use terminal::{Iter, Touched, Cell, Key, cell};
 use terminal::mode::{self, Mode};
@@ -95,12 +95,12 @@ impl Terminal {
 			vec![Cell::empty(style.clone()); width as usize]).collect();
 
 		Ok(Terminal {
-			config: config,
+			config: config.clone(),
 			area:   area,
 			cache:  Default::default(),
 
 			mode:    Mode::empty(),
-			cursor:  Cursor::new(width, height),
+			cursor:  Cursor::new(config.clone(), width, height),
 			rows:    rows,
 			touched: Touched::default(),
 			scroll:  None,
@@ -461,6 +461,33 @@ impl Terminal {
 					}
 
 					self.cursor.update(style);
+				}
+
+				Control::C1(C1::OperatingSystemCommand(cmd)) if cmd.starts_with("cursor:") => {
+					let mut parts = cmd.split(':').skip(1);
+
+					match parts.next() {
+						Some("show") => {
+							self.cursor.visible = true;
+						}
+
+						Some("hide") => {
+							self.cursor.visible = false;
+						}
+
+						Some("background") => {
+							let     desc  = parts.next().unwrap_or("-");
+							let mut color = *self.config.style().cursor().background();
+
+							if let Some(c) = config::to_color(desc) {
+								color = c;
+							}
+
+							self.cursor.background = color;
+						}
+
+						Some(_) | None => ()
+					}
 				}
 
 				code => {

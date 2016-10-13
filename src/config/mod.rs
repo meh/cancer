@@ -97,7 +97,7 @@ impl From<toml::Table> for Config {
 	}
 }
 
-fn is_color(arg: &str) -> bool {
+pub fn is_color(arg: &str) -> bool {
 	if arg.starts_with('#') {
 		if arg.len() == 4 || arg.len() == 5 || arg.len() == 7 || arg.len() == 9 {
 			if arg.chars().skip(1).all(|c| c.is_digit(16)) {
@@ -109,7 +109,7 @@ fn is_color(arg: &str) -> bool {
 	false
 }
 
-fn to_color(arg: &str) -> Option<Rgba<f64>> {
+pub fn to_color(arg: &str) -> Option<Rgba<f64>> {
 	if !is_color(arg) {
 		return None;
 	}

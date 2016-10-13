@@ -15,17 +15,24 @@
 // You should have received a copy of the GNU General Public License
 // along with cancer.  If not, see <http://www.gnu.org/licenses/>.
 
-use std::rc::Rc;
 use std::ops::Deref;
+use std::rc::Rc;
+use std::sync::Arc;
 
+use picto::color::Rgba;
 use style::Style;
 use terminal::{cell, Touched};
+use config::Config;
 
 #[derive(PartialEq, Clone, Default, Debug)]
 pub struct Cursor {
 	position: (u32, u32),
 	limits:   (u32, u32),
 	style:    Rc<Style>,
+
+	pub(super) foreground: Rgba<f64>,
+	pub(super) background: Rgba<f64>,
+	pub(super) visible:    bool,
 }
 
 pub enum Travel {
@@ -40,11 +47,15 @@ pub enum Travel {
 pub use self::Travel::*;
 
 impl Cursor {
-	pub fn new(width: u32, height: u32) -> Self {
+	pub fn new(config: Arc<Config>, width: u32, height: u32) -> Self {
 		Cursor {
 			position: (0, 0),
 			limits:   (width, height),
 			style:    Default::default(),
+
+			foreground: *config.style().cursor().foreground(),
+			background: *config.style().cursor().background(),
+			visible:    true,
 		}
 	}
 
@@ -62,6 +73,18 @@ impl Cursor {
 
 	pub fn style(&self) -> &Rc<Style> {
 		&self.style
+	}
+
+	pub fn foreground(&self) -> &Rgba<f64> {
+		&self.foreground
+	}
+
+	pub fn background(&self) -> &Rgba<f64> {
+		&self.background
+	}
+
+	pub fn is_visible(&self) -> bool {
+		self.visible
 	}
 
 	pub fn update(&mut self, style: Style) {
