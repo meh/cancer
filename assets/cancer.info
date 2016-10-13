@@ -16,8 +16,8 @@ cancer+base| terminal cancer base features,
 	bce,
 	msgr,
 	sgr0=\233m,
-	sgr=\2330%?%p6%t;1%;%?%p2%t;4%;%?%p1%p3%|%t;7%;%?%p4%t;5%;%?%p7%t;8%;m%?%p9%t\E(0%e\E(B%;,
-	rev=\E[7m,
+	sgr=%?%p9%t\E(0%e\E(B%;\2330%?%p6%t;1%;%?%p2%t;4%;%?%p1%p3%|%t;7%;%?%p4%t;5%;%?%p7%t;8%;m,
+	rev=\2337m,
 	bold=\2331m,
 	sitm=\2333m,
 	ritm=\23323m,
@@ -60,7 +60,7 @@ cancer+base| terminal cancer base features,
 	vpa=\233%i%p1%dd,
 	sc=\233s
 	rc=\233u
-	indn=\E[%p1%dS,
+	indn=\233%p1%dS,
 
 #	Keys.
 	km,
