@@ -98,8 +98,8 @@ impl Tty {
 
 						loop {
 							let consumed = {
-								let buffer = stream.fill_buf().unwrap();
-								o_sender.send(buffer.to_vec()).unwrap();
+								let buffer = ret!(stream.fill_buf());
+								ret!(o_sender.send(buffer.to_vec()));
 								buffer.len()
 							};
 
@@ -112,7 +112,7 @@ impl Tty {
 						let mut stream = File::from_raw_fd(master);
 
 						while let Ok(buffer) = i_receiver.recv() {
-							stream.write_all(&buffer).unwrap();
+							ret!(stream.write_all(&buffer));
 						}
 					});
 

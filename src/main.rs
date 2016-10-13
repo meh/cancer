@@ -45,6 +45,8 @@ use picto::Area;
 extern crate unicode_segmentation;
 extern crate unicode_width;
 
+#[macro_use]
+mod util;
 mod error;
 mod ffi;
 mod sys;
