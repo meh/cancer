@@ -67,7 +67,7 @@ impl Cell {
 
 	/// Check if the cell is empty.
 	pub fn is_empty(&self) -> bool {
-		if let &Cell::Empty { .. } = self {
+		if let Cell::Empty { .. } = *self {
 			true
 		}
 		else {
@@ -77,7 +77,7 @@ impl Cell {
 
 	/// Check if the cell is occupied.
 	pub fn is_occupied(&self) -> bool {
-		if let &Cell::Occupied { .. } = self {
+		if let Cell::Occupied { .. } = *self {
 			true
 		}
 		else {
@@ -87,7 +87,7 @@ impl Cell {
 
 	/// Check if the cell is a reference.
 	pub fn is_reference(&self) -> bool {
-		if let &Cell::Reference(..) = self {
+		if let Cell::Reference(..) = *self {
 			true
 		}
 		else {
@@ -97,14 +97,14 @@ impl Cell {
 
 	/// Check if the cell is wide.
 	pub fn is_wide(&self) -> bool {
-		match self {
-			&Cell::Empty { .. } =>
+		match *self {
+			Cell::Empty { .. } =>
 				false,
 
-			&Cell::Occupied { ref value, .. } =>
+			Cell::Occupied { ref value, .. } =>
 				value.width() > 1,
 
-			&Cell::Reference(..) =>
+			Cell::Reference(..) =>
 				unreachable!()
 		}
 	}
@@ -131,25 +131,23 @@ impl Cell {
 
 	/// Get the cell style.
 	pub fn style(&self) -> &Rc<Style> {
-		match self {
-			&Cell::Empty { ref style, .. } =>
+		match *self {
+			Cell::Empty { ref style, .. } |
+			Cell::Occupied { ref style, .. } =>
 				style,
 
-			&Cell::Occupied { ref style, .. } =>
-				style,
-
-			&Cell::Reference(..) =>
+			Cell::Reference(..) =>
 				unreachable!(),
 		}
 	}
 
 	/// Get the value if any.
 	pub fn value(&self) -> &str {
-		match self {
-			&Cell::Empty { .. } =>
+		match *self {
+			Cell::Empty { .. } =>
 				" ",
 
-			&Cell::Occupied { ref value, .. } =>
+			Cell::Occupied { ref value, .. } =>
 				value,
 
 			_ =>
@@ -164,8 +162,8 @@ impl Cell {
 
 	/// Get the reference offset.
 	pub fn offset(&self) -> u32 {
-		match self {
-			&Cell::Reference(offset) =>
+		match *self {
+			Cell::Reference(offset) =>
 				offset as u32,
 
 			_ =>

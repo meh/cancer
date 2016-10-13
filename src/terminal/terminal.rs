@@ -379,14 +379,14 @@ impl Terminal {
 							let (cell, rest) = cells.split_at_mut(1);
 							let cell         = &mut cell[0];
 
-							let changed = match cell {
-								&mut Cell::Empty { .. } =>
+							let changed = match *cell {
+								Cell::Empty { .. } =>
 									true,
 
-								&mut Cell::Occupied { ref style, ref value, .. } =>
+								Cell::Occupied { ref style, ref value, .. } =>
 									value != ch || style != self.cursor.style(),
 
-								&mut Cell::Reference(..) =>
+								Cell::Reference(..) =>
 									false
 							};
 
@@ -409,57 +409,57 @@ impl Terminal {
 					let mut style = **self.cursor.style();
 
 					for attr in &attrs {
-						match attr {
-							&SGR::Reset =>
+						match *attr {
+							SGR::Reset =>
 								style = Style::default(),
 
-							&SGR::Font(SGR::Weight::Normal) =>
+							SGR::Font(SGR::Weight::Normal) =>
 								style.attributes.remove(style::BOLD | style::FAINT),
 
-							&SGR::Font(SGR::Weight::Bold) => {
+							SGR::Font(SGR::Weight::Bold) => {
 								style.attributes.remove(style::FAINT);
 								style.attributes.insert(style::BOLD);
 							}
 
-							&SGR::Font(SGR::Weight::Faint) => {
+							SGR::Font(SGR::Weight::Faint) => {
 								style.attributes.remove(style::BOLD);
 								style.attributes.insert(style::FAINT);
 							}
 
-							&SGR::Italic(true) =>
+							SGR::Italic(true) =>
 								style.attributes.insert(style::ITALIC),
-							&SGR::Italic(false) =>
+							SGR::Italic(false) =>
 								style.attributes.remove(style::ITALIC),
 
-							&SGR::Underline(true) =>
+							SGR::Underline(true) =>
 								style.attributes.insert(style::UNDERLINE),
-							&SGR::Underline(false) =>
+							SGR::Underline(false) =>
 								style.attributes.remove(style::UNDERLINE),
 
-							&SGR::Blink(true) =>
+							SGR::Blink(true) =>
 								style.attributes.insert(style::BLINK),
-							&SGR::Blink(false) =>
+							SGR::Blink(false) =>
 								style.attributes.remove(style::BLINK),
 
-							&SGR::Reverse(true) =>
+							SGR::Reverse(true) =>
 								style.attributes.insert(style::REVERSE),
-							&SGR::Reverse(false) =>
+							SGR::Reverse(false) =>
 								style.attributes.remove(style::REVERSE),
 
-							&SGR::Invisible(true) =>
+							SGR::Invisible(true) =>
 								style.attributes.insert(style::INVISIBLE),
-							&SGR::Invisible(false) =>
+							SGR::Invisible(false) =>
 								style.attributes.remove(style::INVISIBLE),
 
-							&SGR::Struck(true) =>
+							SGR::Struck(true) =>
 								style.attributes.insert(style::STRUCK),
-							&SGR::Struck(false) =>
+							SGR::Struck(false) =>
 								style.attributes.remove(style::STRUCK),
 
-							&SGR::Foreground(ref color) =>
+							SGR::Foreground(ref color) =>
 								style.foreground = Some(to_rgba(color, &self.config, true)),
 
-							&SGR::Background(ref color) =>
+							SGR::Background(ref color) =>
 								style.background = Some(to_rgba(color, &self.config, false)),
 						}
 					}
@@ -506,8 +506,8 @@ impl Terminal {
 }
 
 fn to_rgba(color: &SGR::Color, config: &Config, foreground: bool) -> Rgba<f64> {
-	match color {
-		&SGR::Color::Default => {
+	match *color {
+		SGR::Color::Default => {
 			if foreground {
 				*config.style().color().foreground()
 			}
@@ -516,17 +516,17 @@ fn to_rgba(color: &SGR::Color, config: &Config, foreground: bool) -> Rgba<f64> {
 			}
 		}
 
-		&SGR::Color::Transparent =>
+		SGR::Color::Transparent =>
 			Rgba::new(0.0, 0.0, 0.0, 0.0),
 
-		&SGR::Color::Index(index) =>
+		SGR::Color::Index(index) =>
 			*config.color().get(index),
 
-		&SGR::Color::Rgb(r, g, b) =>
+		SGR::Color::Rgb(r, g, b) =>
 			Rgba::new_u8(r, g, b, 255),
 
-		&SGR::Color::Cmy(..) |
-		&SGR::Color::Cmyk(..) =>
+		SGR::Color::Cmy(..) |
+		SGR::Color::Cmyk(..) =>
 			unreachable!(),
 	}
 }

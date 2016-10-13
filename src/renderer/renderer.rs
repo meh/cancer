@@ -275,7 +275,7 @@ impl Renderer {
 	/// Draw the given cell.
 	pub fn cell(&mut self, cell: &cell::Position, blinking: bool, force: bool) -> bool {
 		// Bail out if the character is up to date.
-		if !force && !self.cache.update(&cell) {
+		if !force && !self.cache.update(cell) {
 			return false;
 		}
 

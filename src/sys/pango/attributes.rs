@@ -18,7 +18,6 @@
 
 use ffi::pango::*;
 use super::{Weight, Style};
-use picto::color::Rgb;
 
 pub struct Attributes(pub *mut PangoAttrList);
 

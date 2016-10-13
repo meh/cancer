@@ -48,7 +48,6 @@ extern "C" {
 	pub fn cairo_set_line_width(cr: *mut cairo_t, w: c_double);
 
 	pub fn cairo_clip(cr: *mut cairo_t);
-	pub fn cairo_clip_preserve(cr: *mut cairo_t);
 	pub fn cairo_rectangle(cr: *mut cairo_t, x: c_double, y: c_double, w: c_double, h: c_double);
 
 	pub fn cairo_surface_flush(surface: *mut cairo_surface_t);

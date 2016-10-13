@@ -98,15 +98,9 @@ impl From<toml::Table> for Config {
 }
 
 pub fn is_color(arg: &str) -> bool {
-	if arg.starts_with('#') {
-		if arg.len() == 4 || arg.len() == 5 || arg.len() == 7 || arg.len() == 9 {
-			if arg.chars().skip(1).all(|c| c.is_digit(16)) {
-				return true;
-			}
-		}
-	}
-
-	false
+	arg.starts_with('#') &&
+	(arg.len() == 4 || arg.len() == 5 || arg.len() == 7 || arg.len() == 9) &&
+	arg.chars().skip(1).all(|c| c.is_digit(16))
 }
 
 pub fn to_color(arg: &str) -> Option<Rgba<f64>> {
