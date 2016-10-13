@@ -203,73 +203,77 @@ impl Renderer {
 		let x = c.style().margin() + (cell.x() * f.width());
 		let y = c.style().margin() + (cell.y() * h);
 
-		// Render cursors that require to be on the bottom.
-		match c.style().cursor().shape() {
-			Shape::Block => {
-				if focus && !bc {
-					o.rgba(bg);
-					o.fill(false);
-				}
-				else {
-					o.rgba(c.style().color().background());
-				}
+		o.save();
+		{
+			// Render cursors that require to be on the bottom.
+			match c.style().cursor().shape() {
+				Shape::Block => {
+					if focus && !bc {
+						o.rgba(bg);
+						o.fill(false);
+					}
+					else {
+						o.rgba(c.style().color().background());
+					}
 
-				o.rectangle(x as f64, y as f64, w as f64, h as f64);
-				o.line_width(1.0);
-				o.fill(false);
-
-				o.rgba(fg);
-			}
-
-			Shape::Beam | Shape::Line => {
-				o.rgba(cell.style().foreground().unwrap_or(
-					c.style().color().foreground()));
-			}
-		}
-
-		if cell.is_occupied() && !(blinking && cell.style().attributes().contains(style::BLINK)) {
-			// Draw the glyph.
-			o.move_to(x as f64, (y + f.ascent()) as f64);
-
-			let computed = self.cache.compute(cell.value(), cell.style().attributes());
-			o.glyph(computed.font(), computed.shape());
-		}
-
-		// Render cursors that require to be on top.
-		match c.style().cursor().shape() {
-			// If the window is not focused or the terminal is blinking draw an
-			// outline of the cell.
-			Shape::Block => {
-				if !focus || bc {
-					o.rgba(bg);
-					o.rectangle(x as f64 + 0.5, y as f64 + 0.5, w as f64 - 1.0, h as f64 - 1.0);
+					o.rectangle(x as f64, y as f64, w as f64, h as f64);
 					o.line_width(1.0);
-					o.stroke();
+					o.fill(false);
+
+					o.rgba(fg);
+				}
+
+				Shape::Beam | Shape::Line => {
+					o.rgba(cell.style().foreground().unwrap_or(
+						c.style().color().foreground()));
 				}
 			}
 
-			// The line always covers any glyph underneath, unless it's blinking.
-			Shape::Line => {
-				if !(bc && focus) {
-					o.rgba(bg);
-					o.move_to(x as f64, (y + f.underline().1) as f64 + 0.5);
-					o.line_to((x + w) as f64, (y + f.underline().1) as f64 + 0.5);
-					o.line_width(f.underline().0 as f64);
-					o.stroke();
-				}
+			// Draw the glyph.
+			if cell.is_occupied() && !(blinking && cell.style().attributes().contains(style::BLINK)) {
+				o.move_to(x as f64, (y + f.ascent()) as f64);
+
+				let computed = self.cache.compute(cell.value(), cell.style().attributes());
+				o.glyph(computed.font(), computed.shape());
 			}
 
-			// The beam always covers any glyph underneath, unless it's blinking.
-			Shape::Beam => {
-				if !(bc && focus) {
-					o.rgba(bg);
-					o.move_to(x as f64 + 0.5, y as f64);
-					o.line_to(x as f64 + 0.5, (y + h) as f64);
-					o.line_width(f.underline().0 as f64);
-					o.stroke();
+			// Render cursors that require to be on top.
+			match c.style().cursor().shape() {
+				// If the window is not focused or the terminal is blinking draw an
+				// outline of the cell.
+				Shape::Block => {
+					if !focus || bc {
+						o.rgba(bg);
+						o.rectangle(x as f64 + 0.5, y as f64 + 0.5, w as f64 - 1.0, h as f64 - 1.0);
+						o.line_width(1.0);
+						o.stroke();
+					}
+				}
+
+				// The line always covers any glyph underneath, unless it's blinking.
+				Shape::Line => {
+					if !(bc && focus) {
+						o.rgba(bg);
+						o.move_to(x as f64, (y + f.underline().1) as f64 + 0.5);
+						o.line_to((x + w) as f64, (y + f.underline().1) as f64 + 0.5);
+						o.line_width(f.underline().0 as f64);
+						o.stroke();
+					}
+				}
+
+				// The beam always covers any glyph underneath, unless it's blinking.
+				Shape::Beam => {
+					if !(bc && focus) {
+						o.rgba(bg);
+						o.move_to(x as f64 + 0.5, y as f64);
+						o.line_to(x as f64 + 0.5, (y + h) as f64);
+						o.line_width(f.underline().0 as f64);
+						o.stroke();
+					}
 				}
 			}
 		}
+		o.restore();
 	}
 
 	/// Draw the given cell.
@@ -297,40 +301,44 @@ impl Renderer {
 		let x = c.style().margin() + (cell.x() * f.width());
 		let y = c.style().margin() + (cell.y() * h);
 
-		// Draw the background.
-		o.rectangle(x as f64, y as f64, w as f64, h as f64);
-		o.line_width(1.0);
-		o.rgba(bg);
-		o.fill(false);
+		o.save();
+		{
+			// Draw the background.
+			o.rectangle(x as f64, y as f64, w as f64, h as f64);
+			o.line_width(1.0);
+			o.rgba(bg);
+			o.fill(false);
 
-		if cell.is_occupied() && !(blinking && cell.style().attributes().contains(style::BLINK)) {
 			// Draw the glyph.
-			o.move_to(x as f64, (y + f.ascent()) as f64);
-			o.rgba(fg);
+			if cell.is_occupied() && !(blinking && cell.style().attributes().contains(style::BLINK)) {
+				o.move_to(x as f64, (y + f.ascent()) as f64);
+				o.rgba(fg);
 
-			let computed = self.cache.compute(cell.value(), cell.style().attributes());
-			o.glyph(computed.font(), computed.shape());
+				let computed = self.cache.compute(cell.value(), cell.style().attributes());
+				o.glyph(computed.font(), computed.shape());
+			}
+
+			// Draw underline.
+			if cell.style().attributes().contains(style::UNDERLINE) {
+				let (thickness, position) = f.underline();
+
+				o.rgba(c.style().color().underline().unwrap_or(fg));
+				o.rectangle(x as f64, (y + position) as f64, w as f64, thickness as f64);
+				o.line_width(1.0);
+				o.fill(false);
+			}
+
+			// Draw strikethrough.
+			if cell.style().attributes().contains(style::STRUCK) {
+				let (thickness, position) = f.strikethrough();
+
+				o.rgba(c.style().color().strikethrough().unwrap_or(fg));
+				o.rectangle(x as f64, (y + position) as f64, w as f64, thickness as f64);
+				o.line_width(1.0);
+				o.fill(false);
+			}
 		}
-
-		// Draw underline.
-		if cell.style().attributes().contains(style::UNDERLINE) {
-			let (thickness, position) = f.underline();
-
-			o.rgba(c.style().color().underline().unwrap_or(fg));
-			o.rectangle(x as f64, (y + position) as f64, w as f64, thickness as f64);
-			o.line_width(1.0);
-			o.fill(false);
-		}
-
-		// Draw strikethrough.
-		if cell.style().attributes().contains(style::STRUCK) {
-			let (thickness, position) = f.strikethrough();
-
-			o.rgba(c.style().color().strikethrough().unwrap_or(fg));
-			o.rectangle(x as f64, (y + position) as f64, w as f64, thickness as f64);
-			o.line_width(1.0);
-			o.fill(false);
-		}
+		o.restore();
 
 		true
 	}

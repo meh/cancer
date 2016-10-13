@@ -131,7 +131,7 @@ impl Terminal {
 
 	/// Return the cells within the given area.
 	pub fn area<'a>(&'a self, area: Area) -> impl Iterator<Item = cell::Position<'a>> {
-		Iter::new(self, area.absolute())
+		Iter::new(self, area.relative())
 	}
 
 	/// Return all cells.
