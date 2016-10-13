@@ -43,7 +43,7 @@ impl Key {
 
 		match *self {
 			Key::Enter =>
-				write!(C0::LineFeed),
+				write!(C0::CarriageReturn),
 
 			Key::Escape =>
 				write!(C0::Escape),
