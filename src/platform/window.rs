@@ -167,7 +167,7 @@ fn create(connection: &xcb::Connection, screen: &xcb::Screen, window: xcb::Windo
 }
 
 fn sink(connection: Arc<ewmh::Connection>) -> Receiver<xcb::GenericEvent> {
-	let (sender, receiver) = sync_channel(1);
+	let (sender, receiver) = sync_channel(16);
 
 	// Drain events into a channel.
 	thread::spawn(move || {
