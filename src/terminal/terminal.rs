@@ -183,6 +183,10 @@ impl Terminal {
 		let mut input  = buffer.as_ref().map(AsRef::as_ref).unwrap_or(input);
 
 		loop {
+			if input.is_empty() {
+				break;
+			}
+
 			// Try to parse the rest of the input.
 			let item = match control::parse(input) {
 				// This should never happen.
