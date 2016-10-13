@@ -6,7 +6,10 @@ cancer+base| terminal cancer base features,
 
 #	Functionality.
 	am,
+	eo,
+	bce,
 	mir,
+	npc,
 
 #	Style.
 	acsc=``aaffggiijjkkllmmnnooppqqrrssttuuvvwwxxyyzz{{||}}~~,
@@ -14,6 +17,7 @@ cancer+base| terminal cancer base features,
 	msgr,
 	sgr0=\233m,
 	sgr=\2330%?%p6%t;1%;%?%p2%t;4%;%?%p1%p3%|%t;7%;%?%p4%t;5%;%?%p7%t;8%;m%?%p9%t\E(0%e\E(B%;,
+	rev=\E[7m,
 	bold=\2331m,
 	sitm=\2333m,
 	ritm=\23323m,
@@ -22,6 +26,8 @@ cancer+base| terminal cancer base features,
 	dim=\2332m,
 	blink=\2335m,
 	invis=\2338m,
+	civis=\233?0c,
+	cnorm=\233?1c,
 
 #	Insert.
 	ich=\233%p1%d@,
@@ -51,6 +57,10 @@ cancer+base| terminal cancer base features,
 	cuu=\233%p1%dA,
 	cuu1=\233A,
 	hpa=\233%i%p1%dG,
+	vpa=\233%i%p1%dd,
+	sc=\233s
+	rc=\233u
+	indn=\E[%p1%dS,
 
 #	Keys.
 	km,
@@ -61,6 +71,9 @@ cancer+base| terminal cancer base features,
 	kcud1=\EOB,
 	kcuf1=\EOC,
 	kcub1=\EOD,
+
+	kbs=^H
+	kent=\EOM,
 
 # This will warn about unknown capabilities, that's okay.
 cancer+advanced| advanced features,
@@ -78,6 +91,9 @@ cancer| terminal cancer,
 #	Terminal attributes.
 	colors#8,
 	pairs#64,
+
+	setab=\2334%p1%dm,
+	setaf=\2333%p1%dm,
 
 # 256 color terminal.
 cancer-256color| terminal cancer with 256 colors,
