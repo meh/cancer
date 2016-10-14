@@ -26,6 +26,7 @@ use sys::pango;
 use style::{self, Style};
 use terminal::cell;
 use font::Font;
+use renderer::{option, Options};
 
 #[derive(Debug)]
 pub struct Cache {
@@ -39,9 +40,10 @@ pub struct Cache {
 
 #[derive(Clone, Default, Debug)]
 pub struct Cell {
-	style: Rc<Style>,
-	value: Option<String>,
-	valid: bool,
+	style:   Rc<Style>,
+	value:   Option<String>,
+	valid:   bool,
+	options: Options,
 }
 
 #[derive(Clone, Debug)]
@@ -97,13 +99,22 @@ impl Cache {
 	}
 
 	/// Update the cache, returns `false` if nothing was changed.
-	pub fn update(&mut self, cell: &cell::Position) -> bool {
+	pub fn update(&mut self, cell: &cell::Position, mut options: Options) -> bool {
 		debug_assert!(!cell.is_reference());
 
 		let cache = &mut self.inner[(cell.y() * self.width + cell.x()) as usize];
 
+		// Avoid invalidating the cache because of blinking when the cell is not
+		// blinking.
+		if !cache.style.attributes().contains(style::BLINK) &&
+		   !cell.style().attributes().contains(style::BLINK)
+		{
+			options.remove(option::BLINKING);
+		}
+
 		// Check if the cache is up to date.
 		if cache.valid &&
+		   cache.options == options &&
 		   cell.style() == &cache.style &&
 		   ((cell.is_empty() && cache.value.is_none()) ||
 		    (cell.is_occupied() && cache.value.as_ref().map(AsRef::as_ref) == Some(cell.value())))
@@ -112,9 +123,10 @@ impl Cache {
 		}
 
 		*cache = Cell {
-			style: cell.style().clone(),
-			value: if cell.is_empty() { None } else { Some(cell.value().into()) },
-			valid: true,
+			style:   cell.style().clone(),
+			value:   if cell.is_empty() { None } else { Some(cell.value().into()) },
+			options: options,
+			valid:   true,
 		};
 
 		true
@@ -140,9 +152,10 @@ impl Cache {
 impl Cell {
 	pub fn empty(style: Rc<Style>) -> Self {
 		Cell {
-			style: style,
-			value: None,
-			valid: true,
+			style:   style,
+			value:   None,
+			valid:   true,
+			options: Options::empty(),
 		}
 	}
 }

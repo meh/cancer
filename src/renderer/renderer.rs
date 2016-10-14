@@ -26,7 +26,7 @@ use sys::cairo;
 use font::Font;
 use style;
 use terminal::{cell, cursor};
-use super::Cache;
+use super::{Cache, Options};
 
 /// Renderer for a `cairo::Surface`.
 pub struct Renderer {
@@ -186,7 +186,7 @@ impl Renderer {
 	}
 
 	/// Draw the cursor.
-	pub fn cursor(&mut self, cursor: &cursor::Cell, blinking: bool, focus: bool) {
+	pub fn cursor(&mut self, cursor: &cursor::Cell, options: Options) {
 		self.cache.invalidate(&cursor.cell());
 
 		// Cache needed values in various places.
@@ -194,7 +194,7 @@ impl Renderer {
 		// FIXME(meh): Find better names/and or ways to deal with this stuff.
 		let (c, o, f) = (&self.config, &mut self.context, &self.font);
 		let cell = cursor.cell();
-		let bc   = blinking && cursor.blink();
+		let bc   = options.blinking() && cursor.blink();
 		let fg   = cursor.foreground();
 		let bg   = cursor.background();
 
@@ -211,7 +211,7 @@ impl Renderer {
 
 			match cursor.shape() {
 				Shape::Block => {
-					if focus && !bc {
+					if options.focus() && !bc {
 						o.rgba(bg);
 					}
 					else {
@@ -228,7 +228,7 @@ impl Renderer {
 			o.fill(false);
 
 			// Draw the glyph.
-			if cell.is_occupied() && !(blinking && cell.style().attributes().contains(style::BLINK)) {
+			if cell.is_occupied() && !(options.blinking() && cell.style().attributes().contains(style::BLINK)) {
 				o.move_to(x as f64, (y + f.ascent()) as f64);
 
 				match cursor.shape() {
@@ -251,7 +251,7 @@ impl Renderer {
 				// If the window is not focused or the terminal is blinking draw an
 				// outline of the cell.
 				Shape::Block => {
-					if !focus || bc {
+					if !options.focus() || bc {
 						o.rgba(bg);
 						o.rectangle(x as f64 + 0.5, y as f64 + 0.5, w as f64 - 1.0, h as f64 - 1.0);
 						o.line_width(1.0);
@@ -261,7 +261,7 @@ impl Renderer {
 
 				// The line always covers any glyph underneath, unless it's blinking.
 				Shape::Line => {
-					if !(bc && focus) {
+					if !(bc && options.focus()) {
 						o.rgba(bg);
 						o.move_to(x as f64, (y + f.underline().1) as f64 + 0.5);
 						o.line_to((x + w) as f64, (y + f.underline().1) as f64 + 0.5);
@@ -272,7 +272,7 @@ impl Renderer {
 
 				// The beam always covers any glyph underneath, unless it's blinking.
 				Shape::Beam => {
-					if !(bc && focus) {
+					if !(bc && options.focus()) {
 						o.rgba(bg);
 						o.move_to(x as f64 + 0.5, y as f64);
 						o.line_to(x as f64 + 0.5, (y + h) as f64);
@@ -286,9 +286,9 @@ impl Renderer {
 	}
 
 	/// Draw the given cell.
-	pub fn cell(&mut self, cell: &cell::Position, blinking: bool, force: bool) -> bool {
+	pub fn cell(&mut self, cell: &cell::Position, options: Options, force: bool) -> bool {
 		// Bail out if the character is up to date.
-		if !force && !self.cache.update(cell) {
+		if !force && !self.cache.update(cell, options) {
 			return false;
 		}
 
@@ -300,6 +300,10 @@ impl Renderer {
 
 		let mut bg = cell.style().background().unwrap_or_else(||
 			c.style().color().background());
+
+		if options.reverse() {
+			mem::swap(&mut fg, &mut bg);
+		}
 
 		if cell.style().attributes().contains(style::REVERSE) {
 			mem::swap(&mut fg, &mut bg);
@@ -319,7 +323,7 @@ impl Renderer {
 			o.fill(false);
 
 			// Draw the glyph.
-			if cell.is_occupied() && !(blinking && cell.style().attributes().contains(style::BLINK)) {
+			if cell.is_occupied() && !(options.blinking() && cell.style().attributes().contains(style::BLINK)) {
 				o.move_to(x as f64, (y + f.ascent()) as f64);
 				o.rgba(fg);
 

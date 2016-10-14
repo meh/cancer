@@ -127,17 +127,34 @@ fn open(matches: &ArgMatches) -> error::Result<()> {
 	let events = window.events();
 
 	macro_rules! render {
+		(options) => ({
+			let mut options = renderer::Options::empty();
+
+			if terminal.mode().contains(terminal::mode::BLINK) {
+				options.insert(renderer::option::BLINKING);
+			}
+
+			if window.has_focus() {
+				options.insert(renderer::option::FOCUS);
+			}
+
+			if terminal.mode().contains(terminal::mode::REVERSE) {
+				options.insert(renderer::option::REVERSE);
+			}
+
+			options
+		});
+
 		(cursor) => ({
-			let blinking = terminal.mode().contains(terminal::mode::BLINK);
-			let focused  = window.has_focus();
+			let options = render!(options);
 
 			// Redraw the cursor.
 			render.update(|mut o| {
 				if terminal.cursor().is_visible() {
-					o.cursor(&terminal.cursor(), blinking, focused);
+					o.cursor(&terminal.cursor(), options);
 				}
 				else {
-					o.cell(&terminal.cursor().cell(), blinking, true);
+					o.cell(&terminal.cursor().cell(), options, true);
 				}
 			});
 
@@ -145,9 +162,8 @@ fn open(matches: &ArgMatches) -> error::Result<()> {
 		});
 
 		(damaged $area:expr) => ({
-			let area     = $area;
-			let blinking = terminal.mode().contains(terminal::mode::BLINK);
-			let focused  = window.has_focus();
+			let options = render!(options);
+			let area    = $area;
 
 			render.update(|mut o| {
 				// Redraw margins.
@@ -155,12 +171,15 @@ fn open(matches: &ArgMatches) -> error::Result<()> {
 
 				// Redraw the cells that fall within the damaged area.
 				for cell in terminal.iter(o.damaged(&area).relative()) {
-					o.cell(&cell, blinking, true);
+					o.cell(&cell, options, true);
 				}
 
 				// Redraw the cursor.
 				if terminal.cursor().is_visible() {
-					o.cursor(&terminal.cursor(), blinking, focused);
+					o.cursor(&terminal.cursor(), options);
+				}
+				else {
+					o.cell(&terminal.cursor().cell(), options, true);
 				}
 			});
 
@@ -168,17 +187,16 @@ fn open(matches: &ArgMatches) -> error::Result<()> {
 		});
 
 		(cells $iter:expr) => ({
-			let blinking = terminal.mode().contains(terminal::mode::BLINK);
-			let focused  = window.has_focus();
-			let iter     = $iter;
+			let options = render!(options);
+			let iter    = $iter;
 
 			render.update(|mut o| {
 				for cell in terminal.iter(iter) {
-					o.cell(&cell, blinking, false);
+					o.cell(&cell, options, false);
 				}
 
 				if terminal.cursor().is_visible() {
-					o.cursor(&terminal.cursor(), blinking, focused);
+					o.cursor(&terminal.cursor(), options);
 				}
 			});
 
@@ -186,16 +204,15 @@ fn open(matches: &ArgMatches) -> error::Result<()> {
 		});
 
 		($iter:expr) => ({
-			let blinking = terminal.mode().contains(terminal::mode::BLINK);
-			let focused  = window.has_focus();
+			let options = render!(options);
 
 			render.update(|mut o| {
 				for cell in $iter {
-					o.cell(&cell, blinking, false);
+					o.cell(&cell, options, false);
 				}
 
 				if terminal.cursor().is_visible() {
-					o.cursor(&terminal.cursor(), blinking, focused);
+					o.cursor(&terminal.cursor(), options);
 				}
 			});
 

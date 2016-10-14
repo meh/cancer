@@ -20,3 +20,6 @@ pub use self::renderer::Renderer;
 
 mod cache;
 pub use self::cache::Cache;
+
+pub mod option;
+pub use self::option::Options;
