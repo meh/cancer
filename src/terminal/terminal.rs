@@ -28,7 +28,7 @@ use picto::color::Rgba;
 use error;
 use config::{self, Config};
 use style::{self, Style};
-use terminal::{Iter, Touched, Cell, Key, cell};
+use terminal::{Iter, Touched, Cell, Key, Action, cell};
 use terminal::mode::{self, Mode};
 use terminal::cursor::{self, Cursor};
 use control::{self, Control, C0, C1, CSI, SGR};
@@ -129,20 +129,13 @@ impl Terminal {
 		cell::Position::new(x, y, &self.rows[term!(self; row for y)][x as usize])
 	}
 
-	/// Return the cells within the given area.
-	pub fn area<'a>(&'a self, area: Area) -> impl Iterator<Item = cell::Position<'a>> {
-		Iter::new(self, area.relative())
-	}
-
-	/// Return all cells.
-	pub fn iter<'a>(&'a self) -> impl Iterator<Item = cell::Position<'a>> {
-		Iter::new(self, self.area.absolute())
+	pub fn iter<'a, T: Iterator<Item = (u32, u32)>>(&'a self, iter: T) -> impl Iterator<Item = cell::Position<'a>> {
+		Iter::new(self, iter)
 	}
 
 	/// Resize the terminal.
-	// TODO: handle resize
-	pub fn resize<'a>(&'a mut self, width: u32, height: u32) -> impl Iterator<Item = cell::Position<'a>> {
-		self.iter()
+	pub fn resize(&mut self, width: u32, height: u32) -> impl Iterator<Item = (u32, u32)> {
+		::std::iter::empty()
 	}
 
 	/// Enable or disable blinking and return the affected cells.
@@ -154,23 +147,23 @@ impl Terminal {
 			self.mode.remove(mode::BLINK);
 		}
 
-		self.iter().filter(|c| c.style().attributes().contains(style::BLINK))
+		self.iter(self.area.absolute()).filter(|c| c.style().attributes().contains(style::BLINK))
 	}
 
 	/// Handle a key.
-	pub fn key<'a, O: Write>(&'a mut self, key: Key, output: O) -> error::Result<impl Iterator<Item = cell::Position<'a>>> {
+	pub fn key<O: Write>(&mut self, key: Key, output: O) -> error::Result<impl Iterator<Item = (u32, u32)>> {
 		try!(key.write(output));
 		Ok(iter::empty())
 	}
 
 	/// Handle raw input.
-	pub fn input<'a, I: AsRef<str>, O: Write>(&'a mut self, input: I, mut output: O) -> error::Result<impl Iterator<Item = cell::Position<'a>>> {
+	pub fn input<I: AsRef<str>, O: Write>(&mut self, input: I, mut output: O) -> error::Result<impl Iterator<Item = (u32, u32)>> {
 		try!(output.write_all(input.as_ref().as_bytes()));
 		Ok(iter::empty())
 	}
 
 	/// Handle output from the tty.
-	pub fn handle<'a, I: AsRef<[u8]>, O: Write>(&'a mut self, input: I, mut output: O) -> error::Result<impl Iterator<Item = cell::Position<'a>>> {
+	pub fn handle<I: AsRef<[u8]>, O: Write>(&mut self, input: I, mut output: O) -> error::Result<(impl Iterator<Item = Action>, impl Iterator<Item = (u32, u32)>)> {
 		// Juggle the incomplete buffer cache and the real input.
 		let     input  = input.as_ref();
 		let mut buffer = self.cache.take();
@@ -179,8 +172,9 @@ impl Terminal {
 			buffer.extend_from_slice(input);
 		}
 
-		let     buffer = buffer.as_ref();
-		let mut input  = buffer.as_ref().map(AsRef::as_ref).unwrap_or(input);
+		let     buffer  = buffer.as_ref();
+		let mut input   = buffer.as_ref().map(AsRef::as_ref).unwrap_or(input);
+		let mut actions = Vec::new(): Vec<Action>;
 
 		loop {
 			if input.is_empty() {
@@ -498,14 +492,17 @@ impl Terminal {
 					}
 				}
 
+				Control::C1(C1::OperatingSystemCommand(cmd)) if cmd.starts_with("0;") || cmd.starts_with("k;") => {
+					actions.push(Action::Title(String::from(&cmd[2..])));
+				}
+
 				code => {
 					debug!("unhandled control code: {:?}", code);
 				}
 			}
 		}
 
-		let touched = self.touched.iter(self.area);
-		Ok(Iter::new(self, touched))
+		Ok((actions.into_iter(), self.touched.iter(self.area)))
 	}
 }
 

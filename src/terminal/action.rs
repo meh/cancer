@@ -15,26 +15,7 @@
 // You should have received a copy of the GNU General Public License
 // along with cancer.  If not, see <http://www.gnu.org/licenses/>.
 
-mod iter;
-pub use self::iter::Iter;
-
-mod touched;
-pub use self::touched::Touched;
-
-pub mod mode;
-pub use self::mode::Mode;
-
-pub mod cursor;
-pub use self::cursor::Cursor;
-
-mod key;
-pub use self::key::Key;
-
-pub mod cell;
-pub use self::cell::Cell;
-
-mod terminal;
-pub use self::terminal::Terminal;
-
-mod action;
-pub use self::action::Action;
+#[derive(Eq, PartialEq, Clone, Debug)]
+pub enum Action {
+	Title(String),
+}

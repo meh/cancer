@@ -64,7 +64,7 @@ mod timer;
 use timer::Timer;
 
 mod terminal;
-use terminal::Terminal;
+use terminal::{Terminal, Action};
 
 mod style;
 
@@ -155,11 +155,29 @@ fn open(matches: &ArgMatches) -> error::Result<()> {
 				o.margin(&area);
 
 				// Redraw the cells that fall within the damaged area.
-				for cell in terminal.area(o.damaged(&area)) {
+				for cell in terminal.iter(o.damaged(&area).relative()) {
 					o.cell(&cell, blinking, true);
 				}
 
 				// Redraw the cursor.
+				if terminal.cursor().is_visible() {
+					o.cursor(&terminal.cursor(), blinking, focused);
+				}
+			});
+
+			window.flush();
+		});
+
+		(cells $iter:expr) => ({
+			let blinking = terminal.mode().contains(terminal::mode::BLINK);
+			let focused  = window.has_focus();
+			let iter     = $iter;
+
+			render.update(|mut o| {
+				for cell in terminal.iter(iter) {
+					o.cell(&cell, blinking, false);
+				}
+
 				if terminal.cursor().is_visible() {
 					o.cursor(&terminal.cursor(), blinking, focused);
 				}
@@ -212,7 +230,6 @@ fn open(matches: &ArgMatches) -> error::Result<()> {
 					// Handle focus changes.
 					xcb::FOCUS_IN | xcb::FOCUS_OUT => {
 						window.focus(event.response_type() == xcb::FOCUS_IN);
-
 						render!(cursor);
 					}
 
@@ -230,7 +247,7 @@ fn open(matches: &ArgMatches) -> error::Result<()> {
 							let columns = render.columns();
 
 							if terminal.columns() != columns || terminal.rows() != rows {
-								render!(terminal.resize(columns, rows));
+								render!(cells terminal.resize(columns, rows));
 								tty.resize(columns, rows).unwrap();
 							}
 						}
@@ -245,13 +262,13 @@ fn open(matches: &ArgMatches) -> error::Result<()> {
 						let event = xcb::cast_event::<xcb::KeyPressEvent>(&event);
 
 						if let Ok(key) = terminal::Key::try_from(keyboard.symbol(event.detail())) {
-							render!(terminal.key(key, &mut tty).unwrap());
+							render!(cells terminal.key(key, &mut tty).unwrap());
 						}
 						else {
 							let string = keyboard.string(event.detail());
 
 							if !string.is_empty() {
-								render!(terminal.input(&string, &mut tty).unwrap());
+								render!(cells terminal.input(&string, &mut tty).unwrap());
 							}
 						}
 
@@ -266,7 +283,16 @@ fn open(matches: &ArgMatches) -> error::Result<()> {
 
 			input = input.recv() => {
 				if let Ok(input) = input {
-					render!(terminal.handle(&input, &mut tty).unwrap());
+					let (actions, touched) = cont!(terminal.handle(&input, &mut tty));
+					render!(cells touched);
+
+					for action in actions {
+						match action {
+							Action::Title(string) => {
+								window.set_title(&string);
+							}
+						}
+					}
 				}
 				else {
 					break;

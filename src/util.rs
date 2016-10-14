@@ -25,3 +25,14 @@ macro_rules! ret {
 		}
 	)
 }
+
+macro_rules! cont {
+	($body:expr) => (
+		if let Ok(value) = $body {
+			value
+		}
+		else {
+			continue;
+		}
+	)
+}
