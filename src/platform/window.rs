@@ -147,6 +147,12 @@ impl Window {
 		Keyboard::new(self.connection.clone())
 	}
 
+	/// Set the window title.
+	pub fn set_title<T: AsRef<str>>(&self, title: T) {
+		icccm::set_wm_name(&self.connection, self.window, title.as_ref());
+		ewmh::set_wm_name(&self.connection, self.window, title.as_ref());
+	}
+
 	/// Flush the surface and connection.
 	pub fn flush(&self) {
 		self.surface.flush();
