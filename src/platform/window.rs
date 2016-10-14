@@ -172,7 +172,7 @@ fn sink(connection: Arc<ewmh::Connection>) -> Receiver<xcb::GenericEvent> {
 	// Drain events into a channel.
 	thread::spawn(move || {
 		while let Some(event) = connection.wait_for_event() {
-			ret!(sender.send(event));
+			try!(return sender.send(event));
 		}
 	});
 

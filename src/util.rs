@@ -15,24 +15,35 @@
 // You should have received a copy of the GNU General Public License
 // along with cancer.  If not, see <http://www.gnu.org/licenses/>.
 
-macro_rules! ret {
-	($body:expr) => (
+macro_rules! try {
+	(return $body:expr) => (
 		if let Ok(value) = $body {
 			value
 		}
 		else {
 			return;
 		}
-	)
-}
+	);
 
-macro_rules! cont {
-	($body:expr) => (
+	(continue $body:expr) => (
 		if let Ok(value) = $body {
 			value
 		}
 		else {
 			continue;
 		}
-	)
+	);
+
+	(break $body:expr) => (
+		if let Ok(value) = $body {
+			value
+		}
+		else {
+			break;
+		}
+	);
+
+	($body:expr) => (
+		$body?
+	);
 }

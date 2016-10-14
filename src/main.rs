@@ -16,7 +16,7 @@
 // along with cancer.  If not, see <http://www.gnu.org/licenses/>.
 
 #![feature(question_mark, mpsc_select, conservative_impl_trait, slice_patterns)]
-#![feature(static_in_const, trace_macros, type_ascription, try_from)]
+#![feature(static_in_const, trace_macros, type_ascription)]
 #![feature(pub_restricted)]
 #![recursion_limit="100"]
 
@@ -112,7 +112,6 @@ fn main() {
 
 fn open(matches: &ArgMatches) -> error::Result<()> {
 	use std::sync::Arc;
-	use std::convert::TryFrom;
 	use std::io::Write;
 
 	let     config   = Arc::new(Config::load(matches.value_of("config"))?);
@@ -260,18 +259,7 @@ fn open(matches: &ArgMatches) -> error::Result<()> {
 
 					xcb::KEY_PRESS => {
 						let event = xcb::cast_event::<xcb::KeyPressEvent>(&event);
-
-						if let Ok(key) = terminal::Key::try_from(keyboard.symbol(event.detail())) {
-							render!(cells terminal.key(key, &mut tty).unwrap());
-						}
-						else {
-							let string = keyboard.string(event.detail());
-
-							if !string.is_empty() {
-								render!(cells terminal.input(&string, &mut tty).unwrap());
-							}
-						}
-
+						render!(cells terminal.key(keyboard.key(event.detail()), &mut tty).unwrap());
 						tty.flush().unwrap();
 					}
 
@@ -282,8 +270,10 @@ fn open(matches: &ArgMatches) -> error::Result<()> {
 			},
 
 			input = input.recv() => {
-				if let Ok(input) = input {
-					let (actions, touched) = cont!(terminal.handle(&input, &mut tty));
+				let input = try!(break input);
+
+				{
+					let (actions, touched) = try!(continue terminal.handle(&input, &mut tty));
 					render!(cells touched);
 
 					for action in actions {
@@ -294,9 +284,8 @@ fn open(matches: &ArgMatches) -> error::Result<()> {
 						}
 					}
 				}
-				else {
-					break;
-				}
+
+				try!(break tty.flush());
 			}
 		}
 	}

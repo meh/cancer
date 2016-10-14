@@ -157,12 +157,6 @@ impl Terminal {
 		Ok(iter::empty())
 	}
 
-	/// Handle raw input.
-	pub fn input<I: AsRef<str>, O: Write>(&mut self, input: I, mut output: O) -> error::Result<impl Iterator<Item = (u32, u32)>> {
-		try!(output.write_all(input.as_ref().as_bytes()));
-		Ok(iter::empty())
-	}
-
 	/// Handle output from the tty.
 	pub fn handle<I: AsRef<[u8]>, O: Write>(&mut self, input: I, mut output: O) -> error::Result<(impl Iterator<Item = Action>, impl Iterator<Item = (u32, u32)>)> {
 		// Juggle the incomplete buffer cache and the real input.

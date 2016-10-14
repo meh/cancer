@@ -16,14 +16,13 @@
 // along with cancer.  If not, see <http://www.gnu.org/licenses/>.
 
 use std::sync::Arc;
-use std::convert::TryFrom;
 
 use xcb;
 use xcbu::ewmh;
 use xkbcommon::xkb::{self, keysyms};
 
 use error;
-use terminal;
+use terminal::key::{self, Key, Button, Modifier};
 
 pub struct Keyboard {
 	connection: Arc<ewmh::Connection>,
@@ -131,33 +130,45 @@ impl Keyboard {
 	pub fn string(&self, code: u8) -> String {
 		self.state.key_get_utf8(code as xkb::Keycode)
 	}
-}
 
-impl TryFrom<u32> for terminal::Key {
-	type Err = ();
+	pub fn key(&self, code: u8) -> Key {
+		const MODIFIERS: &[(&str, Modifier)] = &[
+			(xkb::MOD_NAME_ALT,   key::ALT),
+			(xkb::MOD_NAME_CTRL,  key::CTRL),
+			(xkb::MOD_NAME_CAPS,  key::CAPS),
+			(xkb::MOD_NAME_LOGO,  key::LOGO),
+			(xkb::MOD_NAME_NUM,   key::NUM),
+			(xkb::MOD_NAME_SHIFT, key::SHIFT)];
 
-	fn try_from(value: u32) -> Result<Self, ()> {
-		Ok(match value {
+		let modifier = MODIFIERS.iter().fold(Modifier::empty(), |modifier, &(n, m)|
+			if self.state.mod_name_is_active(&n, 0) {
+				modifier | m
+			}
+			else {
+				modifier
+			});
+
+		Key::new(match self.symbol(code) {
 			keysyms::KEY_Return =>
-				terminal::Key::Enter,
+				Button::Enter,
 
 			keysyms::KEY_Escape =>
-				terminal::Key::Escape,
+				Button::Escape,
 
 			keysyms::KEY_Up =>
-				terminal::Key::Up,
+				Button::Up,
 
 			keysyms::KEY_Down =>
-				terminal::Key::Down,
+				Button::Down,
 
 			keysyms::KEY_Right =>
-				terminal::Key::Right,
+				Button::Right,
 
 			keysyms::KEY_Left =>
-				terminal::Key::Left,
+				Button::Left,
 
 			_ =>
-				return Err(())
-		})
+				return Key::new(self.string(code).into(), modifier),
+		}.into(), modifier)
 	}
 }

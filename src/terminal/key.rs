@@ -18,8 +18,37 @@
 use std::io::{self, Write};
 use control::{Control, C0, C1, CSI, Format};
 
-#[derive(Eq, PartialEq, Copy, Clone, Debug)]
-pub enum Key {
+#[derive(Eq, PartialEq, Clone, Debug)]
+pub struct Key {
+	modifier: Modifier,
+	value:    Value,
+}
+
+bitflags! {
+	pub flags Modifier: u8 {
+		const ALT   = 1 << 0,
+		const CAPS  = 1 << 1,
+		const CTRL  = 1 << 2,
+		const LOGO  = 1 << 4,
+		const NUM   = 1 << 5,
+		const SHIFT = 1 << 6,
+	}
+}
+
+impl Default for Modifier {
+	fn default() -> Self {
+		Modifier::empty()
+	}
+}
+
+#[derive(Eq, PartialEq, Clone, Debug)]
+pub enum Value {
+	String(String),
+	Button(Button),
+}
+
+#[derive(Eq, PartialEq, Clone, Debug)]
+pub enum Button {
 	Enter,
 	Escape,
 
@@ -29,7 +58,26 @@ pub enum Key {
 	Left,
 }
 
+impl From<Button> for Value {
+	fn from(value: Button) -> Value {
+		Value::Button(value)
+	}
+}
+
+impl From<String> for Value {
+	fn from(value: String) -> Value {
+		Value::String(value)
+	}
+}
+
 impl Key {
+	pub fn new(value: Value, modifier: Modifier) -> Self {
+		Key {
+			modifier: modifier,
+			value:    value,
+		}
+	}
+
 	pub fn write<W: Write>(&self, mut output: W) -> io::Result<()> {
 		macro_rules! write {
 			(raw $raw:expr) => (
@@ -37,28 +85,38 @@ impl Key {
 			);
 
 			($item:expr) => (
-				try!(($item.into(): Control).fmt(output.by_ref(), false));
+				($item.into(): Control).fmt(output.by_ref(), false)?;
 			);
 		}
 
-		match *self {
-			Key::Enter =>
-				write!(C0::CarriageReturn),
+		match self.value {
+			Value::String(ref string) => {
+				try!(output.write_all(string.as_bytes()));
+			}
 
-			Key::Escape =>
-				write!(C0::Escape),
+			Value::Button(Button::Enter) => {
+				write!(C0::CarriageReturn);
+			}
 
-			Key::Up =>
-				write!(raw b"\x1BOA"),
+			Value::Button(Button::Escape) => {
+				write!(C0::Escape);
+			}
 
-			Key::Down =>
-				write!(raw b"\x1BOB"),
+			Value::Button(Button::Up) => {
+				write!(raw b"\x1BOA");
+			}
 
-			Key::Right =>
-				write!(raw b"\x1BOC"),
+			Value::Button(Button::Down) => {
+				write!(raw b"\x1BOB");
+			}
 
-			Key::Left =>
-				write!(raw b"\x1BOD"),
+			Value::Button(Button::Right) => {
+				write!(raw b"\x1BOC");
+			}
+
+			Value::Button(Button::Left) => {
+				write!(raw b"\x1BOD");
+			}
 		}
 
 		Ok(())
