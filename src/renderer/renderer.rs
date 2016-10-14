@@ -194,7 +194,7 @@ impl Renderer {
 		// FIXME(meh): Find better names/and or ways to deal with this stuff.
 		let (c, o, f) = (&self.config, &mut self.context, &self.font);
 		let cell = cursor.cell();
-		let bc   = blinking && c.style().cursor().blink();
+		let bc   = blinking && cursor.blink();
 		let fg   = cursor.foreground();
 		let bg   = cursor.background();
 
@@ -205,40 +205,49 @@ impl Renderer {
 
 		o.save();
 		{
-			// Render cursors that require to be on the bottom.
-			match c.style().cursor().shape() {
+			// Draw the background.
+			o.rectangle(x as f64, y as f64, w as f64, h as f64);
+			o.line_width(1.0);
+
+			match cursor.shape() {
 				Shape::Block => {
 					if focus && !bc {
 						o.rgba(bg);
-						o.fill(false);
 					}
 					else {
 						o.rgba(c.style().color().background());
 					}
-
-					o.rectangle(x as f64, y as f64, w as f64, h as f64);
-					o.line_width(1.0);
-					o.fill(false);
-
-					o.rgba(fg);
 				}
 
 				Shape::Beam | Shape::Line => {
-					o.rgba(cell.style().foreground().unwrap_or(
-						c.style().color().foreground()));
+					o.rgba(cell.style().background().unwrap_or(
+						c.style().color().background()));
 				}
 			}
+
+			o.fill(false);
 
 			// Draw the glyph.
 			if cell.is_occupied() && !(blinking && cell.style().attributes().contains(style::BLINK)) {
 				o.move_to(x as f64, (y + f.ascent()) as f64);
+
+				match cursor.shape() {
+					Shape::Block => {
+						o.rgba(fg);
+					}
+
+					Shape::Beam | Shape::Line => {
+						o.rgba(cell.style().foreground().unwrap_or(
+							c.style().color().foreground()));
+					}
+				}
 
 				let computed = self.cache.compute(cell.value(), cell.style().attributes());
 				o.glyph(computed.font(), computed.shape());
 			}
 
 			// Render cursors that require to be on top.
-			match c.style().cursor().shape() {
+			match cursor.shape() {
 				// If the window is not focused or the terminal is blinking draw an
 				// outline of the cell.
 				Shape::Block => {

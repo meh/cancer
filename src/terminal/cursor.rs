@@ -23,6 +23,7 @@ use picto::color::Rgba;
 use style::Style;
 use terminal::{cell, Touched};
 use config::Config;
+use config::style::Shape;
 
 #[derive(PartialEq, Clone, Default, Debug)]
 pub struct Cursor {
@@ -32,6 +33,8 @@ pub struct Cursor {
 
 	pub(super) foreground: Rgba<f64>,
 	pub(super) background: Rgba<f64>,
+	pub(super) shape:      Shape,
+	pub(super) blink:      bool,
 	pub(super) visible:    bool,
 }
 
@@ -55,6 +58,8 @@ impl Cursor {
 
 			foreground: *config.style().cursor().foreground(),
 			background: *config.style().cursor().background(),
+			shape:      config.style().cursor().shape(),
+			blink:      config.style().cursor().blink(),
 			visible:    true,
 		}
 	}
@@ -81,6 +86,14 @@ impl Cursor {
 
 	pub fn background(&self) -> &Rgba<f64> {
 		&self.background
+	}
+
+	pub fn shape(&self) -> Shape {
+		self.shape
+	}
+
+	pub fn blink(&self) -> bool {
+		self.blink
 	}
 
 	pub fn is_visible(&self) -> bool {

@@ -47,6 +47,12 @@ pub enum Shape {
 	Beam,
 }
 
+impl Default for Shape {
+	fn default() -> Shape {
+		Shape::Block
+	}
+}
+
 #[derive(PartialEq, Clone, Debug)]
 pub struct Cursor {
 	shape: Shape,
@@ -85,7 +91,7 @@ impl Default for Color {
 impl Default for Cursor {
 	fn default() -> Self {
 		Cursor {
-			shape: Shape::Block,
+			shape: Shape::default(),
 			blink: false,
 
 			foreground: to_color("#000").unwrap(),

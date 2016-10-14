@@ -27,6 +27,7 @@ use picto::Area;
 use picto::color::Rgba;
 use error;
 use config::{self, Config};
+use config::style::Shape;
 use style::{self, Style};
 use terminal::{Iter, Touched, Cell, Key, Action, cell};
 use terminal::mode::{self, Mode};
@@ -463,6 +464,43 @@ impl Terminal {
 					}
 
 					self.cursor.update(style);
+				}
+
+				// DECSCUSR
+				Control::C1(C1::ControlSequence(CSI::Unknown(b'q', Some(b' '), args))) => {
+					match arg!(args[0] => 0) {
+						0 | 1 => {
+							self.cursor.blink = true;
+							self.cursor.shape = Shape::Block;
+						}
+
+						2 => {
+							self.cursor.blink = false;
+							self.cursor.shape = Shape::Block;
+						}
+
+						3 => {
+							self.cursor.blink = true;
+							self.cursor.shape = Shape::Line;
+						}
+
+						4 => {
+							self.cursor.blink = false;
+							self.cursor.shape = Shape::Line;
+						}
+
+						5 => {
+							self.cursor.blink = true;
+							self.cursor.shape = Shape::Beam;
+						}
+
+						6 => {
+							self.cursor.blink = false;
+							self.cursor.shape = Shape::Beam;
+						}
+
+						_ => ()
+					}
 				}
 
 				Control::C1(C1::OperatingSystemCommand(cmd)) if cmd.starts_with("cursor:") => {
