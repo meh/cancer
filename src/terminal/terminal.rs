@@ -100,7 +100,7 @@ impl Terminal {
 			area:   area,
 			cache:  Default::default(),
 
-			mode:    Mode::empty(),
+			mode:    Mode::default(),
 			cursor:  Cursor::new(config.clone(), width, height),
 			rows:    rows,
 			touched: Touched::default(),

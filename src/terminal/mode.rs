@@ -16,7 +16,16 @@
 // along with cancer.  If not, see <http://www.gnu.org/licenses/>.
 
 bitflags! {
-	pub flags Mode: u8 {
-		const BLINK = 1 << 0,
+	pub flags Mode: u32 {
+		const BLINK           = 1 << 0,
+		const REVERSE         = 1 << 1,
+		const WRAP            = 1 << 2,
+		const BRACKETED_PASTE = 1 << 3,
+	}
+}
+
+impl Default for Mode {
+	fn default() -> Self {
+		WRAP
 	}
 }
