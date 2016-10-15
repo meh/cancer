@@ -53,18 +53,16 @@ macro_rules! term {
 		($y + $term.scroll.unwrap_or_else(|| $term.rows.len() as u32 - $term.area.height)) as usize
 	);
 
-	($term:ident; extend) => (
-		$term.rows.push_back(vec_deque![Cell::empty($term.cursor.style().clone()); $term.area.width as usize]);
+	($term:ident; row) => (
+		vec_deque![Cell::empty($term.cursor.style().clone()); $term.area.width as usize]
+	);
+
+	($term:ident; extend $n:expr) => (
+		$term.rows.extend(iter::repeat(term!($term; row)).take($n as usize));
 	);
 
 	($term:ident; cursor $($travel:tt)*) => (
-		if let Some(n) = $term.cursor.travel(cursor::$($travel)*, &mut $term.touched) {
-			$term.touched.all();
-
-			for _ in 0 .. n {
-				term!($term; extend);
-			}
-		}
+		$term.cursor.travel(cursor::$($travel)*, &mut $term.touched)
 	);
 
 	($term:ident; touched all) => (
@@ -313,6 +311,8 @@ impl Terminal {
 				}
 
 				Control::C1(C1::ControlSequence(CSI::Set(modes))) => {
+					debug!("set {:?}", modes);
+
 					for mode in modes {
 						match mode {
 							CSI::Mode::KeyboardAction =>
@@ -333,6 +333,8 @@ impl Terminal {
 				}
 
 				Control::C1(C1::ControlSequence(CSI::Private(b'h', None, args))) => {
+					debug!("set {:?}", args);
+
 					for arg in args {
 						match arg {
 							Some(1) =>
@@ -345,7 +347,7 @@ impl Terminal {
 								self.mode.insert(mode::WRAP),
 
 							Some(25) =>
-								self.cursor.visible = false,
+								self.cursor.state.remove(cursor::VISIBLE),
 
 							Some(1004) =>
 								self.mode.insert(mode::FOCUS),
@@ -359,6 +361,8 @@ impl Terminal {
 				}
 
 				Control::C1(C1::ControlSequence(CSI::Reset(modes))) => {
+					debug!("reset {:?}", modes);
+
 					for mode in modes {
 						match mode {
 							CSI::Mode::KeyboardAction =>
@@ -379,6 +383,8 @@ impl Terminal {
 				}
 
 				Control::C1(C1::ControlSequence(CSI::Private(b'l', None, args))) => {
+					debug!("reset {:?}", args);
+
 					for arg in args {
 						match arg {
 							Some(1) =>
@@ -391,7 +397,7 @@ impl Terminal {
 								self.mode.remove(mode::WRAP),
 
 							Some(25) =>
-								self.cursor.visible = true,
+								self.cursor.state.insert(cursor::VISIBLE),
 
 							Some(1004) =>
 								self.mode.remove(mode::FOCUS),
@@ -449,6 +455,22 @@ impl Terminal {
 
 				Control::C1(C1::ControlSequence(CSI::LinePosition(n))) => {
 					term!(self; cursor Position(None, Some(n)));
+				}
+
+				Control::C1(C1::Index) => {
+					if term!(self; cursor Down(1)).is_some() {
+						let row = term!(self; row for 0);
+						self.rows.remove(row);
+						term!(self; extend 1);
+					}
+				}
+
+				Control::C1(C1::ReverseIndex) => {
+					if term!(self; cursor Up(1)).is_some() {
+						let row = term!(self; row for 0);
+						self.rows.insert(row, term!(self; row));
+						self.rows.pop_back();
+					}
 				}
 
 				// Erase functions.
@@ -533,7 +555,7 @@ impl Terminal {
 
 					// Fill missing lines.
 					for _ in 0 .. n {
-						term!(self; extend);
+						term!(self; extend 1);
 					}
 
 					// Mark the affected lines as touched.
@@ -557,7 +579,7 @@ impl Terminal {
 
 					// Extend with new lines.
 					for _ in 0 .. n {
-						term!(self; extend);
+						term!(self; extend 1);
 					}
 
 					// Remove the scrolled off lines.
@@ -574,10 +596,12 @@ impl Terminal {
 					for ch in string.graphemes(true) {
 						let width = ch.width() as u32;
 
-						// If the character overflows the area, wrap it down.
-						if self.cursor.x() + width > self.area.width {
-							term!(self; cursor Down(1));
-							term!(self; cursor Position(Some(1), None));
+						if self.mode.contains(mode::WRAP) && self.cursor.wrap() {
+							if term!(self; cursor Down(1)).is_some() {
+								term!(self; extend 1);
+							}
+
+							term!(self; cursor Position(Some(0), None));
 						}
 
 						// Change the cells appropriately.
@@ -608,7 +632,13 @@ impl Terminal {
 							}
 						}
 
-						term!(self; cursor Right(width));
+						// If the character overflows the area, mark it for wrapping.
+						if self.cursor.x() + width >= self.area.width {
+							self.cursor.state.insert(cursor::WRAP);
+						}
+						else {
+							term!(self; cursor Right(width));
+						}
 					}
 				}
 
@@ -678,33 +708,41 @@ impl Terminal {
 				// DECSCUSR
 				Control::C1(C1::ControlSequence(CSI::Unknown(b'q', Some(b' '), args))) => {
 					match arg!(args[0] => 0) {
-						0 | 1 => {
-							self.cursor.blink = true;
+						0 => {
+							if self.config.style().cursor().blink() {
+								self.cursor.state.insert(cursor::BLINK);
+							}
+
+							self.cursor.shape = self.config.style().cursor().shape();
+						}
+
+						1 => {
+							self.cursor.state.insert(cursor::BLINK);
 							self.cursor.shape = Shape::Block;
 						}
 
 						2 => {
-							self.cursor.blink = false;
+							self.cursor.state.remove(cursor::BLINK);
 							self.cursor.shape = Shape::Block;
 						}
 
 						3 => {
-							self.cursor.blink = true;
+							self.cursor.state.insert(cursor::BLINK);
 							self.cursor.shape = Shape::Line;
 						}
 
 						4 => {
-							self.cursor.blink = false;
+							self.cursor.state.remove(cursor::BLINK);
 							self.cursor.shape = Shape::Line;
 						}
 
 						5 => {
-							self.cursor.blink = true;
+							self.cursor.state.insert(cursor::BLINK);
 							self.cursor.shape = Shape::Beam;
 						}
 
 						6 => {
-							self.cursor.blink = false;
+							self.cursor.state.remove(cursor::BLINK);
 							self.cursor.shape = Shape::Beam;
 						}
 
@@ -717,11 +755,11 @@ impl Terminal {
 
 					match parts.next() {
 						Some("show") => {
-							self.cursor.visible = true;
+							self.cursor.state.insert(cursor::VISIBLE);
 						}
 
 						Some("hide") => {
-							self.cursor.visible = false;
+							self.cursor.state.remove(cursor::VISIBLE);
 						}
 
 						Some("background") => {

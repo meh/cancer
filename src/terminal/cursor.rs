@@ -34,10 +34,10 @@ pub struct Cursor {
 	pub(super) foreground: Rgba<f64>,
 	pub(super) background: Rgba<f64>,
 	pub(super) shape:      Shape,
-	pub(super) blink:      bool,
-	pub(super) visible:    bool,
+	pub(super) state:      State,
 }
 
+#[derive(Eq, PartialEq, Copy, Clone, Debug)]
 pub enum Travel {
 	Position(Option<u32>, Option<u32>),
 
@@ -47,10 +47,29 @@ pub enum Travel {
 	Right(u32),
 }
 
+bitflags! {
+	pub flags State: u8 {
+		const BLINK   = 1 << 0,
+		const VISIBLE = 1 << 1,
+		const WRAP    = 1 << 2,
+	}
+}
+
+impl Default for State {
+	fn default() -> Self {
+		VISIBLE
+	}
+}
+
 pub use self::Travel::*;
 
 impl Cursor {
 	pub fn new(config: Arc<Config>, width: u32, height: u32) -> Self {
+		let mut state = State::default();
+		if config.style().cursor().blink() {
+			state.insert(BLINK);
+		}
+
 		Cursor {
 			position: (0, 0),
 			limits:   (width, height),
@@ -59,8 +78,7 @@ impl Cursor {
 			foreground: *config.style().cursor().foreground(),
 			background: *config.style().cursor().background(),
 			shape:      config.style().cursor().shape(),
-			blink:      config.style().cursor().blink(),
-			visible:    true,
+			state:      state,
 		}
 	}
 
@@ -93,11 +111,15 @@ impl Cursor {
 	}
 
 	pub fn blink(&self) -> bool {
-		self.blink
+		self.state.contains(BLINK)
 	}
 
 	pub fn is_visible(&self) -> bool {
-		self.visible
+		self.state.contains(VISIBLE)
+	}
+
+	pub fn wrap(&self) -> bool {
+		self.state.contains(WRAP)
 	}
 
 	pub fn update(&mut self, style: Style) {
@@ -106,8 +128,11 @@ impl Cursor {
 		}
 	}
 
-	pub fn travel(&mut self, value: Travel, touched: &mut Touched) -> Option<u32> {
+	pub fn travel(&mut self, value: Travel, touched: &mut Touched) -> Option<i32> {
+		self.state.remove(WRAP);
 		touched.push(self.position);
+
+		let mut overflow = None;
 
 		match value {
 			Position(x, y) => {
@@ -126,27 +151,47 @@ impl Cursor {
 			}
 
 			Up(n) => {
-				self.position.1 = self.position.1.saturating_sub(n);
+				let new = self.position.1 as i32 - n as i32;
+
+				if new < 0 {
+					self.position.1 = 0;
+					overflow = Some(new);
+				}
+				else {
+					self.position.1 = new as u32;
+				}
 			}
 
 			Down(n) => {
-				self.position.1 += n;
+				let new = self.position.1 as i32 + n as i32;
+
+				if new >= self.limits.1 as i32 {
+					self.position.1 = self.limits.1 - 1;
+					overflow = Some(new - (self.limits.1 as i32 - 1));
+				}
+				else {
+					self.position.1 = new as u32;
+				}
 			}
 
 			Left(n) => {
-				if n > self.position.0 {
+				let new = self.position.0 as i32 - n as i32;
+
+				if new < 0 {
 					self.position.0 = 0;
-					self.position.1 = self.position.1.saturating_sub(1);
+					overflow = Some(new);
 				}
 				else {
-					self.position.0 -= n;
+					self.position.0 = new as u32;
 				}
 			}
 
 			Right(n) => {
-				if self.position.0 + n >= self.limits.0 {
-					self.position.0  = 0;
-					self.position.1 += 1;
+				let new = self.position.0 as i32 + n as i32;
+
+				if new >= self.limits.0 as i32 {
+					self.position.0 = self.limits.0 - 1;
+					overflow = Some(new - (self.limits.0 as i32 - 1));
 				}
 				else {
 					self.position.0 += n;
@@ -155,16 +200,7 @@ impl Cursor {
 		}
 
 		touched.push(self.position);
-
-		if self.position.1 >= self.limits.1 {
-			let overflow = self.position.1 - (self.limits.1 - 1);
-			self.position.1 = self.limits.1 - 1;
-
-			Some(overflow)
-		}
-		else {
-			None
-		}
+		overflow
 	}
 }
 
