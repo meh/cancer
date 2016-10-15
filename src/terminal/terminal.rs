@@ -198,6 +198,11 @@ impl Terminal {
 			};
 
 			match item {
+				// Attributes.
+				Control::C1(C1::ControlSequence(CSI::DeviceAttributes(0))) => {
+					try!(output.write_all(b"\033[?6c"));
+				}
+
 				// Movement functions.
 				Control::C0(C0::CarriageReturn) => {
 					term!(self; cursor Position(Some(0), None));
