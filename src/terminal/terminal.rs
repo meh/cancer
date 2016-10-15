@@ -204,10 +204,25 @@ impl Terminal {
 			match item {
 				// Handle custom DEC escape sequences.
 				Control::C0(C0::Escape) => {
-					match input.get(0) {
-						Some(&b'#') => {
-							match input.get(1) {
-								Some(&b'8') => {
+					if input.is_empty() {
+						continue;
+					}
+
+					let code = input[0];
+					input = &input[1..];
+
+					match code {
+						b'#' => {
+							if input.is_empty() {
+								continue;
+							}
+
+							let code = input[0];
+							input = &input[1..];
+
+							match code {
+								// DECALN
+								b'8' => {
 									for y in 0 .. self.area.height {
 										let row  = term!(self; row for y);
 
@@ -217,24 +232,78 @@ impl Terminal {
 									}
 
 									term!(self; touched all);
-									input = &input[2..];
 								}
 
-								_ => ()
+								// DECBI
+								b'6' => {
+									if self.cursor.x() == 0 {
+										let row = term!(self; row for 0);
+
+										for y in row .. self.area.height as usize {
+											let row = &mut self.rows[y];
+
+											row.pop_back();
+											row.push_front(Cell::empty(self.cursor.style().clone()));
+										}
+									}
+									else {
+										term!(self; cursor Left(1));
+									}
+								}
+
+								// DECFI
+								b'9' => {
+									if self.cursor.x() == self.area.width - 1 {
+										let row = term!(self; row for 0);
+
+										for y in row .. self.area.height as usize {
+											let row = &mut self.rows[y];
+
+											row.pop_front();
+											row.push_back(Cell::empty(self.cursor.style().clone()));
+										}
+									}
+									else {
+										term!(self; cursor Right(1));
+									}
+								}
+
+								_ => {
+									error!("unknown sequence: ESC # {:?}", code);
+								}
 							}
 						}
 
-						Some(&b'=') => {
+						// DECSC
+						b'7' => {
+							self.saved = Some(self.cursor.clone());
+						}
+
+						// DECRC
+						b'8' => {
+							if let Some(cursor) = self.saved.take() {
+								self.cursor = cursor;
+							}
+						}
+
+						// DECKPAM
+						b'=' => {
 							self.mode.insert(mode::APPLICATION_KEYPAD);
-							input = &input[1..];
 						}
 
-						Some(&b'>') => {
+						// DECKPNM
+						b'>' => {
 							self.mode.remove(mode::APPLICATION_KEYPAD);
-							input = &input[1..];
 						}
 
-						_ => ()
+						b'9' => {
+							// TODO: move cursor forward one column, if it is at the margin,
+							// drop the first column.
+						}
+
+						_ => {
+							error!("unknown sequence: ESC {:?}", code);
+						}
 					}
 				}
 
