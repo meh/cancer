@@ -15,12 +15,21 @@
 // You should have received a copy of the GNU General Public License
 // along with cancer.  If not, see <http://www.gnu.org/licenses/>.
 
+use control::CSI;
+
 bitflags! {
 	pub flags Mode: u32 {
-		const BLINK           = 1 << 0,
-		const REVERSE         = 1 << 1,
-		const WRAP            = 1 << 2,
-		const BRACKETED_PASTE = 1 << 3,
+		const BLINK              = 1 << 0,
+		const REVERSE            = 1 << 1,
+		const WRAP               = 1 << 2,
+		const BRACKETED_PASTE    = 1 << 3,
+		const KEYBOARD_LOCK      = 1 << 4,
+		const APPLICATION_KEYPAD = 1 << 5,
+		const APPLICATION_CURSOR = 1 << 6,
+		const CRLF               = 1 << 7,
+		const INSERT             = 1 << 8,
+		const ECHO               = 1 << 9,
+		const FOCUS              = 1 << 10,
 	}
 }
 

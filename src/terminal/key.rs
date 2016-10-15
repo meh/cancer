@@ -17,6 +17,7 @@
 
 use std::io::{self, Write};
 use control::{Control, C0, C1, CSI, Format};
+use terminal::Mode;
 
 #[derive(Eq, PartialEq, Clone, Debug)]
 pub struct Key {
@@ -78,7 +79,7 @@ impl Key {
 		}
 	}
 
-	pub fn write<W: Write>(&self, mut output: W) -> io::Result<()> {
+	pub fn write<W: Write>(&self, mode: Mode, mut output: W) -> io::Result<()> {
 		macro_rules! write {
 			(raw $raw:expr) => (
 				try!(output.write_all($raw));

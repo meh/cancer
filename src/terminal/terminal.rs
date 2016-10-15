@@ -36,15 +36,16 @@ use control::{self, Control, C0, C1, CSI, SGR};
 
 #[derive(Debug)]
 pub struct Terminal {
-	config: Arc<Config>,
-	area:   Area,
-	cache:  Option<Vec<u8>>,
-
-	mode:    Mode,
-	cursor:  Cursor,
-	rows:    VecDeque<Vec<Cell>>,
+	config:  Arc<Config>,
+	area:    Area,
+	cache:   Option<Vec<u8>>,
 	touched: Touched,
-	scroll:  Option<u32>,
+
+	mode:   Mode,
+	rows:   VecDeque<Vec<Cell>>,
+	scroll: Option<u32>,
+	cursor: Cursor,
+	saved:  Option<Cursor>,
 }
 
 macro_rules! term {
@@ -96,15 +97,16 @@ impl Terminal {
 			vec![Cell::empty(style.clone()); width as usize]).collect();
 
 		Ok(Terminal {
-			config: config.clone(),
-			area:   area,
-			cache:  Default::default(),
-
-			mode:    Mode::default(),
-			cursor:  Cursor::new(config.clone(), width, height),
-			rows:    rows,
+			config:  config.clone(),
+			area:    area,
+			cache:   Default::default(),
 			touched: Touched::default(),
-			scroll:  None,
+
+			mode:   Mode::default(),
+			rows:   rows,
+			scroll: None,
+			cursor: Cursor::new(config.clone(), width, height),
+			saved:  None,
 		})
 	}
 
@@ -153,7 +155,10 @@ impl Terminal {
 
 	/// Handle a key.
 	pub fn key<O: Write>(&mut self, key: Key, output: O) -> error::Result<impl Iterator<Item = (u32, u32)>> {
-		try!(key.write(output));
+		if !self.mode.contains(mode::KEYBOARD_LOCK) {
+			try!(key.write(self.mode, output));
+		}
+
 		Ok(iter::empty())
 	}
 
@@ -198,9 +203,147 @@ impl Terminal {
 			};
 
 			match item {
+				// Handle custom DEC escape sequences.
+				Control::C0(C0::Escape) => {
+					match input.get(0) {
+						Some(&b'#') => {
+							match input.get(1) {
+								Some(&b'8') => {
+									for y in 0 .. self.area.height {
+										let row  = term!(self; row for y);
+
+										for cell in &mut self.rows[row] {
+											cell.into_occupied("E", self.cursor.style().clone());
+										}
+									}
+
+									term!(self; touched all);
+									input = &input[2..];
+								}
+
+								_ => ()
+							}
+						}
+
+						Some(&b'=') => {
+							self.mode.insert(mode::APPLICATION_KEYPAD);
+							input = &input[1..];
+						}
+
+						Some(&b'>') => {
+							self.mode.remove(mode::APPLICATION_KEYPAD);
+							input = &input[1..];
+						}
+
+						_ => ()
+					}
+				}
+
 				// Attributes.
 				Control::C1(C1::ControlSequence(CSI::DeviceAttributes(0))) => {
 					try!(output.write_all(b"\033[?6c"));
+				}
+
+				Control::C1(C1::ControlSequence(CSI::Set(modes))) => {
+					for mode in modes {
+						match mode {
+							CSI::Mode::KeyboardAction =>
+								self.mode.insert(mode::KEYBOARD_LOCK),
+
+							CSI::Mode::InsertionReplacement =>
+								self.mode.insert(mode::INSERT),
+
+							CSI::Mode::SendReceive =>
+								self.mode.insert(mode::ECHO),
+
+							CSI::Mode::LineFeed =>
+								self.mode.insert(mode::CRLF),
+
+							_ => ()
+						}
+					}
+				}
+
+				Control::C1(C1::ControlSequence(CSI::Private(b'h', None, args))) => {
+					for arg in args {
+						match arg {
+							Some(1) =>
+								self.mode.insert(mode::APPLICATION_CURSOR),
+
+							Some(5) =>
+								self.mode.insert(mode::REVERSE),
+
+							Some(7) =>
+								self.mode.insert(mode::WRAP),
+
+							Some(25) =>
+								self.cursor.visible = false,
+
+							Some(1004) =>
+								self.mode.insert(mode::FOCUS),
+
+							Some(2004) =>
+								self.mode.insert(mode::BRACKETED_PASTE),
+
+							_ => (),
+						}
+					}
+				}
+
+				Control::C1(C1::ControlSequence(CSI::Reset(modes))) => {
+					for mode in modes {
+						match mode {
+							CSI::Mode::KeyboardAction =>
+								self.mode.remove(mode::KEYBOARD_LOCK),
+
+							CSI::Mode::InsertionReplacement =>
+								self.mode.remove(mode::INSERT),
+
+							CSI::Mode::SendReceive =>
+								self.mode.remove(mode::ECHO),
+
+							CSI::Mode::LineFeed =>
+								self.mode.remove(mode::CRLF),
+
+							_ => ()
+						}
+					}
+				}
+
+				Control::C1(C1::ControlSequence(CSI::Private(b'l', None, args))) => {
+					for arg in args {
+						match arg {
+							Some(1) =>
+								self.mode.remove(mode::APPLICATION_CURSOR),
+
+							Some(5) =>
+								self.mode.remove(mode::REVERSE),
+
+							Some(7) =>
+								self.mode.remove(mode::WRAP),
+
+							Some(25) =>
+								self.cursor.visible = true,
+
+							Some(1004) =>
+								self.mode.remove(mode::FOCUS),
+
+							Some(2004) =>
+								self.mode.remove(mode::BRACKETED_PASTE),
+
+							_ => (),
+						}
+					}
+				}
+
+				Control::C1(C1::ControlSequence(CSI::SaveCursor)) => {
+					self.saved = Some(self.cursor.clone());
+				}
+
+				Control::C1(C1::ControlSequence(CSI::RestoreCursor)) => {
+					if let Some(cursor) = self.saved.take() {
+						self.cursor = cursor;
+					}
 				}
 
 				// Movement functions.
@@ -332,8 +475,9 @@ impl Terminal {
 				}
 
 				// Insertion functions.
-				Control::C1(C1::ControlSequence(CSI::InsertCharacter(n))) => {
-					println!("BLANK: {}", n);
+				Control::C1(C1::NextLine) => {
+					term!(self; cursor Down(1));
+					term!(self; cursor Position(Some(0), None));
 				}
 
 				Control::C1(C1::ControlSequence(CSI::InsertLine(n))) => {
