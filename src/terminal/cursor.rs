@@ -146,7 +146,12 @@ impl Cursor {
 				}
 
 				if let Some(y) = y {
-					self.position.1 = y;
+					if y < self.limits.1 {
+						self.position.1 = y;
+					}
+					else {
+						self.position.1 = self.limits.1 - 1;
+					}
 				}
 			}
 
@@ -194,7 +199,7 @@ impl Cursor {
 					overflow = Some(new - (self.limits.0 as i32 - 1));
 				}
 				else {
-					self.position.0 += n;
+					self.position.0 = new as u32;
 				}
 			}
 		}

@@ -173,6 +173,8 @@ impl Terminal {
 		let mut input   = buffer.as_ref().map(AsRef::as_ref).unwrap_or(input);
 		let mut actions = Vec::new(): Vec<Action>;
 
+		debug!(target: "cancer::terminal::input", "input: {:?}", input);
+
 		loop {
 			if input.is_empty() {
 				break;
@@ -198,6 +200,8 @@ impl Terminal {
 					item
 				}
 			};
+
+			debug!(target: "cancer::terminal::input::item", "item: {:?}", item);
 
 			match item {
 				// Handle custom DEC escape sequences.
@@ -267,7 +271,7 @@ impl Terminal {
 								}
 
 								_ => {
-									error!("unknown sequence: ESC # {:?}", code);
+									debug!(target: "cancer::terminal::unhandled", "unhandled sequence: ESC # {:?}", code);
 								}
 							}
 						}
@@ -300,7 +304,7 @@ impl Terminal {
 						}
 
 						_ => {
-							error!("unknown sequence: ESC {:?}", code);
+							debug!(target: "cancer::terminal::unhandled", "unhandled sequence: ESC {:?}", code);
 						}
 					}
 				}
@@ -782,7 +786,7 @@ impl Terminal {
 				}
 
 				code => {
-					debug!("unhandled control code: {:?}", code);
+					debug!(target: "cancer::terminal::unhandled", "unhandled control code: {:?}", code);
 				}
 			}
 		}
