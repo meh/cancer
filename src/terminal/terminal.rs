@@ -494,7 +494,7 @@ impl Terminal {
 				Control::C1(C1::ControlSequence(CSI::EraseDisplay(CSI::Erase::ToStart))) => {
 					let (x, y) = self.cursor.position();
 
-					for x in 0 .. x {
+					for x in 0 ... x {
 						term!(self; touched (x, y));
 						term!(self; mut cell x, y).into_empty(self.cursor.style().clone());
 					}
@@ -530,7 +530,7 @@ impl Terminal {
 				Control::C1(C1::ControlSequence(CSI::EraseLine(CSI::Erase::ToStart))) => {
 					let (x, y) = self.cursor.position();
 
-					for x in 0 .. x {
+					for x in 0 ... x {
 						term!(self; touched (x, y));
 						term!(self; mut cell x, y).into_empty(self.cursor.style().clone());
 					}
