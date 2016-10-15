@@ -47,3 +47,11 @@ macro_rules! try {
 		$body?
 	);
 }
+
+macro_rules! vec_deque {
+	($value:expr; $size:expr) => ({
+		let mut value = VecDeque::new();
+		value.extend(::std::iter::repeat($value).take($size));
+		value
+	})
+}

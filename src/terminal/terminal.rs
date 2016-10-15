@@ -42,7 +42,7 @@ pub struct Terminal {
 	touched: Touched,
 
 	mode:   Mode,
-	rows:   VecDeque<Vec<Cell>>,
+	rows:   VecDeque<VecDeque<Cell>>,
 	scroll: Option<u32>,
 	cursor: Cursor,
 	saved:  Option<Cursor>,
@@ -54,7 +54,7 @@ macro_rules! term {
 	);
 
 	($term:ident; extend) => (
-		$term.rows.push_back(vec![Cell::empty($term.cursor.style().clone()); $term.area.width as usize]);
+		$term.rows.push_back(vec_deque![Cell::empty($term.cursor.style().clone()); $term.area.width as usize]);
 	);
 
 	($term:ident; cursor $($travel:tt)*) => (
@@ -93,8 +93,7 @@ impl Terminal {
 	pub fn open(config: Arc<Config>, width: u32, height: u32) -> error::Result<Self> {
 		let area  = Area::from(0, 0, width, height);
 		let style = Rc::new(Style::default());
-		let rows  = (0 .. height).map(|_|
-			vec![Cell::empty(style.clone()); width as usize]).collect();
+		let rows  = vec_deque![vec_deque![Cell::empty(style.clone()); width as usize]; height as usize];
 
 		Ok(Terminal {
 			config:  config.clone(),
@@ -514,14 +513,12 @@ impl Terminal {
 
 						// Change the cells appropriately.
 						{
-							let x            = self.cursor.x();
-							let y            = self.cursor.y();
-							let row          = term!(self; row for y);
-							let cells        = &mut self.rows[row][x as usize .. (x + width) as usize];
-							let (cell, rest) = cells.split_at_mut(1);
-							let cell         = &mut cell[0];
+							let x   = self.cursor.x();
+							let y   = self.cursor.y();
+							let row = term!(self; row for y);
+							let row = &mut self.rows[row];
 
-							let changed = match *cell {
+							let changed = match row[x as usize] {
 								Cell::Empty { .. } =>
 									true,
 
@@ -533,11 +530,11 @@ impl Terminal {
 							};
 
 							if changed {
-								cell.into_occupied(ch, self.cursor.style().clone());
-
+								row[x as usize].into_occupied(ch, self.cursor.style().clone());
 								term!(self; touched (x, y));
-								for (i, c) in rest.iter_mut().enumerate() {
-									c.into_reference(i as u8 + 1);
+
+								for (i, x) in (x + 1 .. x + width).enumerate() {
+									row[x as usize].into_reference(i as u8 + 1);
 								}
 							}
 						}
