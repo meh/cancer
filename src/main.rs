@@ -276,8 +276,11 @@ fn open(matches: &ArgMatches) -> error::Result<()> {
 
 					xcb::KEY_PRESS => {
 						let event = xcb::cast_event::<xcb::KeyPressEvent>(&event);
-						render!(cells terminal.key(keyboard.key(event.detail()), &mut tty).unwrap());
-						tty.flush().unwrap();
+
+						if let Some(key) = keyboard.key(event.detail()) {
+							render!(cells terminal.key(key, &mut tty).unwrap());
+							tty.flush().unwrap();
+						}
 					}
 
 					e => {

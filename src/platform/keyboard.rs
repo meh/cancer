@@ -131,7 +131,7 @@ impl Keyboard {
 		self.state.key_get_utf8(code as xkb::Keycode)
 	}
 
-	pub fn key(&self, code: u8) -> Key {
+	pub fn key(&self, code: u8) -> Option<Key> {
 		const MODIFIERS: &[(&str, Modifier)] = &[
 			(xkb::MOD_NAME_ALT,   key::ALT),
 			(xkb::MOD_NAME_CTRL,  key::CTRL),
@@ -141,14 +141,14 @@ impl Keyboard {
 			(xkb::MOD_NAME_SHIFT, key::SHIFT)];
 
 		let modifier = MODIFIERS.iter().fold(Modifier::empty(), |modifier, &(n, m)|
-			if self.state.mod_name_is_active(&n, 0) {
+			if self.state.mod_name_is_active(&n, xkb::STATE_MODS_EFFECTIVE) {
 				modifier | m
 			}
 			else {
 				modifier
 			});
 
-		Key::new(match self.symbol(code) {
+		Some(Key::new(match self.symbol(code) {
 			keysyms::KEY_Return =>
 				Button::Enter,
 
@@ -167,8 +167,15 @@ impl Keyboard {
 			keysyms::KEY_Left =>
 				Button::Left,
 
-			_ =>
-				return Key::new(self.string(code).into(), modifier),
-		}.into(), modifier)
+			_ => {
+				let string = self.string(code);
+
+				if string.is_empty() {
+					return None;
+				}
+
+				return Some(Key::new(self.string(code).into(), modifier));
+			}
+		}.into(), modifier))
 	}
 }
