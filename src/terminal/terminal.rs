@@ -389,7 +389,7 @@ impl Terminal {
 							};
 
 							if changed {
-								cell.into_occupied(ch.into(), self.cursor.style().clone());
+								cell.into_occupied(ch, self.cursor.style().clone());
 
 								term!(self; touched (x, y));
 								for (i, c) in rest.iter_mut().enumerate() {

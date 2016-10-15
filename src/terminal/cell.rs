@@ -117,9 +117,9 @@ impl Cell {
 	}
 
 	/// Make the cell occupied.
-	pub fn into_occupied(&mut self, value: String, style: Rc<Style>) {
+	pub fn into_occupied<T: Into<String>>(&mut self, value: T, style: Rc<Style>) {
 		mem::replace(self, Cell::Occupied {
-			value: value,
+			value: value.into(),
 			style: style,
 		});
 	}
