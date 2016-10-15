@@ -26,7 +26,7 @@ use error;
 use sys::cairo::Surface;
 use config::Config;
 use font::Font;
-use super::Keyboard;
+use platform::Keyboard;
 
 /// X11 window.
 pub struct Window {

@@ -26,7 +26,7 @@ use sys::cairo;
 use font::Font;
 use style;
 use terminal::{cell, cursor};
-use super::{Cache, Options};
+use renderer::{Cache, Options};
 
 /// Renderer for a `cairo::Surface`.
 pub struct Renderer {
