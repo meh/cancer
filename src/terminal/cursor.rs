@@ -25,16 +25,21 @@ use terminal::{cell, Touched};
 use config::Config;
 use config::style::Shape;
 
-#[derive(PartialEq, Clone, Default, Debug)]
+#[derive(PartialEq, Clone, Debug)]
 pub struct Cursor {
-	position: (u32, u32),
-	limits:   (u32, u32),
-	style:    Rc<Style>,
+	x: u32,
+	y: u32,
+
+	width:  u32,
+	height: u32,
+
+	pub(super) scroll: (u32, u32),
+	pub(super) style: Rc<Style>,
+	pub(super) state: State,
 
 	pub(super) foreground: Rgba<f64>,
 	pub(super) background: Rgba<f64>,
 	pub(super) shape:      Shape,
-	pub(super) state:      State,
 }
 
 #[derive(Eq, PartialEq, Copy, Clone, Debug)]
@@ -52,6 +57,7 @@ bitflags! {
 		const BLINK   = 1 << 0,
 		const VISIBLE = 1 << 1,
 		const WRAP    = 1 << 2,
+		const ORIGIN  = 1 << 3,
 	}
 }
 
@@ -71,27 +77,45 @@ impl Cursor {
 		}
 
 		Cursor {
-			position: (0, 0),
-			limits:   (width, height),
-			style:    Default::default(),
+			x: 0,
+			y: 0,
+
+			width:  width,
+			height: height,
+
+			scroll: (0, height - 1),
+			style:  Default::default(),
+			state:  state,
 
 			foreground: *config.style().cursor().foreground(),
 			background: *config.style().cursor().background(),
 			shape:      config.style().cursor().shape(),
-			state:      state,
+		}
+	}
+
+	pub fn resize(&mut self, width: u32, height: u32) {
+		self.width  = width;
+		self.height = height;
+
+		if self.x > width {
+			self.x = width - 1;
+		}
+		
+		if self.y > height {
+			self.y = height - 1;
 		}
 	}
 
 	pub fn position(&self) -> (u32, u32) {
-		self.position
+		(self.x, self.y)
 	}
 
 	pub fn x(&self) -> u32 {
-		self.position.0
+		self.x
 	}
 
 	pub fn y(&self) -> u32 {
-		self.position.1
+		self.y
 	}
 
 	pub fn style(&self) -> &Rc<Style> {
@@ -122,6 +146,10 @@ impl Cursor {
 		self.state.contains(WRAP)
 	}
 
+	pub fn scroll(&self) -> (u32, u32) {
+		self.scroll
+	}
+
 	pub fn update(&mut self, style: Style) {
 		if &*self.style != &style {
 			self.style = Rc::new(style);
@@ -130,81 +158,85 @@ impl Cursor {
 
 	pub fn travel(&mut self, value: Travel, touched: &mut Touched) -> Option<i32> {
 		self.state.remove(WRAP);
-		touched.push(self.position);
+		touched.mark(self.x, self.y);
 
 		let mut overflow = None;
 
 		match value {
 			Position(x, y) => {
 				if let Some(x) = x {
-					if x < self.limits.0 {
-						self.position.0 = x;
+					if x >= self.width {
+						self.x = self.width - 1;
 					}
 					else {
-						self.position.0 = self.limits.0 - 1;
+						self.x = x;
 					}
 				}
 
-				if let Some(y) = y {
-					if y < self.limits.1 {
-						self.position.1 = y;
+				if let Some(mut y) = y {
+					if self.state.contains(ORIGIN) {
+						y += self.scroll.0;
+					}
+
+					if y >= self.height {
+						self.y = self.height;
 					}
 					else {
-						self.position.1 = self.limits.1 - 1;
+						self.y = y;
 					}
 				}
 			}
 
 			Up(n) => {
-				let new = self.position.1 as i32 - n as i32;
+				let new = self.y as i32 - n as i32;
 
-				if new < 0 {
-					self.position.1 = 0;
-					overflow = Some(new);
+				if new < self.scroll.0 as i32 {
+					self.y = self.scroll.0;
+					overflow = Some(new - self.scroll.0 as i32);
 				}
 				else {
-					self.position.1 = new as u32;
+					self.y = new as u32;
 				}
 			}
 
 			Down(n) => {
-				let new = self.position.1 as i32 + n as i32;
+				let new = self.y as i32 + n as i32;
 
-				if new >= self.limits.1 as i32 {
-					self.position.1 = self.limits.1 - 1;
-					overflow = Some(new - (self.limits.1 as i32 - 1));
+				if new > self.scroll.1 as i32 {
+					self.y = self.scroll.1;
+					overflow = Some(new - self.scroll.0 as i32);
 				}
 				else {
-					self.position.1 = new as u32;
+					self.y = new as u32;
 				}
 			}
 
 			Left(n) => {
-				let new = self.position.0 as i32 - n as i32;
+				let new = self.x as i32 - n as i32;
 
 				if new < 0 {
-					self.position.0 = 0;
+					self.x = 0;
 					overflow = Some(new);
 				}
 				else {
-					self.position.0 = new as u32;
+					self.x = new as u32;
 				}
 			}
 
 			Right(n) => {
-				let new = self.position.0 as i32 + n as i32;
+				let new = self.x as i32 + n as i32;
 
-				if new >= self.limits.0 as i32 {
-					self.position.0 = self.limits.0 - 1;
-					overflow = Some(new - (self.limits.0 as i32 - 1));
+				if new >= self.width as i32 {
+					self.x = self.width - 1;
+					overflow = Some(new - (self.width as i32 - 1));
 				}
 				else {
-					self.position.0 = new as u32;
+					self.x = new as u32;
 				}
 			}
 		}
 
-		touched.push(self.position);
+		touched.mark(self.x, self.y);
 		overflow
 	}
 }

@@ -20,6 +20,8 @@ use std::sync::Arc;
 use std::io::Write;
 use std::collections::VecDeque;
 use std::iter;
+use std::mem;
+use std::cmp;
 
 use unicode_segmentation::UnicodeSegmentation;
 use unicode_width::UnicodeWidthStr;
@@ -60,6 +62,67 @@ macro_rules! term {
 	($term:ident; extend $n:expr) => (
 		$term.rows.extend(iter::repeat(term!($term; row)).take($n as usize));
 	);
+
+	($term:ident; scroll! up $n:tt) => (
+		if $term.cursor.scroll == (0, $term.area.height - 1) {
+			term!($term; extend $n);
+			term!($term; touched all);
+		}
+		else {
+			term!($term; scroll up $n)
+		}
+	);
+
+	($term:ident; scroll up $n:tt) => (
+		term!($term; scroll up $n from $term.cursor.scroll.0)
+	);
+
+	($term:ident; scroll up $n:tt from $y:expr) => ({
+		let y      = $y;
+		let n      = cmp::max(0, cmp::min($term.cursor.scroll.1 - y + 1, $n));
+		let row    = term!($term; row for y);
+		let offset = $term.rows.len() - ($term.cursor.scroll.1 + 1) as usize;
+
+		// Remove the lines.
+		$term.rows.drain(row .. row + n as usize);
+
+		// Fill missing lines.
+		for i in 0 .. n {
+			$term.rows.insert((i + $term.cursor.scroll.1 - n) as usize + offset,
+				term!($term; row));
+		}
+
+		// Mark the affected lines as touched.
+		for y in y ... $term.cursor.scroll.1 {
+			term!($term; touched line y);
+		}
+	});
+
+	($term:ident; scroll down $n:tt) => (
+		term!($term; scroll down $n from $term.cursor.scroll.0)
+	);
+
+	($term:ident; scroll down $n:tt from $y:expr) => ({
+		let y   = $y;
+		let n   = cmp::max(0, cmp::min($term.cursor.scroll.1 - y + 1, $n));
+		let row = term!($term; row for y);
+
+		// Split the rows at the current line.
+		let mut rest = $term.rows.split_off(row);
+
+		// Extend with new lines.
+		term!($term; extend n);
+
+		// Remove the scrolled off lines.
+		let offset = $term.cursor.scroll.1 + 1 - y - n;
+		rest.drain(offset as usize .. (offset + n) as usize);
+		$term.rows.append(&mut rest);
+
+		// Mark the affected lines as touched.
+		for y in y ... $term.cursor.scroll.1 {
+			term!($term; touched line y);
+		}
+	});
 
 	($term:ident; cursor $($travel:tt)*) => (
 		$term.cursor.travel(cursor::$($travel)*, &mut $term.touched)
@@ -135,7 +198,8 @@ impl Terminal {
 
 	/// Resize the terminal.
 	pub fn resize(&mut self, width: u32, height: u32) -> impl Iterator<Item = (u32, u32)> {
-		::std::iter::empty()
+		self.cursor.resize(width, height);
+		iter::empty()
 	}
 
 	/// Enable or disable blinking and return the affected cells.
@@ -236,40 +300,6 @@ impl Terminal {
 									term!(self; touched all);
 								}
 
-								// DECBI
-								b'6' => {
-									if self.cursor.x() == 0 {
-										let row = term!(self; row for 0);
-
-										for y in row .. self.area.height as usize {
-											let row = &mut self.rows[y];
-
-											row.pop_back();
-											row.push_front(Cell::empty(self.cursor.style().clone()));
-										}
-									}
-									else {
-										term!(self; cursor Left(1));
-									}
-								}
-
-								// DECFI
-								b'9' => {
-									if self.cursor.x() == self.area.width - 1 {
-										let row = term!(self; row for 0);
-
-										for y in row .. self.area.height as usize {
-											let row = &mut self.rows[y];
-
-											row.pop_front();
-											row.push_back(Cell::empty(self.cursor.style().clone()));
-										}
-									}
-									else {
-										term!(self; cursor Right(1));
-									}
-								}
-
 								_ => {
 									debug!(target: "cancer::terminal::unhandled", "unhandled sequence: ESC # {:?}", code);
 								}
@@ -298,9 +328,38 @@ impl Terminal {
 							self.mode.remove(mode::APPLICATION_KEYPAD);
 						}
 
+						// DECBI
+						b'6' => {
+							if self.cursor.x() == 0 {
+								let row = term!(self; row for 0);
+
+								for y in row .. self.area.height as usize {
+									let row = &mut self.rows[y];
+
+									row.pop_back();
+									row.push_front(Cell::empty(self.cursor.style().clone()));
+								}
+							}
+							else {
+								term!(self; cursor Left(1));
+							}
+						}
+
+						// DECFI
 						b'9' => {
-							// TODO: move cursor forward one column, if it is at the margin,
-							// drop the first column.
+							if self.cursor.x() == self.area.width - 1 {
+								let row = term!(self; row for 0);
+
+								for y in row .. self.area.height as usize {
+									let row = &mut self.rows[y];
+
+									row.pop_front();
+									row.push_back(Cell::empty(self.cursor.style().clone()));
+								}
+							}
+							else {
+								term!(self; cursor Right(1));
+							}
 						}
 
 						_ => {
@@ -312,6 +371,19 @@ impl Terminal {
 				// Attributes.
 				Control::C1(C1::ControlSequence(CSI::DeviceAttributes(0))) => {
 					try!(output.write_all(b"\033[?6c"));
+				}
+
+				// DECSTBM
+				Control::C1(C1::ControlSequence(CSI::Unknown(b'r', None, args))) => {
+					let mut top    = arg!(args[0] => 1) - 1;
+					let mut bottom = arg!(args[1] => self.area.height) - 1;
+
+					if top > bottom {
+						mem::swap(&mut top, &mut bottom);
+					}
+
+					self.cursor.scroll = (top, bottom);
+					term!(self; cursor Position(Some(0), Some(0)));
 				}
 
 				Control::C1(C1::ControlSequence(CSI::Set(modes))) => {
@@ -344,8 +416,15 @@ impl Terminal {
 							Some(1) =>
 								self.mode.insert(mode::APPLICATION_CURSOR),
 
-							Some(5) =>
-								self.mode.insert(mode::REVERSE),
+							Some(5) => {
+								self.mode.insert(mode::REVERSE);
+								term!(self; touched all);
+							}
+
+							Some(6) => {
+								self.cursor.state.insert(cursor::ORIGIN);
+								term!(self; cursor Position(Some(0), Some(0)));
+							}
 
 							Some(7) =>
 								self.mode.insert(mode::WRAP),
@@ -394,8 +473,13 @@ impl Terminal {
 							Some(1) =>
 								self.mode.remove(mode::APPLICATION_CURSOR),
 
-							Some(5) =>
-								self.mode.remove(mode::REVERSE),
+							Some(5) => {
+								self.mode.remove(mode::REVERSE);
+								term!(self; touched all);
+							}
+
+							Some(6) =>
+								self.cursor.state.remove(cursor::ORIGIN),
 
 							Some(7) =>
 								self.mode.remove(mode::WRAP),
@@ -431,8 +515,7 @@ impl Terminal {
 
 				Control::C0(C0::LineFeed) => {
 					if term!(self; cursor Down(1)).is_some() {
-						term!(self; extend 1);
-						term!(self; touched all);
+						term!(self; scroll! up 1);
 					}
 				}
 
@@ -466,17 +549,13 @@ impl Terminal {
 
 				Control::C1(C1::Index) => {
 					if term!(self; cursor Down(1)).is_some() {
-						let row = term!(self; row for 0);
-						self.rows.remove(row);
-						term!(self; extend 1);
+						term!(self; scroll up 1);
 					}
 				}
 
 				Control::C1(C1::ReverseIndex) => {
 					if term!(self; cursor Up(1)).is_some() {
-						let row = term!(self; row for 0);
-						self.rows.insert(row, term!(self; row));
-						self.rows.pop_back();
+						term!(self; scroll down 1);
 					}
 				}
 
@@ -554,49 +633,20 @@ impl Terminal {
 				}
 
 				Control::C1(C1::ControlSequence(CSI::DeleteLine(n))) => {
-					let y   = self.cursor.y();
-					let row = term!(self; row for y);
-
-					// Remove the lines.
-					self.rows.drain(row as usize .. (row + n as usize));
-
-					// Fill missing lines.
-					for _ in 0 .. n {
-						term!(self; extend 1);
-					}
-
-					// Mark the affected lines as touched.
-					for y in y .. self.area.height {
-						term!(self; touched line y);
-					}
+					term!(self; scroll up n from self.cursor.y());
 				}
 
 				// Insertion functions.
 				Control::C1(C1::NextLine) => {
-					term!(self; cursor Down(1));
+					if term!(self; cursor Down(1)).is_some() {
+						term!(self; scroll up 1);
+					}
+
 					term!(self; cursor Position(Some(0), None));
 				}
 
 				Control::C1(C1::ControlSequence(CSI::InsertLine(n))) => {
-					let y   = self.cursor.y();
-					let row = term!(self; row for y);
-
-					// Split the rows at the current line.
-					let mut rest = self.rows.split_off(row);
-
-					// Extend with new lines.
-					for _ in 0 .. n {
-						term!(self; extend 1);
-					}
-
-					// Remove the scrolled off lines.
-					rest.drain((self.area.height - y - n) as usize ..);
-					self.rows.append(&mut rest);
-
-					// Mark the affected lines as touched.
-					for y in y .. self.area.height {
-						term!(self; touched line y);
-					}
+					term!(self; scroll down n from self.cursor.y());
 				}
 
 				Control::None(string) => {
@@ -605,11 +655,10 @@ impl Terminal {
 
 						if self.mode.contains(mode::WRAP) && self.cursor.wrap() {
 							if term!(self; cursor Down(1)).is_some() {
-								term!(self; extend 1);
+								term!(self; scroll! up 1);
 							}
 
 							term!(self; cursor Position(Some(0), None));
-							term!(self; touched all);
 						}
 
 						// Change the cells appropriately.
