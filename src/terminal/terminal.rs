@@ -430,7 +430,10 @@ impl Terminal {
 				}
 
 				Control::C0(C0::LineFeed) => {
-					term!(self; cursor Down(1));
+					if term!(self; cursor Down(1)).is_some() {
+						term!(self; extend 1);
+						term!(self; touched all);
+					}
 				}
 
 				Control::C0(C0::Backspace) => {
@@ -606,6 +609,7 @@ impl Terminal {
 							}
 
 							term!(self; cursor Position(Some(0), None));
+							term!(self; touched all);
 						}
 
 						// Change the cells appropriately.
