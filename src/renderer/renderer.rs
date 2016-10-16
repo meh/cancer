@@ -323,32 +323,34 @@ impl Renderer {
 			o.fill(false);
 
 			// Draw the glyph.
-			if cell.is_occupied() && !(options.blinking() && cell.style().attributes().contains(style::BLINK)) {
-				o.move_to(x as f64, (y + f.ascent()) as f64);
-				o.rgba(fg);
+			if !(options.blinking() && cell.style().attributes().contains(style::BLINK)) {
+				if cell.is_occupied() {
+					o.move_to(x as f64, (y + f.ascent()) as f64);
+					o.rgba(fg);
 
-				let computed = self.cache.compute(cell.value(), cell.style().attributes());
-				o.glyph(computed.font(), computed.shape());
-			}
+					let computed = self.cache.compute(cell.value(), cell.style().attributes());
+					o.glyph(computed.font(), computed.shape());
+				}
 
-			// Draw underline.
-			if cell.style().attributes().contains(style::UNDERLINE) {
-				let (thickness, position) = f.underline();
+				// Draw underline.
+				if cell.style().attributes().contains(style::UNDERLINE) {
+					let (thickness, position) = f.underline();
 
-				o.rgba(c.style().color().underline().unwrap_or(fg));
-				o.rectangle(x as f64, (y + position) as f64, w as f64, thickness as f64);
-				o.line_width(1.0);
-				o.fill(false);
-			}
+					o.rgba(c.style().color().underline().unwrap_or(fg));
+					o.rectangle(x as f64, (y + position) as f64, w as f64, thickness as f64);
+					o.line_width(1.0);
+					o.fill(false);
+				}
 
-			// Draw strikethrough.
-			if cell.style().attributes().contains(style::STRUCK) {
-				let (thickness, position) = f.strikethrough();
+				// Draw strikethrough.
+				if cell.style().attributes().contains(style::STRUCK) {
+					let (thickness, position) = f.strikethrough();
 
-				o.rgba(c.style().color().strikethrough().unwrap_or(fg));
-				o.rectangle(x as f64, (y + position) as f64, w as f64, thickness as f64);
-				o.line_width(1.0);
-				o.fill(false);
+					o.rgba(c.style().color().strikethrough().unwrap_or(fg));
+					o.rectangle(x as f64, (y + position) as f64, w as f64, thickness as f64);
+					o.line_width(1.0);
+					o.fill(false);
+				}
 			}
 		}
 		o.restore();
