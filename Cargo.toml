@@ -21,7 +21,7 @@ bitflags     = "0.7"
 fnv          = "1.0"
 lru-cache    = "0.1"
 shlex        = "0.1"
-control-code = "0.2.7"
+control-code = "0.2.9"
 
 clap  = "2"
 xdg   = "2"
