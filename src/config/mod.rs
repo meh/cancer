@@ -58,6 +58,7 @@ impl Config {
 			toml::Parser::new(&content).parse().ok_or(error::Error::Config)?
 		}
 		else {
+			error!("could not load configuration file");
 			toml::Table::new()
 		};
 
