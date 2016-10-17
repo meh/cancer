@@ -132,6 +132,7 @@ impl Cache {
 		true
 	}
 
+	/// Get a computed glyph.
 	pub fn compute<T: AsRef<str>>(&mut self, string: T, attrs: style::Attributes) -> Computed {
 		let glyph = Glyph::new(string.as_ref(), attrs);
 
@@ -150,6 +151,7 @@ impl Cache {
 }
 
 impl Cell {
+	/// Create an empty cache cell.
 	pub fn empty(style: Rc<Style>) -> Self {
 		Cell {
 			style:   style,
