@@ -34,7 +34,7 @@ use style::{self, Style};
 use terminal::{Iter, Touched, Cell, Key, Action, cell};
 use terminal::mode::{self, Mode};
 use terminal::cursor::{self, Cursor};
-use control::{self, Control, C0, C1, CSI, SGR};
+use control::{self, Control, C0, C1, DEC, CSI, SGR};
 
 #[derive(Debug)]
 pub struct Terminal {
@@ -43,11 +43,12 @@ pub struct Terminal {
 	cache:   Option<Vec<u8>>,
 	touched: Touched,
 
-	mode:   Mode,
-	rows:   VecDeque<VecDeque<Cell>>,
-	scroll: Option<u32>,
-	cursor: Cursor,
-	saved:  Option<Cursor>,
+	mode:    Mode,
+	charset: Option<u8>,
+	rows:    VecDeque<VecDeque<Cell>>,
+	scroll:  Option<u32>,
+	cursor:  Cursor,
+	saved:   Option<Cursor>,
 }
 
 macro_rules! term {
@@ -88,7 +89,7 @@ macro_rules! term {
 
 		// Fill missing lines.
 		for i in 0 .. n {
-			$term.rows.insert((i + $term.cursor.scroll.1 - n) as usize + offset,
+			$term.rows.insert((i + $term.cursor.scroll.1 + 1 - n) as usize + offset,
 				term!($term; row));
 		}
 
@@ -162,11 +163,12 @@ impl Terminal {
 			cache:   Default::default(),
 			touched: Touched::default(),
 
-			mode:   Mode::default(),
-			rows:   rows,
-			scroll: None,
-			cursor: Cursor::new(config.clone(), width, height),
-			saved:  None,
+			mode:    Mode::default(),
+			charset: None,
+			rows:    rows,
+			scroll:  None,
+			cursor:  Cursor::new(config.clone(), width, height),
+			saved:   None,
 		})
 	}
 
@@ -268,115 +270,14 @@ impl Terminal {
 			debug!(target: "cancer::terminal::input::item", "item: {:?}", item);
 
 			match item {
-				// Handle custom DEC escape sequences.
-				Control::C0(C0::Escape) => {
-					if input.is_empty() {
-						continue;
-					}
-
-					let code = input[0];
-					input = &input[1..];
-
-					match code {
-						b'#' => {
-							if input.is_empty() {
-								continue;
-							}
-
-							let code = input[0];
-							input = &input[1..];
-
-							match code {
-								// DECALN
-								b'8' => {
-									for y in 0 .. self.area.height {
-										let row  = term!(self; row for y);
-
-										for cell in &mut self.rows[row] {
-											cell.into_occupied("E", self.cursor.style().clone());
-										}
-									}
-
-									term!(self; touched all);
-								}
-
-								_ => {
-									debug!(target: "cancer::terminal::unhandled", "unhandled sequence: ESC # {:?}", code);
-								}
-							}
-						}
-
-						// DECSC
-						b'7' => {
-							self.saved = Some(self.cursor.clone());
-						}
-
-						// DECRC
-						b'8' => {
-							if let Some(cursor) = self.saved.take() {
-								self.cursor = cursor;
-							}
-						}
-
-						// DECKPAM
-						b'=' => {
-							self.mode.insert(mode::APPLICATION_KEYPAD);
-						}
-
-						// DECKPNM
-						b'>' => {
-							self.mode.remove(mode::APPLICATION_KEYPAD);
-						}
-
-						// DECBI
-						b'6' => {
-							if self.cursor.x() == 0 {
-								let row = term!(self; row for 0);
-
-								for y in row .. self.area.height as usize {
-									let row = &mut self.rows[y];
-
-									row.pop_back();
-									row.push_front(Cell::empty(self.cursor.style().clone()));
-								}
-							}
-							else {
-								term!(self; cursor Left(1));
-							}
-						}
-
-						// DECFI
-						b'9' => {
-							if self.cursor.x() == self.area.width - 1 {
-								let row = term!(self; row for 0);
-
-								for y in row .. self.area.height as usize {
-									let row = &mut self.rows[y];
-
-									row.pop_front();
-									row.push_back(Cell::empty(self.cursor.style().clone()));
-								}
-							}
-							else {
-								term!(self; cursor Right(1));
-							}
-						}
-
-						_ => {
-							debug!(target: "cancer::terminal::unhandled", "unhandled sequence: ESC {:?}", code);
-						}
-					}
-				}
-
 				// Attributes.
 				Control::C1(C1::ControlSequence(CSI::DeviceAttributes(0))) => {
-					try!(output.write_all(b"\033[?6c"));
+					try!(output.write_all(b"\033[?64;6;21c"));
 				}
 
-				// DECSTBM
-				Control::C1(C1::ControlSequence(CSI::Unknown(b'r', None, args))) => {
-					let mut top    = arg!(args[0] => 1) - 1;
-					let mut bottom = arg!(args[1] => self.area.height) - 1;
+				Control::DEC(DEC::ScrollRegion { top, bottom }) => {
+					let mut top    = top;
+					let mut bottom = bottom.unwrap_or(self.area.height - 1);
 
 					if top > bottom {
 						mem::swap(&mut top, &mut bottom);
@@ -387,11 +288,9 @@ impl Terminal {
 				}
 
 				Control::C1(C1::ControlSequence(CSI::Set(modes))) => {
-					debug!("set {:?}", modes);
-
 					for mode in modes {
 						match mode {
-							CSI::Mode::KeyboardAction =>
+							CSI::Mode::KeyboardLock =>
 								self.mode.insert(mode::KEYBOARD_LOCK),
 
 							CSI::Mode::InsertionReplacement =>
@@ -403,52 +302,59 @@ impl Terminal {
 							CSI::Mode::LineFeed =>
 								self.mode.insert(mode::CRLF),
 
-							_ => ()
+							mode =>
+								debug!(target: "cancer::terminal::unhandled", "unhandled set: {:?}", mode)
+						}
+					}
+				}
+
+				Control::DEC(DEC::Set(modes)) => {
+					for mode in modes {
+						match mode {
+							DEC::Mode::ApplicationCursor =>
+								self.mode.insert(mode::APPLICATION_CURSOR),
+
+							DEC::Mode::ReverseVideo => {
+								self.mode.insert(mode::REVERSE);
+								term!(self; touched all);
+							}
+
+							DEC::Mode::Origin => {
+								self.cursor.state.insert(cursor::ORIGIN);
+								term!(self; cursor Position(Some(0), Some(0)));
+							}
+
+							DEC::Mode::AutoWrap =>
+								self.mode.insert(mode::WRAP),
+
+							DEC::Mode::CursorVisible =>
+								self.cursor.state.remove(cursor::VISIBLE),
+
+							mode =>
+								debug!(target: "cancer::terminal::unhandled", "unhandled set: {:?}", mode)
 						}
 					}
 				}
 
 				Control::C1(C1::ControlSequence(CSI::Private(b'h', None, args))) => {
-					debug!("set {:?}", args);
-
-					for arg in args {
+					for arg in args.into_iter().flat_map(Option::into_iter) {
 						match arg {
-							Some(1) =>
-								self.mode.insert(mode::APPLICATION_CURSOR),
-
-							Some(5) => {
-								self.mode.insert(mode::REVERSE);
-								term!(self; touched all);
-							}
-
-							Some(6) => {
-								self.cursor.state.insert(cursor::ORIGIN);
-								term!(self; cursor Position(Some(0), Some(0)));
-							}
-
-							Some(7) =>
-								self.mode.insert(mode::WRAP),
-
-							Some(25) =>
-								self.cursor.state.remove(cursor::VISIBLE),
-
-							Some(1004) =>
+							1004 =>
 								self.mode.insert(mode::FOCUS),
 
-							Some(2004) =>
+							2004 =>
 								self.mode.insert(mode::BRACKETED_PASTE),
 
-							_ => (),
+							n =>
+								debug!(target: "cancer::terminal::unhandled", "unhandled set: {}", n)
 						}
 					}
 				}
 
 				Control::C1(C1::ControlSequence(CSI::Reset(modes))) => {
-					debug!("reset {:?}", modes);
-
 					for mode in modes {
 						match mode {
-							CSI::Mode::KeyboardAction =>
+							CSI::Mode::KeyboardLock =>
 								self.mode.remove(mode::KEYBOARD_LOCK),
 
 							CSI::Mode::InsertionReplacement =>
@@ -460,49 +366,68 @@ impl Terminal {
 							CSI::Mode::LineFeed =>
 								self.mode.remove(mode::CRLF),
 
-							_ => ()
+							mode =>
+								debug!(target: "cancer::terminal::unhandled", "unhandled reset: {:?}", mode)
+						}
+					}
+				}
+
+				Control::DEC(DEC::Reset(modes)) => {
+					for mode in modes {
+						match mode {
+							DEC::Mode::ApplicationCursor =>
+								self.mode.remove(mode::APPLICATION_CURSOR),
+
+							DEC::Mode::ReverseVideo => {
+								self.mode.remove(mode::REVERSE);
+								term!(self; touched all);
+							}
+
+							DEC::Mode::Origin =>
+								self.cursor.state.remove(cursor::ORIGIN),
+
+							DEC::Mode::AutoWrap =>
+								self.mode.remove(mode::WRAP),
+
+							DEC::Mode::CursorVisible =>
+								self.cursor.state.insert(cursor::VISIBLE),
+
+							mode =>
+								debug!(target: "cancer::terminal::unhandled", "unhandled reset: {:?}", mode)
 						}
 					}
 				}
 
 				Control::C1(C1::ControlSequence(CSI::Private(b'l', None, args))) => {
-					debug!("reset {:?}", args);
-
-					for arg in args {
+					for arg in args.into_iter().flat_map(Option::into_iter) {
 						match arg {
-							Some(1) =>
-								self.mode.remove(mode::APPLICATION_CURSOR),
-
-							Some(5) => {
-								self.mode.remove(mode::REVERSE);
-								term!(self; touched all);
-							}
-
-							Some(6) =>
-								self.cursor.state.remove(cursor::ORIGIN),
-
-							Some(7) =>
-								self.mode.remove(mode::WRAP),
-
-							Some(25) =>
-								self.cursor.state.insert(cursor::VISIBLE),
-
-							Some(1004) =>
+							1004 =>
 								self.mode.remove(mode::FOCUS),
 
-							Some(2004) =>
+							2004 =>
 								self.mode.remove(mode::BRACKETED_PASTE),
 
-							_ => (),
+							n =>
+								debug!(target: "cancer::terminal::unhandled", "unhandled reset: {:?}", n)
 						}
 					}
 				}
 
-				Control::C1(C1::ControlSequence(CSI::SaveCursor)) => {
+				Control::DEC(DEC::ApplicationKeypad(true)) => {
+					self.mode.insert(mode::APPLICATION_KEYPAD);
+				}
+
+				Control::DEC(DEC::ApplicationKeypad(false)) => {
+					self.mode.remove(mode::APPLICATION_KEYPAD);
+				}
+
+				Control::C1(C1::ControlSequence(CSI::SaveCursor)) |
+				Control::DEC(DEC::SaveCursor) => {
 					self.saved = Some(self.cursor.clone());
 				}
 
-				Control::C1(C1::ControlSequence(CSI::RestoreCursor)) => {
+				Control::C1(C1::ControlSequence(CSI::RestoreCursor)) |
+				Control::DEC(DEC::RestoreCursor) => {
 					if let Some(cursor) = self.saved.take() {
 						self.cursor = cursor;
 					}
@@ -637,6 +562,50 @@ impl Terminal {
 				}
 
 				// Insertion functions.
+				Control::DEC(DEC::AlignmentTest) => {
+					for y in 0 .. self.area.height {
+						let row  = term!(self; row for y);
+
+						for cell in &mut self.rows[row] {
+							cell.into_occupied("E", self.cursor.style().clone());
+						}
+					}
+
+					term!(self; touched all);
+				}
+
+				Control::DEC(DEC::BackIndex) => {
+					if self.cursor.x() == 0 {
+						let row = term!(self; row for 0);
+
+						for y in row .. self.area.height as usize {
+							let row = &mut self.rows[y];
+
+							row.pop_back();
+							row.push_front(Cell::empty(self.cursor.style().clone()));
+						}
+					}
+					else {
+						term!(self; cursor Left(1));
+					}
+				}
+
+				Control::DEC(DEC::ForwardIndex) => {
+					if self.cursor.x() == self.area.width - 1 {
+						let row = term!(self; row for 0);
+
+						for y in row .. self.area.height as usize {
+							let row = &mut self.rows[y];
+
+							row.pop_front();
+							row.push_back(Cell::empty(self.cursor.style().clone()));
+						}
+					}
+					else {
+						term!(self; cursor Right(1));
+					}
+				}
+
 				Control::C1(C1::NextLine) => {
 					if term!(self; cursor Down(1)).is_some() {
 						term!(self; scroll up 1);
@@ -762,9 +731,8 @@ impl Terminal {
 					self.cursor.update(style);
 				}
 
-				// DECSCUSR
-				Control::C1(C1::ControlSequence(CSI::Unknown(b'q', Some(b' '), args))) => {
-					match arg!(args[0] => 0) {
+				Control::DEC(DEC::CursorStyle(n)) => {
+					match n {
 						0 => {
 							if self.config.style().cursor().blink() {
 								self.cursor.state.insert(cursor::BLINK);
