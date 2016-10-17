@@ -66,7 +66,7 @@ impl Default for Style {
 	fn default() -> Self {
 		Style {
 			font:  None,
-			blink: 800,
+			blink: 500,
 
 			margin:  0,
 			spacing: 0,

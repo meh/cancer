@@ -5,7 +5,7 @@ cache   = 2048
 
 [style]
 font  = "monospace 11px"
-blink = 800
+blink = 500
 
 margin  = 2
 spacing = 0
@@ -13,8 +13,8 @@ spacing = 0
 [style.color]
 foreground    = "#c6c6c6"
 background    = "#000000"
-underline     = "#060"
-strikethrough = "#f00"
+underline     = false
+strikethrough = false
 
 [style.cursor]
 shape = "block"
