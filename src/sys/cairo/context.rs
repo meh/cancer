@@ -120,9 +120,11 @@ impl Context {
 		}
 	}
 
-	pub fn glyph(&mut self, font: &pango::Font, glyph: &pango::GlyphString) {
+	pub fn glyph<T: AsRef<str>>(&mut self, text: T, glyph: &pango::GlyphItem) {
+		let text = text.as_ref();
+
 		unsafe {
-			pango_cairo_show_glyph_string(self.0, font.0, glyph.0);
+			pango_cairo_show_glyph_item(self.0, text.as_ptr() as *const _, &glyph.0);
 		}
 	}
 }

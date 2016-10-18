@@ -85,7 +85,7 @@ impl Font {
 	}
 
 	/// Shape the string.
-	pub fn shape<T: AsRef<str>>(&self, text: T, style: style::Attributes) -> pango::GlyphString {
+	pub fn shape<T: AsRef<str>>(&self, text: T, style: style::Attributes) -> pango::GlyphItem {
 		let text = text.as_ref();
 
 		unsafe {
@@ -107,22 +107,20 @@ impl Font {
 				attrs.style(pango::Style::Normal)
 			};
 
-			let list = glib::List(pango_itemize(self.context.0, text.as_ptr() as *const _, 0, text.len() as c_int, attrs.0, ptr::null()));
-			let item = pango::Item((*list.0).data as *mut _);
+			let     list   = glib::List(pango_itemize(self.context.0, text.as_ptr() as *const _, 0, text.len() as c_int, attrs.0, ptr::null()));
+			let mut result = Vec::new();
+			let mut list   = list.0;
 
-			// Properly free additional items.
-			{
-				let mut list = list.0;
+			while !list.is_null() {
+				let item   = (*list).data as *mut PangoItem;
+				let glyphs = pango::GlyphString::new();
+				pango_shape(text.as_ptr() as *const _, text.len() as c_int, &(*item).analysis, glyphs.0);
 
-				while let Some(ptr) = (*list).next.as_ref() {
-					pango::Item((*ptr).data as *mut _);
-					list = (*ptr).next;
-				}
+				result.push(pango::GlyphItem::new(pango::Item(item), glyphs));
+				list = (*list).next;
 			}
 
-			let result = pango::GlyphString::new();
-			pango_shape(text.as_ptr() as *const _, text.len() as c_int, &(*item.0).analysis, result.0);
-			result
+			result.into_iter().next().unwrap()
 		}
 	}
 }

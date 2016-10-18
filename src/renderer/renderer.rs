@@ -243,7 +243,7 @@ impl Renderer {
 				}
 
 				let computed = self.cache.compute(cell.value(), cell.style().attributes());
-				o.glyph(computed.font(), computed.shape());
+				o.glyph(computed.text(), computed.glyphs());
 			}
 
 			// Render cursors that require to be on top.
@@ -329,7 +329,7 @@ impl Renderer {
 					o.rgba(fg);
 
 					let computed = self.cache.compute(cell.value(), cell.style().attributes());
-					o.glyph(computed.font(), computed.shape());
+					o.glyph(computed.text(), computed.glyphs());
 				}
 
 				// Draw underline.

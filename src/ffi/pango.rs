@@ -20,6 +20,7 @@ use super::cairo::*;
 use super::glib::*;
 
 #[repr(C)]
+#[derive(Debug)]
 pub struct PangoItem {
 	pub offset:    c_int,
 	pub length:    c_int,
@@ -34,6 +35,7 @@ pub struct PangoContext(c_void);
 pub struct PangoLanguage(c_void);
 
 #[repr(C)]
+#[derive(Debug)]
 pub struct PangoAnalysis {
 	pub shape_engine: *mut c_void,
 	pub lang_engine:  *mut c_void,
@@ -53,6 +55,14 @@ pub struct PangoAnalysis {
 pub struct PangoGlyphString(c_void);
 
 #[repr(C)]
+#[derive(Debug)]
+pub struct PangoGlyphItem {
+	pub item:   *mut PangoItem,
+	pub string: *mut PangoGlyphString,
+}
+
+#[repr(C)]
+#[derive(Debug)]
 pub enum PangoWeight {
 	Thin       = 100,
 	UltraLight = 200,
@@ -69,6 +79,7 @@ pub enum PangoWeight {
 }
 
 #[repr(C)]
+#[derive(Debug)]
 pub enum PangoStyle {
 	Normal,
 	Oblique,
@@ -76,6 +87,7 @@ pub enum PangoStyle {
 }
 
 #[repr(C)]
+#[derive(Debug)]
 pub enum PangoUnderline {
 	None,
 	Single,
@@ -149,6 +161,5 @@ extern "C" {
 #[link(name = "pangocairo-1.0")]
 extern "C" {
 	pub fn pango_cairo_font_map_new() -> *mut PangoFontMap;
-	pub fn pango_cairo_show_glyph_string(cr: *mut cairo_t, font: *mut PangoFont, glyphs: *mut PangoGlyphString);
-	pub fn pango_cairo_glyph_string_path(cr: *mut cairo_t, font: *mut PangoFont, glyphs: *mut PangoGlyphString);
+	pub fn pango_cairo_show_glyph_item(cr: *mut cairo_t, text: *const c_char, glyph_item: *const PangoGlyphItem);
 }

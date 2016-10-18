@@ -35,7 +35,7 @@ pub struct Cache {
 	inner:  Vec<Cell>,
 
 	font:   Arc<Font>,
-	glyphs: LruCache<Glyph, Computed, BuildHasherDefault<FnvHasher>>,
+	glyphs: LruCache<Glyph, Rc<Computed>, BuildHasherDefault<FnvHasher>>,
 }
 
 #[derive(Clone, Default, Debug)]
@@ -46,10 +46,32 @@ pub struct Cell {
 	options: Options,
 }
 
-#[derive(Clone, Debug)]
+impl Cell {
+	/// Create an empty cache cell.
+	pub fn empty(style: Rc<Style>) -> Self {
+		Cell {
+			style:   style,
+			value:   None,
+			valid:   true,
+			options: Options::empty(),
+		}
+	}
+}
+
+#[derive(Debug)]
 pub struct Computed {
-	font:  pango::Font,
-	shape: pango::GlyphString,
+	text:   String,
+	glyphs: pango::GlyphItem,
+}
+
+impl Computed {
+	pub fn text(&self) -> &str {
+		&self.text
+	}
+
+	pub fn glyphs(&self) -> &pango::GlyphItem {
+		&self.glyphs
+	}
 }
 
 #[derive(Hash, Eq, PartialEq, Clone, Debug)]
@@ -133,41 +155,19 @@ impl Cache {
 	}
 
 	/// Get a computed glyph.
-	pub fn compute<T: AsRef<str>>(&mut self, string: T, attrs: style::Attributes) -> Computed {
+	pub fn compute<T: AsRef<str>>(&mut self, string: T, attrs: style::Attributes) -> Rc<Computed> {
 		let glyph = Glyph::new(string.as_ref(), attrs);
 
 		if let Some(computed) = self.glyphs.get_mut(&glyph) {
 			return computed.clone();
 		}
 
-		let computed = Computed {
-			font:  self.font.font(glyph.value.chars().next().unwrap(), glyph.attrs),
-			shape: self.font.shape(&glyph.value, glyph.attrs),
-		};
+		let computed = Rc::new(Computed {
+			text:   glyph.value.clone(),
+			glyphs: self.font.shape(&glyph.value, glyph.attrs),
+		});
 
 		self.glyphs.insert(glyph, computed.clone());
 		computed
-	}
-}
-
-impl Cell {
-	/// Create an empty cache cell.
-	pub fn empty(style: Rc<Style>) -> Self {
-		Cell {
-			style:   style,
-			value:   None,
-			valid:   true,
-			options: Options::empty(),
-		}
-	}
-}
-
-impl Computed {
-	pub fn font(&self) -> &pango::Font {
-		&self.font
-	}
-
-	pub fn shape(&self) -> &pango::GlyphString {
-		&self.shape
 	}
 }

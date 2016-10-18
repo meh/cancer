@@ -15,36 +15,33 @@
 // You should have received a copy of the GNU General Public License
 // along with cancer.  If not, see <http://www.gnu.org/licenses/>.
 
-pub use ffi::pango::PangoWeight as Weight;
-pub use ffi::pango::PangoStyle as Style;
-pub use ffi::pango::PangoUnderline as Underline;
+use std::mem;
+use ffi::pango::*;
+use sys::pango::{Item, GlyphString};
 
-mod font;
-pub use self::font::Font;
+#[derive(Debug)]
+pub struct GlyphItem(pub PangoGlyphItem);
 
-mod item;
-pub use self::item::Item;
+impl GlyphItem {
+	pub fn new(item: Item, string: GlyphString) -> Self {
+		let item_ptr   = item.0;
+		let string_ptr = string.0;
 
-mod glyph_string;
-pub use self::glyph_string::GlyphString;
+		mem::forget(item);
+		mem::forget(string);
 
-mod glyph_item;
-pub use self::glyph_item::GlyphItem;
+		GlyphItem(PangoGlyphItem {
+			item:   item_ptr,
+			string: string_ptr,
+		})
+	}
+}
 
-mod map;
-pub use self::map::Map;
-
-mod set;
-pub use self::set::Set;
-
-mod metrics;
-pub use self::metrics::Metrics;
-
-mod context;
-pub use self::context::Context;
-
-mod description;
-pub use self::description::Description;
-
-mod attributes;
-pub use self::attributes::Attributes;
+impl Drop for GlyphItem {
+	fn drop(&mut self) {
+		unsafe {
+			Item(self.0.item);
+			GlyphString(self.0.string);
+		}
+	}
+}
