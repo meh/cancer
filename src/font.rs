@@ -25,7 +25,7 @@ use sys::glib;
 use sys::pango;
 use config::Config;
 use style;
-use error;
+use error::{self, Error};
 
 /// The font to use for rendering.
 #[derive(Debug)]
@@ -41,8 +41,13 @@ impl Font {
 	pub fn load(config: Arc<Config>) -> error::Result<Self> {
 		let map     = pango::Map::new();
 		let context = pango::Context::new(&map);
-		let set     = context.fonts(&pango::Description::from(config.style().font())).ok_or(error::Error::Message("missing font".into()))?;
+		let set     = context.fonts(&pango::Description::from(config.style().font()))
+			.ok_or(Error::Message("missing font".into()))?;
+
 		let metrics = set.metrics();
+		if metrics.width() == 0 || metrics.height() == 0 {
+			return Err(Error::Message("wrong font dimensions".into()));
+		}
 
 		Ok(Font {
 			map:     map,
