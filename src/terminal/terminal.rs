@@ -637,23 +637,33 @@ impl Terminal {
 							let row = term!(self; row for y);
 							let row = &mut self.rows[row];
 
-							let changed = match row[x as usize] {
-								Cell::Empty { .. } =>
-									true,
+							if ch.chars().all(char::is_whitespace) {
+								if !row[x as usize].is_empty() {
+									for x in x .. x + width {
+										row[x as usize].into_empty(self.cursor.style().clone());
+										term!(self; touched (x, y));
+									}
+								}
+							}
+							else {
+								let changed = match row[x as usize] {
+									Cell::Empty { .. } =>
+										true,
 
-								Cell::Occupied { ref style, ref value, .. } =>
-									value != ch || style != self.cursor.style(),
+									Cell::Occupied { ref style, ref value, .. } =>
+										value != ch || style != self.cursor.style(),
 
-								Cell::Reference(..) =>
-									false
-							};
+									Cell::Reference(..) =>
+										unreachable!()
+								};
 
-							if changed {
-								row[x as usize].into_occupied(ch, self.cursor.style().clone());
-								term!(self; touched (x, y));
+								if changed {
+									row[x as usize].into_occupied(ch, self.cursor.style().clone());
+									term!(self; touched (x, y));
 
-								for (i, x) in (x + 1 .. x + width).enumerate() {
-									row[x as usize].into_reference(i as u8 + 1);
+									for (i, x) in (x + 1 .. x + width).enumerate() {
+										row[x as usize].into_reference(i as u8 + 1);
+									}
 								}
 							}
 						}
