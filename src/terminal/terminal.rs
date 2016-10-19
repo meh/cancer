@@ -194,6 +194,7 @@ impl Terminal {
 		cell::Position::new(x, y, &self.rows[term!(self; row for y)][x as usize])
 	}
 
+	/// Get an iterator over positioned cells.
 	pub fn iter<'a, T: Iterator<Item = (u32, u32)>>(&'a self, iter: T) -> impl Iterator<Item = cell::Position<'a>> {
 		Iter::new(self, iter)
 	}
@@ -201,11 +202,12 @@ impl Terminal {
 	/// Resize the terminal.
 	pub fn resize(&mut self, width: u32, height: u32) -> impl Iterator<Item = (u32, u32)> {
 		self.cursor.resize(width, height);
+
 		iter::empty()
 	}
 
 	/// Enable or disable blinking and return the affected cells.
-	pub fn blinking<'a>(&'a mut self, value: bool) -> impl Iterator<Item = cell::Position<'a>> {
+	pub fn blinking(&mut self, value: bool) -> impl Iterator<Item = (u32, u32)> {
 		if value {
 			self.mode.insert(mode::BLINK);
 		}
@@ -213,7 +215,13 @@ impl Terminal {
 			self.mode.remove(mode::BLINK);
 		}
 
-		self.iter(self.area.absolute()).filter(|c| c.style().attributes().contains(style::BLINK))
+		for (x, y) in self.area.absolute() {
+			if self.get(x, y).style().attributes().contains(style::BLINK) {
+				term!(self; touched (x, y));
+			}
+		}
+
+		self.touched.iter(self.area)
 	}
 
 	/// Handle a key.

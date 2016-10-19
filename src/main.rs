@@ -186,28 +186,12 @@ fn open(matches: &ArgMatches) -> error::Result<()> {
 			window.flush();
 		});
 
-		(cells $iter:expr) => ({
+		($iter:expr) => ({
 			let options = render!(options);
 			let iter    = $iter;
 
 			render.update(|mut o| {
 				for cell in terminal.iter(iter) {
-					o.cell(&cell, options, false);
-				}
-
-				if terminal.cursor().is_visible() {
-					o.cursor(&terminal.cursor(), options);
-				}
-			});
-
-			window.flush();
-		});
-
-		($iter:expr) => ({
-			let options = render!(options);
-
-			render.update(|mut o| {
-				for cell in $iter {
 					o.cell(&cell, options, false);
 				}
 
@@ -263,7 +247,7 @@ fn open(matches: &ArgMatches) -> error::Result<()> {
 							let columns = render.columns();
 
 							if terminal.columns() != columns || terminal.rows() != rows {
-								render!(cells terminal.resize(columns, rows));
+								render!(terminal.resize(columns, rows));
 								tty.resize(columns, rows).unwrap();
 							}
 						}
@@ -278,7 +262,7 @@ fn open(matches: &ArgMatches) -> error::Result<()> {
 						let event = xcb::cast_event::<xcb::KeyPressEvent>(&event);
 
 						if let Some(key) = keyboard.key(event.detail()) {
-							render!(cells terminal.key(key, &mut tty).unwrap());
+							render!(terminal.key(key, &mut tty).unwrap());
 							tty.flush().unwrap();
 						}
 					}
@@ -294,7 +278,7 @@ fn open(matches: &ArgMatches) -> error::Result<()> {
 
 				{
 					let (actions, touched) = try!(continue terminal.handle(&input, &mut tty));
-					render!(cells touched);
+					render!(touched);
 
 					for action in actions {
 						match action {
