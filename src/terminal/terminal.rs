@@ -476,7 +476,7 @@ impl Terminal {
 					term!(self; cursor Right(n));
 				}
 
-				Control::C1(C1::ControlSequence(CSI::LinePosition(n))) => {
+				Control::C1(C1::ControlSequence(CSI::CursorVerticalPosition(n))) => {
 					term!(self; cursor Position(None, Some(n)));
 				}
 
