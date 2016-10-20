@@ -24,6 +24,7 @@ use style::Style;
 use terminal::{cell, Touched};
 use config::Config;
 use config::style::Shape;
+use control::DEC;
 
 #[derive(PartialEq, Clone, Debug)]
 pub struct Cursor {
@@ -36,6 +37,9 @@ pub struct Cursor {
 	pub(super) scroll: (u32, u32),
 	pub(super) style: Rc<Style>,
 	pub(super) state: State,
+
+	pub(super) charsets: [DEC::Charset; 4],
+	pub(super) charset:  u8,
 
 	pub(super) foreground: Rgba<f64>,
 	pub(super) background: Rgba<f64>,
@@ -86,6 +90,9 @@ impl Cursor {
 			scroll: (0, height - 1),
 			style:  Default::default(),
 			state:  state,
+
+			charsets: [DEC::charset::ISO::Latin2.into(); 4],
+			charset:  0,
 
 			foreground: *config.style().cursor().foreground(),
 			background: *config.style().cursor().background(),

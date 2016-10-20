@@ -42,16 +42,20 @@ pub struct Terminal {
 	area:    Area,
 	cache:   Option<Vec<u8>>,
 	touched: Touched,
-
 	mode:    Mode,
-	charset: Option<u8>,
-	rows:    VecDeque<VecDeque<Cell>>,
-	scroll:  Option<u32>,
-	cursor:  Cursor,
-	saved:   Option<Cursor>,
+
+	rows:   VecDeque<VecDeque<Cell>>,
+	scroll: Option<u32>,
+
+	cursor: Cursor,
+	saved:  Option<Cursor>,
 }
 
 macro_rules! term {
+	($term:ident; charset) => (
+		$term.cursor.charsets[$term.cursor.charset as usize]
+	);
+
 	($term:ident; row for $y:expr) => (
 		($y + $term.scroll.unwrap_or_else(|| $term.rows.len() as u32 - $term.area.height)) as usize
 	);
@@ -169,13 +173,13 @@ impl Terminal {
 			area:    area,
 			cache:   Default::default(),
 			touched: Touched::default(),
-
 			mode:    Mode::default(),
-			charset: None,
-			rows:    rows,
-			scroll:  None,
-			cursor:  Cursor::new(config.clone(), width, height),
-			saved:   None,
+
+			rows:   rows,
+			scroll: None,
+
+			cursor: Cursor::new(config.clone(), width, height),
+			saved:  None,
 		})
 	}
 
@@ -448,6 +452,21 @@ impl Terminal {
 					}
 				}
 
+				// Charset.
+				Control::DEC(DEC::SelectCharset(i, charset)) => {
+					if self.cursor.charsets.len() >= i as usize {
+						self.cursor.charsets[i as usize] = charset;
+					}
+				}
+
+				Control::C0(C0::ShiftIn) => {
+					self.cursor.charset = 0;
+				}
+
+				Control::C0(C0::ShiftOut) => {
+					self.cursor.charset = 1;
+				}
+
 				// Movement functions.
 				Control::C0(C0::CarriageReturn) => {
 					term!(self; cursor Position(Some(0), None));
@@ -634,7 +653,52 @@ impl Terminal {
 				}
 
 				Control::None(string) => {
-					for ch in string.graphemes(true) {
+					for mut ch in string.graphemes(true) {
+						if term!(self; charset) == DEC::Charset::DEC(DEC::charset::DEC::Graphic) {
+							ch = match ch {
+								"A" => "↑",
+								"B" => "↓",
+								"C" => "→",
+								"D" => "←",
+								"E" => "█",
+								"F" => "▚",
+								"G" => "☃",
+								"_" => " ",
+								"`" => "◆",
+								"a" => "▒",
+								"b" => "␉",
+								"c" => "␌",
+								"d" => "␍",
+								"e" => "␊",
+								"f" => "°",
+								"g" => "±",
+								"h" => "␤",
+								"i" => "␋",
+								"j" => "┘",
+								"k" => "┐",
+								"l" => "┌",
+								"m" => "└",
+								"n" => "┼",
+								"o" => "⎺",
+								"p" => "⎻",
+								"q" => "─",
+								"r" => "⎼",
+								"s" => "⎽",
+								"t" => "├",
+								"u" => "┤",
+								"v" => "┴",
+								"w" => "┬",
+								"x" => "│",
+								"y" => "≤",
+								"z" => "≥",
+								"{" => "π",
+								"|" => "≠",
+								"}" => "£",
+								"~" => "·",
+								_   => ch,
+							};
+						}
+
 						let width = ch.width() as u32;
 
 						if self.mode.contains(mode::WRAP) && self.cursor.wrap() {
@@ -652,8 +716,10 @@ impl Terminal {
 							let row = term!(self; row for y);
 							let row = &mut self.rows[row];
 
+							// If it's all white-space, make the cells empty, otherwise make
+							// them occupied.
 							if ch.chars().all(char::is_whitespace) {
-								if !row[x as usize].is_empty() {
+								if !row[x as usize].is_empty() || row[x as usize].style() != self.cursor.style() {
 									for x in x .. x + width {
 										row[x as usize].into_empty(self.cursor.style().clone());
 										term!(self; touched (x, y));
