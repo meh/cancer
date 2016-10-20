@@ -595,6 +595,21 @@ impl Terminal {
 					term!(self; scroll up n from self.cursor.y());
 				}
 
+				Control::C1(C1::ControlSequence(CSI::DeleteCharacter(n))) => {
+					let y   = self.cursor.y();
+					let x   = self.cursor.x();
+					let n   = cmp::max(0, cmp::min(self.area.width - x, n));
+					let row = term!(self; row for y);
+					let row = &mut self.rows[row as usize];
+
+					row.drain(x as usize .. x as usize + n as usize);
+					row.append(&mut vec_deque![Cell::empty(self.cursor.style().clone()); n as usize]);
+
+					for x in x .. self.area.width {
+						term!(self; touched (x, y));
+					}
+				}
+
 				// Insertion functions.
 				Control::DEC(DEC::AlignmentTest) => {
 					for y in 0 .. self.area.height {
@@ -650,6 +665,24 @@ impl Terminal {
 
 				Control::C1(C1::ControlSequence(CSI::InsertLine(n))) => {
 					term!(self; scroll down n from self.cursor.y());
+				}
+
+				Control::C1(C1::ControlSequence(CSI::InsertCharacter(n))) => {
+					let y   = self.cursor.y();
+					let x   = self.cursor.x();
+					let n   = cmp::max(0, cmp::min(self.area.width, n));
+					let row = term!(self; row for y);
+					let row = &mut self.rows[row as usize];
+
+					for _ in x .. x + n {
+						row.insert(x as usize, Cell::empty(self.cursor.style().clone()));
+					}
+
+					row.drain(self.area.width as usize ..);
+
+					for x in x .. self.area.width {
+						term!(self; touched (x, y));
+					}
 				}
 
 				Control::None(string) => {
@@ -929,6 +962,6 @@ fn to_rgba(color: &SGR::Color, config: &Config, foreground: bool) -> Rgba<f64> {
 
 		SGR::Color::Cmy(..) |
 		SGR::Color::Cmyk(..) =>
-			unreachable!(),
+			Rgba::new_u8(0, 0, 0, 0),
 	}
 }
