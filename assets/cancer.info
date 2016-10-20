@@ -10,17 +10,21 @@ cancer+base| terminal cancer base features,
 	bce,
 	mir,
 	npc,
+	xenl,
 
 #	Style.
 	acsc=``aaffggiijjkkllmmnnooppqqrrssttuuvvwwxxyyzz{{||}}~~,
-	bce,
 	msgr,
+	setb=\E[4%?%p1%{1}%=%t4%e%p1%{3}%=%t6%e%p1%{4}%=%t1%e%p1%{6}%=%t3%e%p1%d%;m,
+	setf=\E[3%?%p1%{1}%=%t4%e%p1%{3}%=%t6%e%p1%{4}%=%t1%e%p1%{6}%=%t3%e%p1%d%;m,
 	sgr0=\E[m,
 	sgr=%?%p9%t\E(0%e\E(B%;\E[0%?%p6%t;1%;%?%p2%t;4%;%?%p1%p3%|%t;7%;%?%p4%t;5%;%?%p7%t;8%;m,
 	rev=\E[7m,
 	bold=\E[1m,
 	sitm=\E[3m,
 	ritm=\E[23m,
+	smso=\E[7m,
+	rmso=\E[27m,
 	smul=\E[4m,
 	rmul=\E[24m,
 	dim=\E[2m,
@@ -28,10 +32,15 @@ cancer+base| terminal cancer base features,
 	invis=\E[8m,
 	civis=\E]cursor:hide\007,
 	cnorm=\E]cursor:show\007,
+	op=\E[39;49m,
+	smacs=\E(0,
+	rmacs=\E(B,
+	enacs=\E)0,
 
 #	Insert.
 	ich=\E[%p1%d@,
 	ich1=\E[@,
+	il=\E[%p1%dL,
 	il1=\E[L,
 
 #	Erase.
@@ -58,9 +67,11 @@ cancer+base| terminal cancer base features,
 	cuu1=\E[A,
 	hpa=\E[%i%p1%dG,
 	vpa=\E[%i%p1%dd,
-	sc=\E[s
-	rc=\E[u
+	sc=\E[s,
+	rc=\E[u,
 	indn=\E[%p1%dS,
+	csr=\E[%i%p1%d;%p2%dr,
+	ri=\EM,
 
 #	Keys.
 	km,
@@ -72,21 +83,26 @@ cancer+base| terminal cancer base features,
 	kcuf1=\EOC,
 	kcub1=\EOD,
 
-	kbs=^H
+	kbs=^H,
 	kent=\EOM,
 
 # This will warn about unknown capabilities, that's okay.
-cancer+advanced| advanced features,
+cancer+secret| secret features,
+	AX,
+	XT,
 	Cr=\E]cursor:color:-\007,
 	Cs=\E]cursor:color:%p1%s\007,
 	Ms=\E]clipboard:set:%p1%s:%p2%s\007,
 	Se=\E[2 q,
 	Ss=\E[%p1%d q,
+	Tc,
+	8f=\E[38;2;%p1%d;%p2%d;%p3%dm,
+	8b=\E[48;2;%p1%d;%p2%d;%p3%dm,
 
 # Standard 8-color terminal.
 cancer| terminal cancer,
 	use=cancer+base,
-	use=cancer+advanced,
+	use=cancer+secret,
 
 #	Terminal attributes.
 	colors#8,
@@ -101,7 +117,7 @@ cancer-256color| terminal cancer with 256 colors,
 
 #	Terminal attributes
 	colors#256,
-	pairs#65536,
+	pairs#32767,
 
 #	I have no idea what this is, but it works, thanks XTerm.
 	setab=\E[%?%p1%{8}%<%t4%p1%d%e%p1%{16}%<%t10%p1%{8}%-%d%e48;5;%p1%d%;m,
