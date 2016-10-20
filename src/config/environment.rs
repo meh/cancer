@@ -22,6 +22,7 @@ pub struct Environment {
 	display: Option<String>,
 	program: Option<String>,
 	cache:   usize,
+	scroll:  usize,
 }
 
 impl Default for Environment {
@@ -30,6 +31,7 @@ impl Default for Environment {
 			display: None,
 			program: None,
 			cache:   4096,
+			scroll:  4096,
 		}
 	}
 }
@@ -55,6 +57,18 @@ impl Environment {
 				_ => ()
 			}
 		}
+
+		if let Some(value) = table.get("scroll") {
+			match value {
+				&Value::Integer(value) =>
+					self.scroll = value as usize,
+
+				&Value::Boolean(false) =>
+					self.scroll = 0,
+
+				_ => ()
+			}
+		}
 	}
 
 	pub fn display(&self) -> Option<&str> {
@@ -67,5 +81,9 @@ impl Environment {
 
 	pub fn cache(&self) -> usize {
 		self.cache
+	}
+
+	pub fn scroll(&self) -> usize {
+		self.scroll
 	}
 }

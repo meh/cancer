@@ -68,6 +68,13 @@ macro_rules! term {
 		if $term.cursor.scroll == (0, $term.area.height - 1) {
 			term!($term; extend $n);
 			term!($term; touched all);
+
+			let back   = $term.rows.len() - $term.area.height as usize;
+			let scroll = $term.config.environment().scroll();
+
+			if back > scroll {
+				$term.rows.drain(.. back - scroll);
+			}
 		}
 		else {
 			term!($term; scroll up $n)

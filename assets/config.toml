@@ -2,6 +2,7 @@
 display = ":0.0"
 program = "zsh"
 cache   = 2048
+scroll  = 2048
 
 [style]
 font  = "monospace 11px"
