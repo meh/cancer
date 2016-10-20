@@ -21,6 +21,7 @@ bitflags     = "0.7"
 bit-vec      = "0.4"
 fnv          = "1.0"
 lru-cache    = "0.1"
+owning_ref   = "0.2"
 shlex        = "0.1"
 control-code = "0.3.2"
 

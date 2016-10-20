@@ -15,11 +15,19 @@
 // You should have received a copy of the GNU General Public License
 // along with cancer.  If not, see <http://www.gnu.org/licenses/>.
 
+use std::rc::Rc;
+use owning_ref::RcRef;
+
+pub type Text = RcRef<String, str>;
+
 mod renderer;
 pub use self::renderer::Renderer;
 
 mod cache;
 pub use self::cache::Cache;
+
+mod glyphs;
+pub use self::glyphs::Glyphs;
 
 pub mod option;
 pub use self::option::Options;

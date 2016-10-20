@@ -27,6 +27,7 @@ extern crate env_logger;
 #[macro_use]
 extern crate bitflags;
 extern crate bit_vec;
+extern crate owning_ref;
 extern crate fnv;
 extern crate lru_cache as lru;
 extern crate shlex;
@@ -114,6 +115,7 @@ fn main() {
 fn open(matches: &ArgMatches) -> error::Result<()> {
 	use std::sync::Arc;
 	use std::io::Write;
+	use std::iter;
 
 	let     config   = Arc::new(Config::load(matches.value_of("config"))?);
 	let     font     = Arc::new(Font::load(config.clone())?);
@@ -146,42 +148,35 @@ fn open(matches: &ArgMatches) -> error::Result<()> {
 			options
 		});
 
+		(options damaged) => ({
+			let mut options = render!(options);
+
+			options.insert(renderer::option::DAMAGE);
+			options
+		});
+
 		(cursor) => ({
 			let options = render!(options);
 
 			// Redraw the cursor.
-			render.update(|mut o| {
-				if terminal.cursor().is_visible() {
-					o.cursor(&terminal.cursor(), options);
-				}
-				else {
-					o.cell(&terminal.cursor().cell(), options, true);
-				}
+			render.batch(|mut o| {
+				o.update(&terminal, iter::empty(), options);
 			});
 
 			window.flush();
 		});
 
 		(damaged $area:expr) => ({
-			let options = render!(options);
+			let options = render!(options damaged);
 			let area    = $area;
 
-			render.update(|mut o| {
+			render.batch(|mut o| {
 				// Redraw margins.
 				o.margin(&area);
 
 				// Redraw the cells that fall within the damaged area.
-				for cell in terminal.iter(o.damaged(&area).relative()) {
-					o.cell(&cell, options, true);
-				}
-
-				// Redraw the cursor.
-				if terminal.cursor().is_visible() {
-					o.cursor(&terminal.cursor(), options);
-				}
-				else {
-					o.cell(&terminal.cursor().cell(), options, true);
-				}
+				let area = o.damaged(&area).relative();
+				o.update(&terminal, area, options);
 			});
 
 			window.flush();
@@ -191,14 +186,8 @@ fn open(matches: &ArgMatches) -> error::Result<()> {
 			let options = render!(options);
 			let iter    = $iter;
 
-			render.update(|mut o| {
-				for cell in terminal.iter(iter) {
-					o.cell(&cell, options, false);
-				}
-
-				if terminal.cursor().is_visible() {
-					o.cursor(&terminal.cursor(), options);
-				}
+			render.batch(|mut o| {
+				o.update(&terminal, iter, options);
 			});
 
 			window.flush();

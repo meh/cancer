@@ -25,8 +25,8 @@ use config::style::Shape;
 use sys::cairo;
 use font::Font;
 use style;
-use terminal::{cell, cursor};
-use renderer::{Cache, Options};
+use terminal::{Terminal, cell, cursor};
+use renderer::{Options, Cache, Glyphs};
 
 /// Renderer for a `cairo::Surface`.
 pub struct Renderer {
@@ -36,6 +36,7 @@ pub struct Renderer {
 
 	context: cairo::Context,
 	font:    Arc<Font>,
+	glyphs:  Glyphs,
 	cache:   Cache,
 }
 
@@ -43,7 +44,8 @@ impl Renderer {
 	/// Create a new renderer for the given settings and surface.
 	pub fn new<S: AsRef<cairo::Surface>>(config: Arc<Config>, font: Arc<Font>, surface: S, width: u32, height: u32) -> Self {
 		let context = cairo::Context::new(surface);
-		let cache   = Cache::new(config.environment().cache(), font.clone(),
+		let glyphs  = Glyphs::new(config.environment().cache(), font.clone());
+		let cache   = Cache::new(
 			(width - (config.style().margin() * 2)) / font.width(),
 			(height - (config.style().margin() * 2)) / (font.height() + config.style().spacing()));
 
@@ -54,6 +56,7 @@ impl Renderer {
 
 			context: context,
 			font:    font,
+			glyphs:  glyphs,
 			cache:   cache,
 		}
 	}
@@ -134,7 +137,7 @@ impl Renderer {
 	}
 
 	/// Batch the drawing operations within the closure.
-	pub fn update<T, F: FnOnce(&mut Self) -> T>(&mut self, func: F) -> T {
+	pub fn batch<T, F: FnOnce(&mut Self) -> T>(&mut self, func: F) -> T {
 		self.push();
 		let out = func(self);
 		self.pop();
@@ -183,6 +186,10 @@ impl Renderer {
 			}
 		}
 		o.restore();
+	}
+
+	pub fn update<T: Iterator<Item = (u32, u32)>>(&mut self, terminal: &Terminal, touched: T, options: Options) -> bool {
+		false
 	}
 
 	/// Draw the cursor.
@@ -242,7 +249,8 @@ impl Renderer {
 					}
 				}
 
-				let computed = self.cache.compute(cell.value(), cell.style().attributes());
+				use std::rc::Rc;
+				let computed = self.glyphs.compute(Rc::new(cell.value().into()), cell.style().attributes());
 				o.glyph(computed.text(), computed.glyphs());
 			}
 
@@ -328,7 +336,8 @@ impl Renderer {
 					o.move_to(x as f64, (y + f.ascent()) as f64);
 					o.rgba(fg);
 
-					let computed = self.cache.compute(cell.value(), cell.style().attributes());
+					use std::rc::Rc;
+					let computed = self.glyphs.compute(Rc::new(cell.value().into()), cell.style().attributes());
 					o.glyph(computed.text(), computed.glyphs());
 				}
 
