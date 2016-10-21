@@ -998,8 +998,25 @@ fn to_rgba(color: &SGR::Color, config: &Config, foreground: bool) -> Rgba<f64> {
 		SGR::Color::Rgb(r, g, b) =>
 			Rgba::new_u8(r, g, b, 255),
 
-		SGR::Color::Cmy(..) |
-		SGR::Color::Cmyk(..) =>
-			Rgba::new_u8(0, 0, 0, 0),
+		SGR::Color::Cmy(c, m, y) => {
+			let c = c as f64 / 255.0;
+			let m = m as f64 / 255.0;
+			let y = y as f64 / 255.0;
+
+			Rgba::new(1.0 - c, 1.0 - m, 1.0 - y, 1.0)
+		}
+
+		SGR::Color::Cmyk(c, m, y, k) => {
+			let c = c as f64 / 255.0;
+			let m = m as f64 / 255.0;
+			let y = y as f64 / 255.0;
+			let k = k as f64 / 255.0;
+
+			Rgba::new(
+				1.0 - (c * (1.0 - k) + k),
+				1.0 - (m * (1.0 - k) + k),
+				1.0 - (y * (1.0 - k) + k),
+				1.0)
+		}
 	}
 }
