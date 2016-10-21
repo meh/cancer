@@ -646,6 +646,16 @@ impl Terminal {
 					}
 				}
 
+				Control::C1(C1::ControlSequence(CSI::EraseCharacter(n))) => {
+					let y = self.cursor.y();
+					let x = self.cursor.x();
+
+					for x in x .. x + n {
+						term!(self; mut cell x, y).into_empty(self.cursor.style().clone());
+						term!(self; touched (x, y));
+					}
+				}
+
 				Control::C1(C1::ControlSequence(CSI::DeleteLine(n))) => {
 					term!(self; scroll up n from self.cursor.y());
 				}
