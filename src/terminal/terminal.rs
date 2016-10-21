@@ -710,6 +710,16 @@ impl Terminal {
 					}
 				}
 
+				Control::C0(C0::HorizontalTabulation) => {
+					let x   = self.cursor.x();
+					let y   = self.cursor.y();
+
+					for x in x .. x + (8 - (x % 8)) {
+						term!(self; mut cell x, y).into_empty(self.cursor.style.clone());
+						term!(self; cursor Right(1));
+					}
+				}
+
 				Control::None(string) => {
 					for mut ch in string.graphemes(true) {
 						if term!(self; charset) == DEC::Charset::DEC(DEC::charset::DEC::Graphic) {
