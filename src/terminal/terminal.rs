@@ -99,9 +99,12 @@ macro_rules! term {
 		$term.rows.drain(row .. row + n as usize);
 
 		// Fill missing lines.
-		for i in 0 .. n {
-			$term.rows.insert((i + $term.cursor.scroll.1 + 1 - n) as usize + offset,
-				term!($term; row));
+		{
+			let index = $term.rows.len() - offset;
+
+			for i in 0 .. n {
+				$term.rows.insert(index + i as usize, term!($term; row));
+			}
 		}
 
 		// Mark the affected lines as touched.
