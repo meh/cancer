@@ -235,8 +235,10 @@ impl Terminal {
 		}
 
 		for (x, y) in self.area.absolute() {
-			if self.get(x, y).style().attributes().contains(style::BLINK) {
-				term!(self; touched (x, y));
+			if let &Cell::Occupied { ref style, .. } = term!(self; cell x, y) {
+				if style.attributes().contains(style::BLINK) {
+					term!(self; touched (x, y));
+				}
 			}
 		}
 
