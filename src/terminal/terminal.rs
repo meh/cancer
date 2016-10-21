@@ -139,9 +139,44 @@ macro_rules! term {
 		}
 	});
 
+	($term:ident; style!) => (
+		$term.cursor.style()
+	);
+
+	($term:ident; style) => (
+		$term.cursor.style().clone()
+	);
+
+	($term:ident; cursor) => ({
+		let x = $term.cursor.x();
+		let y = $term.cursor.y();
+
+		if let &Cell::Reference(offset) = term!($term; cell (x, y)) {
+			(x - offset as u32, y)
+		}
+		else {
+			(x, y)
+		}
+	});
+
 	($term:ident; cursor $($travel:tt)*) => (
 		$term.cursor.travel(cursor::$($travel)*, &mut $term.touched)
 	);
+
+	($term:ident; clean references ($x:expr, $y:expr)) => ({
+		let x = $x;
+		let y = $y;
+
+		// Clear references.
+		for x in x .. $term.area.width {
+			if term!($term; cell (x, y)).is_reference() {
+				term!($term; mut cell (x, y)).into_empty(term!($term; style));
+			}
+			else {
+				break;
+			}
+		}
+	});
 
 	($term:ident; touched all) => (
 		$term.touched.all();
@@ -159,12 +194,12 @@ macro_rules! term {
 		$term.touched.push($pair);
 	);
 
-	($term:ident; mut cell $x:expr, $y:expr) => ({
+	($term:ident; mut cell ($x:expr, $y:expr)) => ({
 		let row = term!($term; row for $y);
 		&mut $term.rows[row][$x as usize]
 	});
 
-	($term:ident; cell $x:expr, $y:expr) => ({
+	($term:ident; cell ($x:expr, $y:expr)) => ({
 		let row = term!($term; row for $y);
 		&$term.rows[row][$x as usize]
 	});
@@ -205,12 +240,13 @@ impl Terminal {
 
 	/// Get the cursor.
 	pub fn cursor(&self) -> cursor::Cell {
-		cursor::Cell::new(&self.cursor, self.get(self.cursor.x(), self.cursor.y()))
+		let (x, y) = term!(self; cursor);
+		cursor::Cell::new(&self.cursor, self.get(x, y))
 	}
 
 	/// Get the cell at the given position.
 	pub fn get(&self, x: u32, y: u32) -> cell::Position {
-		cell::Position::new(x, y, term!(self; cell x, y))
+		cell::Position::new(x, y, term!(self; cell (x, y)))
 	}
 
 	/// Get an iterator over positioned cells.
@@ -235,7 +271,7 @@ impl Terminal {
 		}
 
 		for (x, y) in self.area.absolute() {
-			if let &Cell::Occupied { ref style, .. } = term!(self; cell x, y) {
+			if let &Cell::Occupied { ref style, .. } = term!(self; cell (x, y)) {
 				if style.attributes().contains(style::BLINK) {
 					term!(self; touched (x, y));
 				}
@@ -544,11 +580,13 @@ impl Terminal {
 					if self.cursor.x() == 0 {
 						let row = term!(self; row for 0);
 
-						for y in row .. self.area.height as usize {
-							let row = &mut self.rows[y];
+						for row in row .. self.area.height as usize {
+							self.rows[row].pop_back();
+							self.rows[row].push_front(Cell::empty(term!(self; style)));
+						}
 
-							row.pop_back();
-							row.push_front(Cell::empty(self.cursor.style().clone()));
+						for y in 0 .. self.area.height {
+							term!(self; clean references (0, y));
 						}
 					}
 					else {
@@ -560,11 +598,13 @@ impl Terminal {
 					if self.cursor.x() == self.area.width - 1 {
 						let row = term!(self; row for 0);
 
-						for y in row .. self.area.height as usize {
-							let row = &mut self.rows[y];
+						for row in row .. self.area.height as usize {
+							self.rows[row].pop_front();
+							self.rows[row].push_back(Cell::empty(term!(self; style)));
+						}
 
-							row.pop_front();
-							row.push_back(Cell::empty(self.cursor.style().clone()));
+						for y in 0 .. self.area.height {
+							term!(self; clean references (0, y));
 						}
 					}
 					else {
@@ -586,14 +626,14 @@ impl Terminal {
 
 					for x in x .. self.area.width {
 						term!(self; touched (x, y));
-						term!(self; mut cell x, y).into_empty(self.cursor.style().clone());
+						term!(self; mut cell (x, y)).into_empty(term!(self; style));
 					}
 
 					for y in y .. self.area.height {
 						term!(self; touched line y);
 
 						for x in 0 .. self.area.width {
-							term!(self; mut cell x, y).into_empty(self.cursor.style().clone());
+							term!(self; mut cell (x, y)).into_empty(term!(self; style));
 						}
 					}
 				}
@@ -603,14 +643,14 @@ impl Terminal {
 
 					for x in 0 ... x {
 						term!(self; touched (x, y));
-						term!(self; mut cell x, y).into_empty(self.cursor.style().clone());
+						term!(self; mut cell (x, y)).into_empty(term!(self; style));
 					}
 
 					for y in 0 .. y {
 						term!(self; touched line y);
 
 						for x in 0 .. self.area.width {
-							term!(self; mut cell x, y).into_empty(self.cursor.style().clone());
+							term!(self; mut cell (x, y)).into_empty(term!(self; style));
 						}
 					}
 				}
@@ -620,7 +660,7 @@ impl Terminal {
 
 					for y in 0 .. self.area.height {
 						for x in 0 .. self.area.width {
-							term!(self; mut cell x, y).into_empty(self.cursor.style().clone());
+							term!(self; mut cell (x, y)).into_empty(term!(self; style));
 						}
 					}
 				}
@@ -630,7 +670,7 @@ impl Terminal {
 
 					for x in x .. self.area.width {
 						term!(self; touched (x, y));
-						term!(self; mut cell x, y).into_empty(self.cursor.style().clone());
+						term!(self; mut cell (x, y)).into_empty(term!(self; style));
 					}
 				}
 
@@ -639,7 +679,7 @@ impl Terminal {
 
 					for x in 0 ... x {
 						term!(self; touched (x, y));
-						term!(self; mut cell x, y).into_empty(self.cursor.style().clone());
+						term!(self; mut cell (x, y)).into_empty(term!(self; style));
 					}
 				}
 
@@ -649,18 +689,19 @@ impl Terminal {
 					term!(self; touched line y);
 
 					for x in 0 .. self.area.width {
-						term!(self; mut cell x, y).into_empty(self.cursor.style().clone());
+						term!(self; mut cell (x, y)).into_empty(term!(self; style));
 					}
 				}
 
 				Control::C1(C1::ControlSequence(CSI::EraseCharacter(n))) => {
-					let y = self.cursor.y();
-					let x = self.cursor.x();
+					let (x, y) = term!(self; cursor);
 
 					for x in x .. x + n {
-						term!(self; mut cell x, y).into_empty(self.cursor.style().clone());
+						term!(self; mut cell (x, y)).into_empty(term!(self; style));
 						term!(self; touched (x, y));
 					}
+
+					term!(self; clean references (x + n, y));
 				}
 
 				Control::C1(C1::ControlSequence(CSI::DeleteLine(n))) => {
@@ -675,7 +716,7 @@ impl Terminal {
 					let row = &mut self.rows[row as usize];
 
 					row.drain(x as usize .. x as usize + n as usize);
-					row.append(&mut vec_deque![Cell::empty(self.cursor.style().clone()); n as usize]);
+					row.append(&mut vec_deque![Cell::empty(term!(self; style)); n as usize]);
 
 					for x in x .. self.area.width {
 						term!(self; touched (x, y));
@@ -685,7 +726,7 @@ impl Terminal {
 				// Insertion functions.
 				Control::DEC(DEC::AlignmentTest) => {
 					for (x, y) in self.area.absolute() {
-						term!(self; mut cell x, y).into_occupied("E", self.cursor.style().clone());
+						term!(self; mut cell (x, y)).into_occupied("E", term!(self; style));
 					}
 
 					term!(self; touched all);
@@ -703,7 +744,7 @@ impl Terminal {
 					let row = &mut self.rows[row as usize];
 
 					for _ in x .. x + n {
-						row.insert(x as usize, Cell::empty(self.cursor.style().clone()));
+						row.insert(x as usize, Cell::empty(term!(self; style)));
 					}
 
 					row.drain(self.area.width as usize ..);
@@ -718,7 +759,7 @@ impl Terminal {
 					let y   = self.cursor.y();
 
 					for x in x .. x + (8 - (x % 8)) {
-						term!(self; mut cell x, y).into_empty(self.cursor.style.clone());
+						term!(self; mut cell (x, y)).into_empty(self.cursor.style.clone());
 						term!(self; cursor Right(1));
 					}
 				}
@@ -781,41 +822,45 @@ impl Terminal {
 						}
 
 						// Change the cells appropriately.
+						//
+						// TODO: make the logic here a little cleaner, there's a bunch of
+						//       code repetition.
 						{
-							let x   = self.cursor.x();
-							let y   = self.cursor.y();
-							let row = term!(self; row for y);
-							let row = &mut self.rows[row];
+							let (x, y) = term!(self; cursor);
 
 							// If it's all white-space, make the cells empty, otherwise make
 							// them occupied.
 							if ch.chars().all(char::is_whitespace) {
-								if !row[x as usize].is_empty() || row[x as usize].style() != self.cursor.style() {
+								if !term!(self; cell (x, y)).is_empty() || term!(self; cell (x, y)).style() != term!(self; style!) {
 									for x in x .. x + width {
-										row[x as usize].into_empty(self.cursor.style().clone());
+										term!(self; mut cell (x, y)).into_empty(term!(self; style));
 										term!(self; touched (x, y));
 									}
+
+									term!(self; clean references (x + width, y));
 								}
 							}
 							else {
-								let changed = match row[x as usize] {
-									Cell::Empty { .. } =>
+								let changed = match term!(self; cell (x, y)) {
+									&Cell::Empty { .. } =>
 										true,
 
-									Cell::Occupied { ref style, ref value, .. } =>
-										value != ch || style != self.cursor.style(),
+									&Cell::Occupied { ref style, ref value, .. } =>
+										value != ch || style != term!(self; style!),
 
-									Cell::Reference(..) =>
+									&Cell::Reference(..) =>
 										unreachable!()
 								};
 
 								if changed {
-									row[x as usize].into_occupied(ch, self.cursor.style().clone());
+									term!(self; mut cell (x, y)).into_occupied(ch, term!(self; style));
 									term!(self; touched (x, y));
 
 									for (i, x) in (x + 1 .. x + width).enumerate() {
-										row[x as usize].into_reference(i as u8 + 1);
+										term!(self; mut cell (x, y)).into_reference(i as u8 + 1);
 									}
+
+									term!(self; clean references (x + width, y));
 								}
 							}
 						}
@@ -832,7 +877,7 @@ impl Terminal {
 
 				// Style functions.
 				Control::C1(C1::ControlSequence(CSI::SelectGraphicalRendition(attrs))) => {
-					let mut style = **self.cursor.style();
+					let mut style = **term!(self; style!);
 
 					for attr in &attrs {
 						match *attr {
