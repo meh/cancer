@@ -754,7 +754,8 @@ impl Terminal {
 					}
 				}
 
-				Control::C0(C0::HorizontalTabulation) => {
+				Control::C0(C0::HorizontalTabulation) |
+				Control::C1(C1::HorizontalTabulationSet) => {
 					let x   = self.cursor.x();
 					let y   = self.cursor.y();
 
