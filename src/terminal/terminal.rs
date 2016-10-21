@@ -533,6 +533,46 @@ impl Terminal {
 					term!(self; scroll down n);
 				}
 
+				Control::DEC(DEC::BackIndex) => {
+					if self.cursor.x() == 0 {
+						let row = term!(self; row for 0);
+
+						for y in row .. self.area.height as usize {
+							let row = &mut self.rows[y];
+
+							row.pop_back();
+							row.push_front(Cell::empty(self.cursor.style().clone()));
+						}
+					}
+					else {
+						term!(self; cursor Left(1));
+					}
+				}
+
+				Control::DEC(DEC::ForwardIndex) => {
+					if self.cursor.x() == self.area.width - 1 {
+						let row = term!(self; row for 0);
+
+						for y in row .. self.area.height as usize {
+							let row = &mut self.rows[y];
+
+							row.pop_front();
+							row.push_back(Cell::empty(self.cursor.style().clone()));
+						}
+					}
+					else {
+						term!(self; cursor Right(1));
+					}
+				}
+
+				Control::C1(C1::NextLine) => {
+					if term!(self; cursor Down(1)).is_some() {
+						term!(self; scroll up 1);
+					}
+
+					term!(self; cursor Position(Some(0), None));
+				}
+
 				// Erase functions.
 				Control::C1(C1::ControlSequence(CSI::EraseDisplay(CSI::Erase::ToEnd))) => {
 					let (x, y) = self.cursor.position();
@@ -636,46 +676,6 @@ impl Terminal {
 					}
 
 					term!(self; touched all);
-				}
-
-				Control::DEC(DEC::BackIndex) => {
-					if self.cursor.x() == 0 {
-						let row = term!(self; row for 0);
-
-						for y in row .. self.area.height as usize {
-							let row = &mut self.rows[y];
-
-							row.pop_back();
-							row.push_front(Cell::empty(self.cursor.style().clone()));
-						}
-					}
-					else {
-						term!(self; cursor Left(1));
-					}
-				}
-
-				Control::DEC(DEC::ForwardIndex) => {
-					if self.cursor.x() == self.area.width - 1 {
-						let row = term!(self; row for 0);
-
-						for y in row .. self.area.height as usize {
-							let row = &mut self.rows[y];
-
-							row.pop_front();
-							row.push_back(Cell::empty(self.cursor.style().clone()));
-						}
-					}
-					else {
-						term!(self; cursor Right(1));
-					}
-				}
-
-				Control::C1(C1::NextLine) => {
-					if term!(self; cursor Down(1)).is_some() {
-						term!(self; scroll up 1);
-					}
-
-					term!(self; cursor Position(Some(0), None));
 				}
 
 				Control::C1(C1::ControlSequence(CSI::InsertLine(n))) => {
