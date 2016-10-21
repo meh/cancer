@@ -489,6 +489,14 @@ impl Terminal {
 					term!(self; cursor Position(Some(x), Some(y)));
 				}
 
+				Control::C1(C1::ControlSequence(CSI::CursorVerticalPosition(n))) => {
+					term!(self; cursor Position(None, Some(n)));
+				}
+
+				Control::C1(C1::ControlSequence(CSI::CursorHorizontalPosition(n))) => {
+					term!(self; cursor Position(Some(n), None));
+				}
+
 				Control::C1(C1::ControlSequence(CSI::CursorUp(n))) => {
 					term!(self; cursor Up(n));
 				}
@@ -505,10 +513,6 @@ impl Terminal {
 					term!(self; cursor Right(n));
 				}
 
-				Control::C1(C1::ControlSequence(CSI::CursorVerticalPosition(n))) => {
-					term!(self; cursor Position(None, Some(n)));
-				}
-
 				Control::C1(C1::Index) => {
 					if term!(self; cursor Down(1)).is_some() {
 						term!(self; scroll up 1);
@@ -519,6 +523,14 @@ impl Terminal {
 					if term!(self; cursor Up(1)).is_some() {
 						term!(self; scroll down 1);
 					}
+				}
+
+				Control::C1(C1::ControlSequence(CSI::ScrollUp(n))) => {
+					term!(self; scroll up n);
+				}
+
+				Control::C1(C1::ControlSequence(CSI::ScrollDown(n))) => {
+					term!(self; scroll down n);
 				}
 
 				// Erase functions.
