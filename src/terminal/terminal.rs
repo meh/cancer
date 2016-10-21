@@ -162,7 +162,12 @@ macro_rules! term {
 	($term:ident; mut cell $x:expr, $y:expr) => ({
 		let row = term!($term; row for $y);
 		&mut $term.rows[row][$x as usize]
-	})
+	});
+
+	($term:ident; cell $x:expr, $y:expr) => ({
+		let row = term!($term; row for $y);
+		&$term.rows[row][$x as usize]
+	});
 }
 
 impl Terminal {
@@ -205,7 +210,7 @@ impl Terminal {
 
 	/// Get the cell at the given position.
 	pub fn get(&self, x: u32, y: u32) -> cell::Position {
-		cell::Position::new(x, y, &self.rows[term!(self; row for y)][x as usize])
+		cell::Position::new(x, y, term!(self; cell x, y))
 	}
 
 	/// Get an iterator over positioned cells.
@@ -677,12 +682,8 @@ impl Terminal {
 
 				// Insertion functions.
 				Control::DEC(DEC::AlignmentTest) => {
-					for y in 0 .. self.area.height {
-						let row  = term!(self; row for y);
-
-						for cell in &mut self.rows[row] {
-							cell.into_occupied("E", self.cursor.style().clone());
-						}
+					for (x, y) in self.area.absolute() {
+						term!(self; mut cell x, y).into_occupied("E", self.cursor.style().clone());
 					}
 
 					term!(self; touched all);
