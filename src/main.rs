@@ -26,6 +26,7 @@ extern crate env_logger;
 
 #[macro_use]
 extern crate bitflags;
+extern crate bit_vec;
 extern crate fnv;
 extern crate lru_cache as lru;
 extern crate shlex;

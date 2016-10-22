@@ -23,6 +23,7 @@ use std::iter;
 use std::mem;
 use std::cmp;
 
+use bit_vec::BitVec;
 use unicode_segmentation::UnicodeSegmentation;
 use unicode_width::UnicodeWidthStr;
 use picto::Area;
@@ -45,8 +46,9 @@ pub struct Terminal {
 	touched: Touched,
 	mode:    Mode,
 
-	rows:   VecDeque<VecDeque<Cell>>,
 	scroll: Option<u32>,
+	cells:  VecDeque<VecDeque<Cell>>,
+	tabs:   BitVec,
 
 	cursor: Cursor,
 	saved:  Option<Cursor>,
@@ -58,7 +60,7 @@ macro_rules! term {
 	);
 
 	($term:ident; row for $y:expr) => (
-		($y + $term.scroll.unwrap_or_else(|| $term.rows.len() as u32 - $term.area.height)) as usize
+		($y + $term.scroll.unwrap_or_else(|| $term.cells.len() as u32 - $term.area.height)) as usize
 	);
 
 	($term:ident; row) => (
@@ -66,7 +68,7 @@ macro_rules! term {
 	);
 
 	($term:ident; extend $n:expr) => (
-		$term.rows.extend(iter::repeat(term!($term; row)).take($n as usize));
+		$term.cells.extend(iter::repeat(term!($term; row)).take($n as usize));
 	);
 
 	($term:ident; scroll! up $n:tt) => (
@@ -74,11 +76,11 @@ macro_rules! term {
 			term!($term; extend $n);
 			term!($term; touched all);
 
-			let back   = $term.rows.len() - $term.area.height as usize;
+			let back   = $term.cells.len() - $term.area.height as usize;
 			let scroll = $term.config.environment().scroll();
 
 			if back > scroll {
-				$term.rows.drain(.. back - scroll);
+				$term.cells.drain(.. back - scroll);
 			}
 		}
 		else {
@@ -94,15 +96,15 @@ macro_rules! term {
 		let y      = $y;
 		let n      = cmp::max(0, cmp::min($term.cursor.scroll.1 - y + 1, $n));
 		let row    = term!($term; row for y);
-		let offset = $term.rows.len() - ($term.cursor.scroll.1 + 1) as usize;
+		let offset = $term.cells.len() - ($term.cursor.scroll.1 + 1) as usize;
 
 		// Remove the lines.
-		$term.rows.drain(row .. row + n as usize);
+		$term.cells.drain(row .. row + n as usize);
 
 		// Fill missing lines.
-		let index = row + $term.rows.len() - offset;
+		let index = row + $term.cells.len() - offset;
 		for i in 0 .. n {
-			$term.rows.insert(index + i as usize, term!($term; row));
+			$term.cells.insert(index + i as usize, term!($term; row));
 		}
 
 		// Mark the affected lines as touched.
@@ -120,8 +122,8 @@ macro_rules! term {
 		let n   = cmp::max(0, cmp::min($term.cursor.scroll.1 - y + 1, $n));
 		let row = term!($term; row for y);
 
-		// Split the rows at the current line.
-		let mut rest = $term.rows.split_off(row);
+		// Split the cells at the current line.
+		let mut rest = $term.cells.split_off(row);
 
 		// Extend with new lines.
 		term!($term; extend n);
@@ -129,7 +131,7 @@ macro_rules! term {
 		// Remove the scrolled off lines.
 		let offset = $term.cursor.scroll.1 + 1 - y - n;
 		rest.drain(offset as usize .. (offset + n) as usize);
-		$term.rows.append(&mut rest);
+		$term.cells.append(&mut rest);
 
 		// Mark the affected lines as touched.
 		for y in y ... $term.cursor.scroll.1 {
@@ -160,6 +162,24 @@ macro_rules! term {
 	($term:ident; cursor $($travel:tt)*) => (
 		$term.cursor.travel(cursor::$($travel)*, &mut $term.touched)
 	);
+
+	($term:ident; tab $n:expr) => ({
+		let n          = $n;
+		let (mut x, _) = term!($term; cursor);
+
+		if n > 0 {
+			while x < $term.area.width && !$term.tabs.get(x as usize).unwrap_or(false) {
+				x += 1;
+			}
+		}
+		else {
+			while x != 0 && !$term.tabs.get(x as usize).unwrap_or(false) {
+				x -= 1;
+			}
+		}
+
+		term!($term; cursor Position(Some(x), None));
+	});
 
 	($term:ident; clean references ($x:expr, $y:expr)) => ({
 		let x = $x;
@@ -194,12 +214,12 @@ macro_rules! term {
 
 	($term:ident; mut cell ($x:expr, $y:expr)) => ({
 		let row = term!($term; row for $y);
-		&mut $term.rows[row][$x as usize]
+		&mut $term.cells[row][$x as usize]
 	});
 
 	($term:ident; cell ($x:expr, $y:expr)) => ({
 		let row = term!($term; row for $y);
-		&$term.rows[row][$x as usize]
+		&$term.cells[row][$x as usize]
 	});
 }
 
@@ -207,7 +227,8 @@ impl Terminal {
 	pub fn open(config: Arc<Config>, width: u32, height: u32) -> error::Result<Self> {
 		let area  = Area::from(0, 0, width, height);
 		let style = Rc::new(Style::default());
-		let rows  = vec_deque![vec_deque![Cell::empty(style.clone()); width as usize]; height as usize];
+		let cells = vec_deque![vec_deque![Cell::empty(style.clone()); width as usize]; height as usize];
+		let tabs  = BitVec::from_fn(width as usize, |i| i % 8 == 0);
 
 		Ok(Terminal {
 			config:  config.clone(),
@@ -216,8 +237,9 @@ impl Terminal {
 			touched: Touched::default(),
 			mode:    Mode::default(),
 
-			rows:   rows,
 			scroll: None,
+			cells:  cells,
+			tabs:   tabs,
 
 			cursor: Cursor::new(config.clone(), width, height),
 			saved:  None,
@@ -578,8 +600,8 @@ impl Terminal {
 						let row = term!(self; row for 0);
 
 						for row in row .. self.area.height as usize {
-							self.rows[row].pop_back();
-							self.rows[row].push_front(Cell::empty(term!(self; style)));
+							self.cells[row].pop_back();
+							self.cells[row].push_front(Cell::empty(term!(self; style)));
 						}
 
 						for y in 0 .. self.area.height {
@@ -596,8 +618,8 @@ impl Terminal {
 						let row = term!(self; row for 0);
 
 						for row in row .. self.area.height as usize {
-							self.rows[row].pop_front();
-							self.rows[row].push_back(Cell::empty(term!(self; style)));
+							self.cells[row].pop_front();
+							self.cells[row].push_back(Cell::empty(term!(self; style)));
 						}
 
 						for y in 0 .. self.area.height {
@@ -706,14 +728,13 @@ impl Terminal {
 				}
 
 				Control::C1(C1::ControlSequence(CSI::DeleteCharacter(n))) => {
-					let y   = self.cursor.y();
-					let x   = self.cursor.x();
-					let n   = cmp::max(0, cmp::min(self.area.width - x, n));
-					let row = term!(self; row for y);
-					let row = &mut self.rows[row as usize];
+					let (x, y) = term!(self; cursor);
+					let n      = cmp::max(0, cmp::min(self.area.width - x, n));
+					let row    = term!(self; row for y);
+					let cells  = &mut self.cells[row as usize];
 
-					row.drain(x as usize .. x as usize + n as usize);
-					row.append(&mut vec_deque![Cell::empty(term!(self; style)); n as usize]);
+					cells.drain(x as usize .. x as usize + n as usize);
+					cells.append(&mut vec_deque![Cell::empty(term!(self; style)); n as usize]);
 
 					for x in x .. self.area.width {
 						term!(self; touched (x, y));
@@ -734,32 +755,38 @@ impl Terminal {
 				}
 
 				Control::C1(C1::ControlSequence(CSI::InsertCharacter(n))) => {
-					let y   = self.cursor.y();
-					let x   = self.cursor.x();
-					let n   = cmp::max(0, cmp::min(self.area.width, n));
-					let row = term!(self; row for y);
-					let row = &mut self.rows[row as usize];
+					let (x, y) = term!(self; cursor);
+					let n      = cmp::max(0, cmp::min(self.area.width, n));
+					let row    = term!(self; row for y);
+					let cells  = &mut self.cells[row as usize];
 
 					for _ in x .. x + n {
-						row.insert(x as usize, Cell::empty(term!(self; style)));
+						cells.insert(x as usize, Cell::empty(term!(self; style)));
 					}
 
-					row.drain(self.area.width as usize ..);
+					cells.drain(self.area.width as usize ..);
 
 					for x in x .. self.area.width {
 						term!(self; touched (x, y));
 					}
 				}
 
-				Control::C0(C0::HorizontalTabulation) |
-				Control::C1(C1::HorizontalTabulationSet) => {
-					let x   = self.cursor.x();
-					let y   = self.cursor.y();
+				Control::C0(C0::HorizontalTabulation) => {
+					term!(self; tab 1);
+				}
 
-					for x in x .. x + (8 - (x % 8)) {
-						term!(self; mut cell (x, y)).into_empty(self.cursor.style.clone());
-						term!(self; cursor Right(1));
-					}
+				Control::C1(C1::HorizontalTabulationSet) => {
+					let (x, _) = term!(self; cursor);
+					self.tabs.set(x as usize, true);
+				}
+				
+				Control::C1(C1::ControlSequence(CSI::TabulationClear(CSI::Tabulation::AllCharacters))) => {
+					self.tabs.clear();
+				}
+
+				Control::C1(C1::ControlSequence(CSI::TabulationClear(CSI::Tabulation::Character))) => {
+					let (x, _) = term!(self; cursor);
+					self.tabs.set(x as usize, false);
 				}
 
 				Control::None(string) => {
