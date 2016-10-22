@@ -847,9 +847,6 @@ impl Terminal {
 						}
 
 						// Change the cells appropriately.
-						//
-						// TODO: make the logic here a little cleaner, there's a bunch of
-						//       code repetition.
 						{
 							let (x, y) = term!(self; cursor);
 
