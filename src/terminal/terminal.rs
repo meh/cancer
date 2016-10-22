@@ -27,6 +27,7 @@ use unicode_segmentation::UnicodeSegmentation;
 use unicode_width::UnicodeWidthStr;
 use picto::Area;
 use picto::color::Rgba;
+use control::{self, Control, C0, C1, DEC, CSI, SGR};
 use error;
 use config::{self, Config};
 use config::style::Shape;
@@ -34,7 +35,7 @@ use style::{self, Style};
 use terminal::{Iter, Touched, Cell, Key, Action, cell};
 use terminal::mode::{self, Mode};
 use terminal::cursor::{self, Cursor};
-use control::{self, Control, C0, C1, DEC, CSI, SGR};
+use terminal::touched;
 
 #[derive(Debug)]
 pub struct Terminal {
@@ -252,14 +253,13 @@ impl Terminal {
 	}
 
 	/// Resize the terminal.
-	pub fn resize(&mut self, width: u32, height: u32) -> impl Iterator<Item = (u32, u32)> {
+	pub fn resize(&mut self, width: u32, height: u32) -> touched::Iter {
 		self.cursor.resize(width, height);
-
-		iter::empty()
+		self.touched.iter(self.area)
 	}
 
 	/// Enable or disable blinking and return the affected cells.
-	pub fn blinking(&mut self, value: bool) -> impl Iterator<Item = (u32, u32)> {
+	pub fn blinking(&mut self, value: bool) -> touched::Iter {
 		if value {
 			self.mode.insert(mode::BLINK);
 		}
@@ -279,16 +279,16 @@ impl Terminal {
 	}
 
 	/// Handle a key.
-	pub fn key<O: Write>(&mut self, key: Key, output: O) -> error::Result<impl Iterator<Item = (u32, u32)>> {
+	pub fn key<O: Write>(&mut self, key: Key, output: O) -> error::Result<touched::Iter> {
 		if !self.mode.contains(mode::KEYBOARD_LOCK) {
 			try!(key.write(self.mode, output));
 		}
 
-		Ok(iter::empty())
+		Ok(self.touched.iter(self.area))
 	}
 
 	/// Handle output from the tty.
-	pub fn handle<I: AsRef<[u8]>, O: Write>(&mut self, input: I, mut output: O) -> error::Result<(impl Iterator<Item = Action>, impl Iterator<Item = (u32, u32)>)> {
+	pub fn handle<I: AsRef<[u8]>, O: Write>(&mut self, input: I, mut output: O) -> error::Result<(impl Iterator<Item = Action>, touched::Iter)> {
 		// Juggle the incomplete buffer cache and the real input.
 		let     input  = input.as_ref();
 		let mut buffer = self.cache.take();

@@ -102,6 +102,10 @@ impl Iter {
 			position: if position.is_empty() { None } else { Some(position) },
 		}
 	}
+
+	pub fn all(&self) -> bool {
+		self.all
+	}
 }
 
 impl Iterator for Iter {
