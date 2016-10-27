@@ -164,7 +164,7 @@ macro_rules! term {
 	);
 
 	($term:ident; tab $n:expr) => ({
-		let n          = $n;
+		let n: i32     = $n;
 		let (mut x, _) = term!($term; cursor);
 
 		if n > 0 {
@@ -785,6 +785,14 @@ impl Terminal {
 
 				Control::C0(C0::HorizontalTabulation) => {
 					term!(self; tab 1);
+				}
+
+				Control::C1(C1::ControlSequence(CSI::CursorForwardTabulation(n))) => {
+					term!(self; tab n as i32);
+				}
+
+				Control::C1(C1::ControlSequence(CSI::CursorBackTabulation(n))) => {
+					term!(self; tab -(n as i32));
 				}
 
 				Control::C1(C1::HorizontalTabulationSet) => {
