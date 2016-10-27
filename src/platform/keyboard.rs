@@ -22,7 +22,7 @@ use xcbu::ewmh;
 use xkbcommon::xkb::{self, keysyms};
 
 use error;
-use terminal::key::{self, Key, Button, Modifier};
+use terminal::key::{self, Key, Button, Keypad, Modifier};
 
 pub struct Keyboard {
 	connection: Arc<ewmh::Connection>,
@@ -148,24 +148,134 @@ impl Keyboard {
 				modifier
 			});
 
-		Some(Key::new(match self.symbol(code) {
-			keysyms::KEY_Return =>
-				Button::Enter,
+		let symbol = self.symbol(code);
 
+		Some(Key::new(match symbol {
 			keysyms::KEY_Escape =>
-				Button::Escape,
+				Button::Escape.into(),
+
+			keysyms::KEY_Return =>
+				Button::Enter.into(),
+
+			keysyms::KEY_BackSpace =>
+				Button::Backspace.into(),
+
+			keysyms::KEY_Delete =>
+				Button::Delete.into(),
+
+			keysyms::KEY_Insert =>
+				Button::Insert.into(),
+
+			keysyms::KEY_Home =>
+				Button::Home.into(),
+
+			keysyms::KEY_End =>
+				Button::End.into(),
+
+			keysyms::KEY_Prior =>
+				Button::Previous.into(),
+
+			keysyms::KEY_Next =>
+				Button::Next.into(),
 
 			keysyms::KEY_Up =>
-				Button::Up,
+				Button::Up.into(),
 
 			keysyms::KEY_Down =>
-				Button::Down,
+				Button::Down.into(),
 
 			keysyms::KEY_Right =>
-				Button::Right,
+				Button::Right.into(),
 
 			keysyms::KEY_Left =>
-				Button::Left,
+				Button::Left.into(),
+
+			keysyms::KEY_F1  => Button::F1.into(),
+			keysyms::KEY_F2  => Button::F2.into(),
+			keysyms::KEY_F3  => Button::F3.into(),
+			keysyms::KEY_F4  => Button::F4.into(),
+			keysyms::KEY_F5  => Button::F5.into(),
+			keysyms::KEY_F6  => Button::F6.into(),
+			keysyms::KEY_F7  => Button::F7.into(),
+			keysyms::KEY_F8  => Button::F8.into(),
+			keysyms::KEY_F9  => Button::F9.into(),
+			keysyms::KEY_F10 => Button::F10.into(),
+			keysyms::KEY_F11 => Button::F11.into(),
+			keysyms::KEY_F12 => Button::F12.into(),
+			keysyms::KEY_F13 => Button::F13.into(),
+			keysyms::KEY_F14 => Button::F14.into(),
+			keysyms::KEY_F15 => Button::F15.into(),
+			keysyms::KEY_F16 => Button::F16.into(),
+			keysyms::KEY_F17 => Button::F17.into(),
+			keysyms::KEY_F18 => Button::F18.into(),
+			keysyms::KEY_F19 => Button::F19.into(),
+			keysyms::KEY_F20 => Button::F20.into(),
+			keysyms::KEY_F21 => Button::F21.into(),
+			keysyms::KEY_F22 => Button::F22.into(),
+			keysyms::KEY_F23 => Button::F23.into(),
+			keysyms::KEY_F24 => Button::F24.into(),
+			keysyms::KEY_F25 => Button::F25.into(),
+			keysyms::KEY_F26 => Button::F26.into(),
+			keysyms::KEY_F27 => Button::F27.into(),
+			keysyms::KEY_F28 => Button::F28.into(),
+			keysyms::KEY_F29 => Button::F29.into(),
+			keysyms::KEY_F30 => Button::F30.into(),
+			keysyms::KEY_F31 => Button::F31.into(),
+			keysyms::KEY_F32 => Button::F32.into(),
+			keysyms::KEY_F33 => Button::F33.into(),
+			keysyms::KEY_F34 => Button::F34.into(),
+			keysyms::KEY_F35 => Button::F35.into(),
+
+			keysyms::KEY_KP_Enter =>
+				Keypad::Enter.into(),
+
+			keysyms::KEY_KP_Home =>
+				Keypad::Home.into(),
+
+			keysyms::KEY_KP_Begin =>
+				Keypad::Begin.into(),
+
+			keysyms::KEY_KP_End =>
+				Keypad::End.into(),
+
+			keysyms::KEY_KP_Insert =>
+				Keypad::Insert.into(),
+
+			keysyms::KEY_KP_Multiply =>
+				Keypad::Multiply.into(),
+
+			keysyms::KEY_KP_Add =>
+				Keypad::Add.into(),
+
+			keysyms::KEY_KP_Subtract =>
+				Keypad::Subtract.into(),
+
+			keysyms::KEY_KP_Divide =>
+				Keypad::Divide.into(),
+
+			keysyms::KEY_KP_Decimal =>
+				Keypad::Decimal.into(),
+
+			keysyms::KEY_KP_Prior =>
+				Keypad::Previous.into(),
+
+			keysyms::KEY_KP_Next =>
+				Keypad::Next.into(),
+
+			keysyms::KEY_KP_Up =>
+				Keypad::Up.into(),
+
+			keysyms::KEY_KP_Down =>
+				Keypad::Down.into(),
+
+			keysyms::KEY_KP_Right =>
+				Keypad::Right.into(),
+
+			keysyms::KEY_KP_Left =>
+				Keypad::Left.into(),
+
+			keysyms::KEY_KP_0 ... keysyms::KEY_KP_9 =>
+				Keypad::Number((symbol - keysyms::KEY_KP_0) as u8).into(),
 
 			_ => {
 				let string = self.string(code);
@@ -174,8 +284,8 @@ impl Keyboard {
 					return None;
 				}
 
-				return Some(Key::new(self.string(code).into(), modifier));
+				string.into()
 			}
-		}.into(), modifier))
+		}, modifier))
 	}
 }
