@@ -47,6 +47,8 @@ cancer+base| terminal cancer base features,
 	il=\E[%p1%dL,
 	il1=\E[L,
 	hts=\EH,
+	smir=\E[4h,
+	smkx=\E[?1h\E=,
 
 #	Erase.
 	clear=\E[H\E[2J,
