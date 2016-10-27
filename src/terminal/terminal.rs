@@ -372,6 +372,8 @@ impl Terminal {
 				}
 
 				Control::C1(C1::ControlSequence(CSI::Set(modes))) => {
+					debug!(target: "cancer::terminal::mode::set", "set ECMA modes: {:?}", modes);
+
 					for mode in modes {
 						match mode {
 							CSI::Mode::KeyboardLock =>
@@ -393,6 +395,8 @@ impl Terminal {
 				}
 
 				Control::DEC(DEC::Set(modes)) => {
+					debug!(target: "cancer::terminal::mode::set", "set DEC modes: {:?}", modes);
+
 					for mode in modes {
 						match mode {
 							DEC::Mode::ApplicationCursor =>
@@ -421,6 +425,8 @@ impl Terminal {
 				}
 
 				Control::C1(C1::ControlSequence(CSI::Private(b'h', None, args))) => {
+					debug!(target: "cancer::terminal::mode::set", "set private modes: {:?}", args);
+
 					for arg in args.into_iter().flat_map(Option::into_iter) {
 						match arg {
 							1004 =>
@@ -436,6 +442,8 @@ impl Terminal {
 				}
 
 				Control::C1(C1::ControlSequence(CSI::Reset(modes))) => {
+					debug!(target: "cancer::terminal::mode::reset", "reset ECMA modes: {:?}", modes);
+
 					for mode in modes {
 						match mode {
 							CSI::Mode::KeyboardLock =>
@@ -457,6 +465,8 @@ impl Terminal {
 				}
 
 				Control::DEC(DEC::Reset(modes)) => {
+					debug!(target: "cancer::terminal::mode::reset", "reset DEC modes: {:?}", modes);
+
 					for mode in modes {
 						match mode {
 							DEC::Mode::ApplicationCursor =>
@@ -483,6 +493,8 @@ impl Terminal {
 				}
 
 				Control::C1(C1::ControlSequence(CSI::Private(b'l', None, args))) => {
+					debug!(target: "cancer::terminal::mode::reset", "reset private modes: {:?}", args);
+
 					for arg in args.into_iter().flat_map(Option::into_iter) {
 						match arg {
 							1004 =>
