@@ -42,7 +42,7 @@ pub struct Window {
 
 impl Window {
 	/// Create the window.
-	pub fn open(config: Arc<Config>, font: Arc<Font>) -> error::Result<Self> {
+	pub fn open(name: Option<&str>, config: &Config, font: &Font) -> error::Result<Self> {
 		let margin  = config.style().margin();
 		let spacing = config.style().spacing();
 
@@ -71,8 +71,8 @@ impl Window {
 						xcb::EVENT_MASK_EXPOSURE)]);
 
 			icccm::set_wm_class(&connection, window, "cancer", "Terminal");
-			icccm::set_wm_name(&connection, window, "cancer");
-			ewmh::set_wm_name(&connection, window, "cancer");
+			icccm::set_wm_name(&connection, window, name.unwrap_or("cancer"));
+			ewmh::set_wm_name(&connection, window, name.unwrap_or("cancer"));
 
 			icccm::set_wm_size_hints(&connection, window, xcb::ATOM_WM_NORMAL_HINTS, &icccm::SizeHints::empty()
 				.base((margin * 2) as i32, (margin * 2) as i32)

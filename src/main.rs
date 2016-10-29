@@ -105,7 +105,12 @@ fn main() {
 				.short("f")
 				.long("font")
 				.takes_value(true)
-				.help("Font to use with the terminal.")))
+				.help("Font to use with the terminal."))
+			.arg(Arg::with_name("name")
+				.short("n")
+				.long("name")
+				.takes_value(true)
+				.help("Name for the window.")))
 		.get_matches();
 
 	match matches.subcommand() {
@@ -123,7 +128,7 @@ fn open(matches: &ArgMatches) -> error::Result<()> {
 	let     config   = Arc::new(Config::load(matches.value_of("config"))?);
 	let     font     = Arc::new(Font::load(matches.value_of("font").unwrap_or(config.style().font()))?);
 	let     timer    = Timer::spawn(config.clone());
-	let mut window   = Window::open(config.clone(), font.clone())?;
+	let mut window   = Window::open(matches.value_of("name"), &config, &font)?;
 	let mut keyboard = window.keyboard()?;
 	let mut render   = Renderer::new(config.clone(), font.clone(), &window, window.width(), window.height());
 	let mut terminal = Terminal::open(config.clone(), render.columns(), render.rows())?;
