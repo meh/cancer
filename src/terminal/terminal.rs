@@ -96,13 +96,13 @@ macro_rules! term {
 		let y      = $y;
 		let n      = clamp($n, 0, $term.cursor.scroll.1 - y + 1);
 		let row    = term!($term; row for y);
-		let offset = $term.cells.len() - ($term.cursor.scroll.1 + 1) as usize;
+		let offset = $term.area.height - ($term.cursor.scroll.1 + 1);
 
 		// Remove the lines.
 		$term.cells.drain(row .. row + n as usize);
 
 		// Fill missing lines.
-		let index = row + $term.cells.len() - offset;
+		let index = $term.cells.len() - offset as usize;
 		for i in 0 .. n {
 			$term.cells.insert(index + i as usize, term!($term; row));
 		}
