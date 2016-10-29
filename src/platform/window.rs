@@ -70,7 +70,7 @@ impl Window {
 						xcb::EVENT_MASK_FOCUS_CHANGE |
 						xcb::EVENT_MASK_EXPOSURE)]);
 
-			icccm::set_wm_class(&connection, window, "cancer", "Terminal");
+			icccm::set_wm_class(&connection, window, name.unwrap_or("cancer"), "Terminal");
 			icccm::set_wm_name(&connection, window, name.unwrap_or("cancer"));
 			ewmh::set_wm_name(&connection, window, name.unwrap_or("cancer"));
 
