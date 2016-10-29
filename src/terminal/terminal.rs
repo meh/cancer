@@ -964,14 +964,33 @@ impl Terminal {
 					let mut style = **term!(self; style!);
 
 					for attr in &attrs {
-						match *attr {
-							SGR::Reset => {
-								if self.config.style().bold().is_bright() {
-									self.cursor.bright = None;
+						// Handle bold as bright.
+						if self.config.style().bold().is_bright() {
+							match *attr {
+								SGR::Reset | SGR::Foreground(_) => {
+									self.cursor.bright = None
 								}
 
-								style = Style::default();
+								SGR::Font(SGR::Weight::Normal) | SGR::Font(SGR::Weight::Faint) => {
+									if let Some(n) = self.cursor.bright {
+										style.foreground = Some(*self.config.color().get(n));
+									}
+								}
+
+								SGR::Font(SGR::Weight::Bold) => {
+									if let Some(n) = self.cursor.bright {
+										style.foreground = Some(*self.config.color().get(n + 8));
+									}
+								}
+
+								_ => ()
 							}
+						}
+
+						// Handle style changes.
+						match *attr {
+							SGR::Reset =>
+								style = Style::default(),
 
 							SGR::Italic(true) =>
 								style.attributes.insert(style::ITALIC),
@@ -1003,70 +1022,37 @@ impl Terminal {
 							SGR::Struck(false) =>
 								style.attributes.remove(style::STRUCK),
 
-							SGR::Font(SGR::Weight::Normal) => {
-								style.attributes.remove(style::BOLD | style::FAINT);
-
-								if self.config.style().bold().is_bright() {
-									if let Some(n) = self.cursor.bright {
-										style.foreground = Some(*self.config.color().get(n));
-									}
-								}
-							}
+							SGR::Font(SGR::Weight::Normal) =>
+								style.attributes.remove(style::BOLD | style::FAINT),
 
 							SGR::Font(SGR::Weight::Bold) => {
 								style.attributes.remove(style::FAINT);
 								style.attributes.insert(style::BOLD);
-
-								if self.config.style().bold().is_bright() {
-									if let Some(n) = self.cursor.bright {
-										style.foreground = Some(*self.config.color().get(n + 8));
-									}
-								}
 							}
 
 							SGR::Font(SGR::Weight::Faint) => {
 								style.attributes.remove(style::BOLD);
 								style.attributes.insert(style::FAINT);
-
-								if self.config.style().bold().is_bright() {
-									if let Some(n) = self.cursor.bright {
-										style.foreground = Some(*self.config.color().get(n));
-									}
-								}
 							}
 
-							SGR::Foreground(SGR::Color::Default) => {
-								if self.config.style().bold().is_bright() {
-									self.cursor.bright = None;
-								}
-
-								style.foreground = Some(*self.config.style().color().foreground());
-							}
+							SGR::Foreground(SGR::Color::Default) =>
+								style.foreground = Some(*self.config.style().color().foreground()),
 
 							SGR::Foreground(SGR::Color::Index(mut n)) => {
-								if self.config.style().bold().is_bright() {
-									if n < 8 {
-										self.cursor.bright = Some(n);
+								// Change to bright if it's enabled and bold.
+								if self.config.style().bold().is_bright() && n < 8 {
+									self.cursor.bright = Some(n);
 
-										if style.attributes.contains(style::BOLD) {
-											n = n + 8;
-										}
-									}
-									else {
-										self.cursor.bright = None;
+									if style.attributes.contains(style::BOLD) {
+										n = n + 8;
 									}
 								}
 
 								style.foreground = Some(*self.config.color().get(n));
 							}
 
-							SGR::Foreground(ref color) => {
-								if self.config.style().bold().is_bright() {
-									self.cursor.bright = None;
-								}
-
-								style.foreground = Some(to_rgba(color));
-							}
+							SGR::Foreground(ref color) =>
+								style.foreground = Some(to_rgba(color)),
 
 							SGR::Background(SGR::Color::Default) =>
 								style.background = Some(*self.config.style().color().background()),
