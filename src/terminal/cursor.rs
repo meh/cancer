@@ -34,9 +34,10 @@ pub struct Cursor {
 	width:  u32,
 	height: u32,
 
+	pub(super) state:  State,
 	pub(super) scroll: (u32, u32),
-	pub(super) style: Rc<Style>,
-	pub(super) state: State,
+	pub(super) style:  Rc<Style>,
+	pub(super) bright: Option<u8>,
 
 	pub(super) charsets: [DEC::Charset; 4],
 	pub(super) charset:  u8,
@@ -87,9 +88,10 @@ impl Cursor {
 			width:  width,
 			height: height,
 
+			state:  state,
 			scroll: (0, height - 1),
 			style:  Default::default(),
-			state:  state,
+			bright: None,
 
 			charsets: [DEC::charset::ISO::Latin2.into(); 4],
 			charset:  0,

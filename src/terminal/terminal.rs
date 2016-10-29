@@ -799,7 +799,7 @@ impl Terminal {
 					let (x, _) = term!(self; cursor);
 					self.tabs.set(x as usize, true);
 				}
-				
+
 				Control::C1(C1::ControlSequence(CSI::TabulationClear(CSI::Tabulation::AllCharacters))) => {
 					self.tabs.clear();
 				}
@@ -919,24 +919,53 @@ impl Terminal {
 
 				// Style functions.
 				Control::C1(C1::ControlSequence(CSI::SelectGraphicalRendition(attrs))) => {
+					fn to_rgba(color: &SGR::Color) -> Rgba<f64> {
+						match *color {
+							SGR::Color::Transparent =>
+								Rgba::new(0.0, 0.0, 0.0, 0.0),
+
+							SGR::Color::Rgb(r, g, b) =>
+								Rgba::new_u8(r, g, b, 255),
+
+							SGR::Color::Cmy(c, m, y) => {
+								let c = c as f64 / 255.0;
+								let m = m as f64 / 255.0;
+								let y = y as f64 / 255.0;
+
+								Rgba::new(
+									1.0 - c,
+									1.0 - m,
+									1.0 - y,
+									1.0)
+							}
+
+							SGR::Color::Cmyk(c, m, y, k) => {
+								let c = c as f64 / 255.0;
+								let m = m as f64 / 255.0;
+								let y = y as f64 / 255.0;
+								let k = k as f64 / 255.0;
+
+								Rgba::new(
+									1.0 - (c * (1.0 - k) + k),
+									1.0 - (m * (1.0 - k) + k),
+									1.0 - (y * (1.0 - k) + k),
+									1.0)
+							}
+
+							_ => unreachable!()
+						}
+					}
+
 					let mut style = **term!(self; style!);
 
 					for attr in &attrs {
 						match *attr {
-							SGR::Reset =>
-								style = Style::default(),
+							SGR::Reset => {
+								if self.config.style().bold().is_bright() {
+									self.cursor.bright = None;
+								}
 
-							SGR::Font(SGR::Weight::Normal) =>
-								style.attributes.remove(style::BOLD | style::FAINT),
-
-							SGR::Font(SGR::Weight::Bold) => {
-								style.attributes.remove(style::FAINT);
-								style.attributes.insert(style::BOLD);
-							}
-
-							SGR::Font(SGR::Weight::Faint) => {
-								style.attributes.remove(style::BOLD);
-								style.attributes.insert(style::FAINT);
+								style = Style::default();
 							}
 
 							SGR::Italic(true) =>
@@ -969,11 +998,79 @@ impl Terminal {
 							SGR::Struck(false) =>
 								style.attributes.remove(style::STRUCK),
 
-							SGR::Foreground(ref color) =>
-								style.foreground = Some(to_rgba(color, &self.config, true)),
+							SGR::Font(SGR::Weight::Normal) => {
+								style.attributes.remove(style::BOLD | style::FAINT);
+
+								if self.config.style().bold().is_bright() {
+									if let Some(n) = self.cursor.bright {
+										style.foreground = Some(*self.config.color().get(n));
+									}
+								}
+							}
+
+							SGR::Font(SGR::Weight::Bold) => {
+								style.attributes.remove(style::FAINT);
+								style.attributes.insert(style::BOLD);
+
+								if self.config.style().bold().is_bright() {
+									if let Some(n) = self.cursor.bright {
+										style.foreground = Some(*self.config.color().get(n + 8));
+									}
+								}
+							}
+
+							SGR::Font(SGR::Weight::Faint) => {
+								style.attributes.remove(style::BOLD);
+								style.attributes.insert(style::FAINT);
+
+								if self.config.style().bold().is_bright() {
+									if let Some(n) = self.cursor.bright {
+										style.foreground = Some(*self.config.color().get(n));
+									}
+								}
+							}
+
+							SGR::Foreground(SGR::Color::Default) => {
+								if self.config.style().bold().is_bright() {
+									self.cursor.bright = None;
+								}
+
+								style.foreground = Some(*self.config.style().color().foreground());
+							}
+
+							SGR::Foreground(SGR::Color::Index(mut n)) => {
+								if self.config.style().bold().is_bright() {
+									if n < 8 {
+										self.cursor.bright = Some(n);
+
+										if style.attributes.contains(style::BOLD) {
+											n = n + 8;
+										}
+									}
+									else {
+										self.cursor.bright = None;
+									}
+								}
+
+								style.foreground = Some(*self.config.color().get(n));
+							}
+
+							SGR::Foreground(ref color) => {
+								if self.config.style().bold().is_bright() {
+									self.cursor.bright = None;
+								}
+
+								style.foreground = Some(to_rgba(color));
+							}
+
+							SGR::Background(SGR::Color::Default) =>
+								style.background = Some(*self.config.style().color().background()),
+
+							SGR::Background(SGR::Color::Index(n)) =>
+								style.background = Some(*self.config.color().get(n)),
 
 							SGR::Background(ref color) =>
-								style.background = Some(to_rgba(color, &self.config, false)),
+								style.background = Some(to_rgba(color)),
 						}
 					}
 
@@ -1062,48 +1159,5 @@ impl Terminal {
 		}
 
 		Ok((actions.into_iter(), self.touched.iter(self.area)))
-	}
-}
-
-fn to_rgba(color: &SGR::Color, config: &Config, foreground: bool) -> Rgba<f64> {
-	match *color {
-		SGR::Color::Default => {
-			if foreground {
-				*config.style().color().foreground()
-			}
-			else {
-				*config.style().color().background()
-			}
-		}
-
-		SGR::Color::Transparent =>
-			Rgba::new(0.0, 0.0, 0.0, 0.0),
-
-		SGR::Color::Index(index) =>
-			*config.color().get(index),
-
-		SGR::Color::Rgb(r, g, b) =>
-			Rgba::new_u8(r, g, b, 255),
-
-		SGR::Color::Cmy(c, m, y) => {
-			let c = c as f64 / 255.0;
-			let m = m as f64 / 255.0;
-			let y = y as f64 / 255.0;
-
-			Rgba::new(1.0 - c, 1.0 - m, 1.0 - y, 1.0)
-		}
-
-		SGR::Color::Cmyk(c, m, y, k) => {
-			let c = c as f64 / 255.0;
-			let m = m as f64 / 255.0;
-			let y = y as f64 / 255.0;
-			let k = k as f64 / 255.0;
-
-			Rgba::new(
-				1.0 - (c * (1.0 - k) + k),
-				1.0 - (m * (1.0 - k) + k),
-				1.0 - (y * (1.0 - k) + k),
-				1.0)
-		}
 	}
 }

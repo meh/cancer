@@ -23,12 +23,47 @@ use super::to_color;
 pub struct Style {
 	font:  Option<String>,
 	blink: u64,
+	bold:  Bold,
 
 	margin:  u8,
 	spacing: u8,
 
 	color:  Color,
 	cursor: Cursor,
+}
+
+impl Default for Style {
+	fn default() -> Self {
+		Style {
+			font:  None,
+			blink: 500,
+			bold:  Bold::default(),
+
+			margin:  0,
+			spacing: 0,
+
+			color:  Default::default(),
+			cursor: Default::default(),
+		}
+	}
+}
+
+#[derive(Eq, PartialEq, Copy, Clone, Debug)]
+pub enum Bold {
+	Normal,
+	Bright,
+}
+
+impl Default for Bold {
+	fn default() -> Self {
+		Bold::Normal
+	}
+}
+
+impl Bold {
+	pub fn is_bright(&self) -> bool {
+		*self == Bold::Bright
+	}
 }
 
 #[derive(PartialEq, Clone, Debug)]
@@ -38,6 +73,17 @@ pub struct Color {
 
 	underline:     Option<Rgba<f64>>,
 	strikethrough: Option<Rgba<f64>>,
+}
+
+impl Default for Color {
+	fn default() -> Self {
+		Color {
+			foreground:    to_color("#c0c0c0").unwrap(),
+			background:    to_color("#000").unwrap(),
+			underline:     None,
+			strikethrough: None,
+		}
+	}
 }
 
 #[derive(Eq, PartialEq, Copy, Clone, Debug)]
@@ -62,32 +108,6 @@ pub struct Cursor {
 	background: Rgba<f64>,
 }
 
-impl Default for Style {
-	fn default() -> Self {
-		Style {
-			font:  None,
-			blink: 500,
-
-			margin:  0,
-			spacing: 0,
-
-			color:  Default::default(),
-			cursor: Default::default(),
-		}
-	}
-}
-
-impl Default for Color {
-	fn default() -> Self {
-		Color {
-			foreground:    to_color("#c0c0c0").unwrap(),
-			background:    to_color("#000").unwrap(),
-			underline:     None,
-			strikethrough: None,
-		}
-	}
-}
-
 impl Default for Cursor {
 	fn default() -> Self {
 		Cursor {
@@ -106,12 +126,16 @@ impl Style {
 			self.font = Some(value.into());
 		}
 
-		if let Some(value) = table.get("margin").and_then(|v| v.as_integer()) {
-			self.margin = value as u8;
-		}
+		if let Some(value) = table.get("bold").and_then(|v| v.as_str()) {
+			match &*value.to_lowercase() {
+				"bright" =>
+					self.bold = Bold::Bright,
 
-		if let Some(value) = table.get("spacing").and_then(|v| v.as_integer()) {
-			self.spacing = value as u8;
+				"normal" =>
+					self.bold = Bold::Normal,
+
+				_ => ()
+			}
 		}
 
 		if let Some(value) = table.get("blink") {
@@ -124,6 +148,14 @@ impl Style {
 
 				_ => ()
 			}
+		}
+
+		if let Some(value) = table.get("margin").and_then(|v| v.as_integer()) {
+			self.margin = value as u8;
+		}
+
+		if let Some(value) = table.get("spacing").and_then(|v| v.as_integer()) {
+			self.spacing = value as u8;
 		}
 
 		if let Some(table) = table.get("color").and_then(|v| v.as_table()) {
@@ -178,16 +210,20 @@ impl Style {
 		self.font.as_ref().map(AsRef::as_ref).unwrap_or("monospace")
 	}
 
+	pub fn blink(&self) -> u64 {
+		self.blink
+	}
+
+	pub fn bold(&self) -> Bold {
+		self.bold
+	}
+
 	pub fn margin(&self) -> u32 {
 		self.margin as u32
 	}
 
 	pub fn spacing(&self) -> u32 {
 		self.spacing as u32
-	}
-
-	pub fn blink(&self) -> u64 {
-		self.blink
 	}
 
 	pub fn color(&self) -> &Color {

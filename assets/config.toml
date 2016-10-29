@@ -7,6 +7,7 @@ scroll  = 2048
 [style]
 font  = "monospace 11px"
 blink = 500
+bold  = "bright"
 
 margin  = 2
 spacing = 0
