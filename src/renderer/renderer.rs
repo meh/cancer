@@ -223,8 +223,8 @@ impl Renderer {
 
 		let w = f.width() * cell.width();
 		let h = f.height() + c.style().spacing();
-		let x = c.style().margin() + (cell.x() * f.width());
-		let y = c.style().margin() + (cell.y() * h);
+		let x = self.margin.horizontal + (cell.x() * f.width());
+		let y = self.margin.vertical + (cell.y() * h);
 
 		o.save();
 		{
