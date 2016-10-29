@@ -168,13 +168,21 @@ macro_rules! term {
 		let (mut x, _) = term!($term; cursor);
 
 		if n > 0 {
-			while x < $term.area.width && !$term.tabs.get(x as usize).unwrap_or(false) {
+			while x < $term.area.width {
 				x += 1;
+
+				if $term.tabs.get(x as usize).unwrap_or(false) {
+					break;
+				}
 			}
 		}
 		else {
-			while x != 0 && !$term.tabs.get(x as usize).unwrap_or(false) {
+			while x != 0 {
 				x -= 1;
+
+				if $term.tabs.get(x as usize).unwrap_or(false) {
+					break;
+				}
 			}
 		}
 
