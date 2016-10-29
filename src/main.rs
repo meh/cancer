@@ -100,7 +100,12 @@ fn main() {
 				.short("e")
 				.long("execute")
 				.takes_value(true)
-				.help("Program to execute.")))
+				.help("Program to execute."))
+			.arg(Arg::with_name("font")
+				.short("f")
+				.long("font")
+				.takes_value(true)
+				.help("Font to use with the terminal.")))
 		.get_matches();
 
 	match matches.subcommand() {
@@ -116,7 +121,7 @@ fn open(matches: &ArgMatches) -> error::Result<()> {
 	use std::io::Write;
 
 	let     config   = Arc::new(Config::load(matches.value_of("config"))?);
-	let     font     = Arc::new(Font::load(config.clone())?);
+	let     font     = Arc::new(Font::load(matches.value_of("font").unwrap_or(config.style().font()))?);
 	let     timer    = Timer::spawn(config.clone());
 	let mut window   = Window::open(config.clone(), font.clone())?;
 	let mut keyboard = window.keyboard()?;

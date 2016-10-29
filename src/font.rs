@@ -15,7 +15,6 @@
 // You should have received a copy of the GNU General Public License
 // along with cancer.  If not, see <http://www.gnu.org/licenses/>.
 
-use std::sync::Arc;
 use std::ops::Deref;
 use std::ptr;
 
@@ -23,7 +22,6 @@ use libc::c_int;
 use ffi::pango::*;
 use sys::glib;
 use sys::pango;
-use config::Config;
 use style;
 use error::{self, Error};
 
@@ -38,10 +36,10 @@ pub struct Font {
 
 impl Font {
 	/// Load the font from the given configuration.
-	pub fn load(config: Arc<Config>) -> error::Result<Self> {
+	pub fn load<T: AsRef<str>>(name: T) -> error::Result<Self> {
 		let map     = pango::Map::new();
 		let context = pango::Context::new(&map);
-		let set     = context.fonts(&pango::Description::from(config.style().font()))
+		let set     = context.fonts(&pango::Description::from(name))
 			.ok_or(Error::Message("missing font".into()))?;
 
 		let metrics = set.metrics();
