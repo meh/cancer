@@ -359,6 +359,11 @@ impl Terminal {
 					try!(output.write_all(b"\033[?64;6;21c"));
 				}
 
+				Control::C1(C1::ControlSequence(CSI::DeviceStatusReport(CSI::Report::CursorPosition))) => {
+					try!(control::format_to(output.by_ref(),
+						&CSI::CursorPositionReport { x: self.cursor.x(), y: self.cursor.y() }, true));
+				}
+
 				Control::DEC(DEC::ScrollRegion { top, bottom }) => {
 					let mut top    = top;
 					let mut bottom = bottom.unwrap_or(self.area.height - 1);
