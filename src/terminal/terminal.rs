@@ -979,10 +979,17 @@ impl Terminal {
 
 					let mut style = **term!(self; style!);
 
-					for attr in &attrs {
-						// Handle bold as bright.
+					for mut attr in attrs {
 						if self.config.style().bold().is_bright() {
-							match *attr {
+							match attr {
+								SGR::Foreground(SGR::Color::Index(ref mut n)) if *n < 8 => {
+									self.cursor.bright = Some(*n);
+
+									if style.attributes.contains(style::BOLD) {
+										*n += 8;
+									}
+								}
+
 								SGR::Reset | SGR::Foreground(_) => {
 									self.cursor.bright = None
 								}
@@ -1003,8 +1010,7 @@ impl Terminal {
 							}
 						}
 
-						// Handle style changes.
-						match *attr {
+						match attr {
 							SGR::Reset =>
 								style = Style::default(),
 
@@ -1054,18 +1060,8 @@ impl Terminal {
 							SGR::Foreground(SGR::Color::Default) =>
 								style.foreground = Some(*self.config.style().color().foreground()),
 
-							SGR::Foreground(SGR::Color::Index(mut n)) => {
-								// Change to bright if it's enabled and bold.
-								if self.config.style().bold().is_bright() && n < 8 {
-									self.cursor.bright = Some(n);
-
-									if style.attributes.contains(style::BOLD) {
-										n = n + 8;
-									}
-								}
-
-								style.foreground = Some(*self.config.color().get(n));
-							}
+							SGR::Foreground(SGR::Color::Index(n)) =>
+								style.foreground = Some(*self.config.color().get(n)),
 
 							SGR::Foreground(ref color) =>
 								style.foreground = Some(to_rgba(color)),
