@@ -437,7 +437,7 @@ impl Terminal {
 								self.mode.insert(mode::WRAP),
 
 							DEC::Mode::CursorVisible =>
-								self.cursor.state.remove(cursor::VISIBLE),
+								self.cursor.state.insert(cursor::VISIBLE),
 
 							mode =>
 								debug!(target: "cancer::terminal::unhandled", "unhandled set: {:?}", mode)
@@ -505,7 +505,7 @@ impl Terminal {
 								self.mode.remove(mode::WRAP),
 
 							DEC::Mode::CursorVisible =>
-								self.cursor.state.insert(cursor::VISIBLE),
+								self.cursor.state.remove(cursor::VISIBLE),
 
 							mode =>
 								debug!(target: "cancer::terminal::unhandled", "unhandled reset: {:?}", mode)
@@ -1132,15 +1132,18 @@ impl Terminal {
 					let mut parts = cmd.split(':').skip(1);
 
 					match parts.next() {
-						Some("show") => {
-							self.cursor.state.insert(cursor::VISIBLE);
+						Some("fg") => {
+							let     desc  = parts.next().unwrap_or("-");
+							let mut color = *self.config.style().cursor().foreground();
+
+							if let Some(c) = config::to_color(desc) {
+								color = c;
+							}
+
+							self.cursor.foreground = color;
 						}
 
-						Some("hide") => {
-							self.cursor.state.remove(cursor::VISIBLE);
-						}
-
-						Some("background") => {
+						Some("bg") => {
 							let     desc  = parts.next().unwrap_or("-");
 							let mut color = *self.config.style().cursor().background();
 
@@ -1151,7 +1154,7 @@ impl Terminal {
 							self.cursor.background = color;
 						}
 
-						Some(_) | None => ()
+						_ => ()
 					}
 				}
 
