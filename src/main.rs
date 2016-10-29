@@ -30,6 +30,7 @@ extern crate bit_vec;
 extern crate fnv;
 extern crate lru_cache as lru;
 extern crate shlex;
+extern crate schedule_recv as timer;
 #[macro_use]
 extern crate control_code as control;
 
@@ -60,9 +61,6 @@ use config::Config;
 
 mod font;
 use font::Font;
-
-mod timer;
-use timer::Timer;
 
 mod terminal;
 use terminal::{Terminal, Action};
@@ -127,7 +125,8 @@ fn open(matches: &ArgMatches) -> error::Result<()> {
 
 	let     config   = Arc::new(Config::load(matches.value_of("config"))?);
 	let     font     = Arc::new(Font::load(matches.value_of("font").unwrap_or(config.style().font()))?);
-	let     timer    = Timer::spawn(config.clone());
+	let     blink    = timer::periodic_ms(config.style().blink());
+	let mut blinking = true;
 	let mut window   = Window::open(matches.value_of("name"), &config, &font)?;
 	let mut keyboard = window.keyboard()?;
 	let mut render   = Renderer::new(config.clone(), font.clone(), &window, window.width(), window.height());
@@ -217,13 +216,9 @@ fn open(matches: &ArgMatches) -> error::Result<()> {
 
 	loop {
 		select! {
-			timer = timer.recv() => {
-				match timer.unwrap() {
-					// Handle blinking.
-					timer::Event::Blink(blinking) => {
-						render!(terminal.blinking(blinking));
-					}
-				}
+			_ = blink.recv() => {
+				blinking = !blinking;
+				render!(terminal.blinking(blinking));
 			},
 
 			event = events.recv() => {

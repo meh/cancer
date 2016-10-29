@@ -22,7 +22,7 @@ use super::to_color;
 #[derive(PartialEq, Clone, Debug)]
 pub struct Style {
 	font:  Option<String>,
-	blink: u64,
+	blink: u32,
 	bold:  Bold,
 
 	margin:  u8,
@@ -144,7 +144,7 @@ impl Style {
 					self.blink = 0,
 
 				&Value::Integer(value) =>
-					self.blink = value as u64,
+					self.blink = value as u32,
 
 				_ => ()
 			}
@@ -210,7 +210,7 @@ impl Style {
 		self.font.as_ref().map(AsRef::as_ref).unwrap_or("monospace")
 	}
 
-	pub fn blink(&self) -> u64 {
+	pub fn blink(&self) -> u32 {
 		self.blink
 	}
 
