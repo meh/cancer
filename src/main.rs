@@ -17,7 +17,7 @@
 
 #![feature(question_mark, mpsc_select, conservative_impl_trait, slice_patterns)]
 #![feature(static_in_const, trace_macros, type_ascription, inclusive_range_syntax)]
-#![feature(pub_restricted)]
+#![feature(pub_restricted, deque_extras)]
 #![recursion_limit="100"]
 
 #[macro_use]

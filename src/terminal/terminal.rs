@@ -277,6 +277,22 @@ impl Terminal {
 	/// Resize the terminal.
 	pub fn resize(&mut self, width: u32, height: u32) -> touched::Iter {
 		self.cursor.resize(width, height);
+
+		let length = self.cells.len();
+
+		if height as usize > length {
+			self.cells.append(&mut vec_deque![term!(self; row); height as usize - length]);
+		}
+
+		for row in &mut self.cells {
+			let style = row[(self.area.width - 1) as usize].style().clone();
+			row.resize(width as usize, Cell::empty(style.clone()));
+		}
+
+		self.area.width  = width;
+		self.area.height = height;
+
+		term!(self; touched all);
 		self.touched.iter(self.area)
 	}
 

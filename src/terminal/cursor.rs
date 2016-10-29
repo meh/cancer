@@ -103,8 +103,9 @@ impl Cursor {
 	}
 
 	pub fn resize(&mut self, width: u32, height: u32) {
-		self.width  = width;
-		self.height = height;
+		if self.scroll == (0, self.height - 1) {
+			self.scroll = (0, height - 1);
+		}
 
 		if self.x > width {
 			self.x = width - 1;
@@ -113,6 +114,9 @@ impl Cursor {
 		if self.y > height {
 			self.y = height - 1;
 		}
+
+		self.width  = width;
+		self.height = height;
 	}
 
 	pub fn position(&self) -> (u32, u32) {
