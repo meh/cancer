@@ -15,6 +15,8 @@
 // You should have received a copy of the GNU General Public License
 // along with cancer.  If not, see <http://www.gnu.org/licenses/>.
 
+use std::cmp;
+
 macro_rules! try {
 	(return $body:expr) => (
 		if let Ok(value) = $body {
@@ -54,4 +56,16 @@ macro_rules! vec_deque {
 		value.extend(::std::iter::repeat($value).take($size));
 		value
 	})
+}
+
+pub fn clamp<T: PartialOrd>(n: T, min: T, max: T) -> T {
+	if n > max {
+		max
+	}
+	else if n < min {
+		min
+	}
+	else {
+		n
+	}
 }

@@ -21,7 +21,6 @@ use std::io::Write;
 use std::collections::VecDeque;
 use std::iter;
 use std::mem;
-use std::cmp;
 
 use bit_vec::BitVec;
 use unicode_segmentation::UnicodeSegmentation;
@@ -30,6 +29,7 @@ use picto::Area;
 use picto::color::Rgba;
 use control::{self, Control, C0, C1, DEC, CSI, SGR};
 use error;
+use util::clamp;
 use config::{self, Config};
 use config::style::Shape;
 use style::{self, Style};
@@ -94,7 +94,7 @@ macro_rules! term {
 
 	($term:ident; scroll up $n:tt from $y:expr) => ({
 		let y      = $y;
-		let n      = cmp::max(0, cmp::min($term.cursor.scroll.1 - y + 1, $n));
+		let n      = clamp($n, 0, $term.cursor.scroll.1 - y + 1);
 		let row    = term!($term; row for y);
 		let offset = $term.cells.len() - ($term.cursor.scroll.1 + 1) as usize;
 
@@ -119,7 +119,7 @@ macro_rules! term {
 
 	($term:ident; scroll down $n:tt from $y:expr) => ({
 		let y   = $y;
-		let n   = cmp::max(0, cmp::min($term.cursor.scroll.1 - y + 1, $n));
+		let n   = clamp($n, 0, $term.cursor.scroll.1 - y + 1);
 		let row = term!($term; row for y);
 
 		// Split the cells at the current line.
@@ -762,7 +762,7 @@ impl Terminal {
 
 				Control::C1(C1::ControlSequence(CSI::DeleteCharacter(n))) => {
 					let (x, y) = term!(self; cursor);
-					let n      = cmp::max(0, cmp::min(self.area.width - x, n));
+					let n      = clamp(n, 0, self.area.width - x);
 					let row    = term!(self; row for y);
 					let cells  = &mut self.cells[row as usize];
 
@@ -789,7 +789,7 @@ impl Terminal {
 
 				Control::C1(C1::ControlSequence(CSI::InsertCharacter(n))) => {
 					let (x, y) = term!(self; cursor);
-					let n      = cmp::max(0, cmp::min(self.area.width, n));
+					let n      = clamp(n, 0, self.area.width);
 					let row    = term!(self; row for y);
 					let cells  = &mut self.cells[row as usize];
 

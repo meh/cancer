@@ -18,7 +18,6 @@
 use std::mem;
 use std::sync::Arc;
 use std::ops::{Deref, DerefMut};
-use std::cmp;
 
 use picto::Area;
 use config::Config;
@@ -26,6 +25,7 @@ use config::style::Shape;
 use sys::cairo;
 use font::Font;
 use style;
+use util::clamp;
 use terminal::{cell, cursor};
 use renderer::{Cache, Options};
 
@@ -144,8 +144,8 @@ impl Renderer {
 
 		let x = (x / width).floor() as u32;
 		let y = (y / height).floor() as u32;
-		let w = cmp::min(self.columns(), (w / width).ceil() as u32);
-		let h = cmp::min(self.rows(), (h / height).ceil() as u32);
+		let w = clamp((w / width).ceil() as u32, 0, self.columns());
+		let h = clamp((h / height).ceil() as u32, 0, self.rows());
 
 		// Increment width and height by one if it fits within dimensions.
 		//
