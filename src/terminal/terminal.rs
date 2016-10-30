@@ -21,6 +21,7 @@ use std::io::Write;
 use std::collections::VecDeque;
 use std::iter;
 use std::mem;
+use std::vec;
 
 use bit_vec::BitVec;
 use unicode_segmentation::UnicodeSegmentation;
@@ -290,6 +291,7 @@ impl Terminal {
 	/// Resize the terminal.
 	pub fn resize(&mut self, width: u32, height: u32) -> touched::Iter {
 		self.cursor.resize(width, height);
+		self.tabs.grow(width as usize, false);
 
 		let length = self.cells.len();
 
@@ -342,7 +344,7 @@ impl Terminal {
 	}
 
 	/// Handle output from the tty.
-	pub fn handle<I: AsRef<[u8]>, O: Write>(&mut self, input: I, mut output: O) -> error::Result<(impl Iterator<Item = Action>, touched::Iter)> {
+	pub fn handle<I: AsRef<[u8]>, O: Write>(&mut self, input: I, mut output: O) -> error::Result<(vec::IntoIter<Action>, touched::Iter)> {
 		// Juggle the incomplete buffer cache and the real input.
 		let     input  = input.as_ref();
 		let mut buffer = self.cache.take();
@@ -455,6 +457,9 @@ impl Terminal {
 							DEC::Mode::CursorVisible =>
 								self.cursor.state.insert(cursor::VISIBLE),
 
+							DEC::Mode::SmallFont =>
+								actions.push(Action::Resize(132, 24)),
+
 							mode =>
 								debug!(target: "cancer::terminal::unhandled", "unhandled set: {:?}", mode)
 						}
@@ -522,6 +527,9 @@ impl Terminal {
 
 							DEC::Mode::CursorVisible =>
 								self.cursor.state.remove(cursor::VISIBLE),
+
+							DEC::Mode::SmallFont =>
+								actions.push(Action::Resize(80, 24)),
 
 							mode =>
 								debug!(target: "cancer::terminal::unhandled", "unhandled reset: {:?}", mode)

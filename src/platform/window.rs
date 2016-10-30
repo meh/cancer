@@ -120,6 +120,13 @@ impl Window {
 		self.height
 	}
 
+	/// Resize the window.
+	pub fn resize(&mut self, width: u32, height: u32) {
+		xcb::configure_window(&self.connection, self.window, &[
+			(xcb::CONFIG_WINDOW_WIDTH as u16, width),
+			(xcb::CONFIG_WINDOW_HEIGHT as u16, height)]);
+	}
+
 	/// Handle a resize event.
 	pub fn resized(&mut self, width: u32, height: u32) {
 		self.width  = width;

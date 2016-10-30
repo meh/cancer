@@ -139,6 +139,19 @@ fn open(matches: &ArgMatches) -> error::Result<()> {
 	let events = window.events();
 
 	macro_rules! render {
+		(resize $width:expr, $height:expr) => ({
+			window.resized($width, $height);
+			render.resize($width, $height);
+
+			let rows    = render.rows();
+			let columns = render.columns();
+
+			if terminal.columns() != columns || terminal.rows() != rows {
+				render!(terminal.resize(columns, rows));
+				tty.resize(columns, rows).unwrap();
+			}
+		});
+
 		(options) => ({
 			let mut options = renderer::Options::empty();
 
@@ -274,16 +287,7 @@ fn open(matches: &ArgMatches) -> error::Result<()> {
 						let height = event.height() as u32;
 
 						if window.width() != width || window.height() != height {
-							window.resized(width, height);
-							render.resize(width, height);
-
-							let rows    = render.rows();
-							let columns = render.columns();
-
-							if terminal.columns() != columns || terminal.rows() != rows {
-								render!(terminal.resize(columns, rows));
-								tty.resize(columns, rows).unwrap();
-							}
+							render!(resize width, height);
 						}
 					}
 
@@ -309,16 +313,19 @@ fn open(matches: &ArgMatches) -> error::Result<()> {
 
 			input = input.recv() => {
 				let input = try!(break input);
+				let (actions, touched) = try!(continue terminal.handle(&input, tty.by_ref()));
+				render!(batched touched);
 
-				{
-					let (actions, touched) = try!(continue terminal.handle(&input, &mut tty));
-					render!(batched touched);
+				for action in actions {
+					match action {
+						Action::Title(string) => {
+							window.set_title(&string);
+						}
 
-					for action in actions {
-						match action {
-							Action::Title(string) => {
-								window.set_title(&string);
-							}
+						Action::Resize(columns, rows) => {
+							let (width, height) = Renderer::dimensions(columns, rows, &config, &font);
+							window.resize(width, height);
+							render!(resize width, height);
 						}
 					}
 				}

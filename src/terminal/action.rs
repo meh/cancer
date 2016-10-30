@@ -18,4 +18,5 @@
 #[derive(Eq, PartialEq, Clone, Debug)]
 pub enum Action {
 	Title(String),
+	Resize(u32, u32),
 }

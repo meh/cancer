@@ -50,6 +50,16 @@ pub struct Margin {
 }
 
 impl Renderer {
+	pub fn dimensions(columns: u32, rows: u32, config: &Config, font: &Font) -> (u32, u32) {
+		let margin  = config.style().margin();
+		let spacing = config.style().spacing();
+
+		let width  = (columns * font.width()) + (margin * 2);
+		let height = (rows * (font.height() + spacing)) + (margin * 2);
+
+		(width, height)
+	}
+
 	/// Create a new renderer for the given settings and surface.
 	pub fn new<S: AsRef<cairo::Surface>>(config: Arc<Config>, font: Arc<Font>, surface: S, width: u32, height: u32) -> Self {
 		let spacing = config.style().spacing();
@@ -201,7 +211,7 @@ impl Renderer {
 
 			// Bottom margin.
 			if area.y + area.height >= self.height - v {
-				o.rectangle(area.x as f64, (self.height - v) as f64, area.width as f64, v as f64);
+				o.rectangle(area.x as f64, (self.height - v) as f64, area.width as f64, v as f64 + 1.0);
 				o.fill(false);
 			}
 		}
