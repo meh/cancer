@@ -1148,6 +1148,11 @@ impl Terminal {
 					}
 				}
 
+				// Secret control codes.
+				Control::C1(C1::OperatingSystemCommand(cmd)) if cmd.starts_with("0;") || cmd.starts_with("k;") => {
+					actions.push(Action::Title(String::from(&cmd[2..])));
+				}
+
 				Control::C1(C1::OperatingSystemCommand(cmd)) if cmd.starts_with("cursor:") => {
 					let mut parts = cmd.split(':').skip(1);
 
@@ -1178,8 +1183,18 @@ impl Terminal {
 					}
 				}
 
-				Control::C1(C1::OperatingSystemCommand(cmd)) if cmd.starts_with("0;") || cmd.starts_with("k;") => {
-					actions.push(Action::Title(String::from(&cmd[2..])));
+				Control::C1(C1::OperatingSystemCommand(cmd)) if cmd.starts_with("clipboard:") => {
+					let mut parts = cmd.split(':').skip(1);
+
+					match parts.next() {
+						Some("set") => {
+							if let (Some(name), Some(string)) = (parts.next(), parts.next()) {
+								actions.push(Action::Clipboard(name.into(), string.into()));
+							}
+						}
+
+						_ => ()
+					}
 				}
 
 				code => {

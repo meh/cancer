@@ -327,6 +327,10 @@ fn open(matches: &ArgMatches) -> error::Result<()> {
 							window.resize(width, height);
 							render!(resize width, height);
 						}
+
+						Action::Clipboard(name, value) => {
+							// TODO: handle clipboard setting
+						}
 					}
 				}
 

@@ -19,4 +19,5 @@
 pub enum Action {
 	Title(String),
 	Resize(u32, u32),
+	Clipboard(String, String),
 }
