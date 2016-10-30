@@ -179,7 +179,8 @@ impl Renderer {
 
 	/// Draw the margins within the given area.
 	pub fn margin(&mut self, area: &Area) {
-		let (c, o, h, v) = (&self.config, &mut self.context, self.margin.horizontal, self.margin.vertical);
+		let (rows, columns)    = (self.rows(), self.columns());
+		let (c, f, o, s, h, v) = (&self.config, &self.font, &mut self.context, self.spacing, self.margin.horizontal, self.margin.vertical);
 
 		// Bail out if there's no margin.
 		if h == 0 && v == 0 {
@@ -199,7 +200,7 @@ impl Renderer {
 
 			// Right margin.
 			if area.x + area.width >= self.width - h {
-				o.rectangle((self.width - h) as f64, area.y as f64, h as f64, area.height as f64);
+				o.rectangle((h + (columns * f.width())) as f64, area.y as f64, h as f64 * 2.0, area.height as f64);
 				o.fill(false);
 			}
 
@@ -211,7 +212,7 @@ impl Renderer {
 
 			// Bottom margin.
 			if area.y + area.height >= self.height - v {
-				o.rectangle(area.x as f64, (self.height - v) as f64, area.width as f64, v as f64 + 1.0);
+				o.rectangle(area.x as f64, (v + (rows * (f.height() + s))) as f64, area.width as f64, v as f64 * 2.0);
 				o.fill(false);
 			}
 		}
