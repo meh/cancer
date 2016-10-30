@@ -155,8 +155,15 @@ fn open(matches: &ArgMatches) -> error::Result<()> {
 			options
 		});
 
+		(options!) => ({
+			let mut options = render!(options);
+			options.insert(renderer::option::DAMAGE);
+
+			options
+		});
+
 		(cursor) => ({
-			let options = render!(options);
+			let options = render!(options!);
 
 			// Redraw the cursor.
 			render.update(|mut o| {
@@ -164,7 +171,7 @@ fn open(matches: &ArgMatches) -> error::Result<()> {
 					o.cursor(&terminal.cursor(), options);
 				}
 				else {
-					o.cell(&terminal.cursor().cell(), options, true);
+					o.cell(&terminal.cursor().cell(), options);
 				}
 			});
 
@@ -172,8 +179,8 @@ fn open(matches: &ArgMatches) -> error::Result<()> {
 		});
 
 		(damaged $area:expr) => ({
-			let options = render!(options);
 			let area    = $area;
+			let options = render!(options!);
 
 			render.update(|mut o| {
 				// Redraw margins.
@@ -181,7 +188,7 @@ fn open(matches: &ArgMatches) -> error::Result<()> {
 
 				// Redraw the cells that fall within the damaged area.
 				for cell in terminal.iter(o.damaged(&area).relative()) {
-					o.cell(&cell, options, true);
+					o.cell(&cell, options);
 				}
 
 				// Redraw the cursor.
@@ -189,7 +196,7 @@ fn open(matches: &ArgMatches) -> error::Result<()> {
 					o.cursor(&terminal.cursor(), options);
 				}
 				else {
-					o.cell(&terminal.cursor().cell(), options, true);
+					o.cell(&terminal.cursor().cell(), options);
 				}
 			});
 
@@ -197,12 +204,12 @@ fn open(matches: &ArgMatches) -> error::Result<()> {
 		});
 
 		($iter:expr) => ({
-			let options = render!(options);
 			let iter    = $iter;
+			let options = render!(options);
 
 			render.update(|mut o| {
 				for cell in terminal.iter(iter) {
-					o.cell(&cell, options, false);
+					o.cell(&cell, options);
 				}
 
 				if terminal.cursor().is_visible() {

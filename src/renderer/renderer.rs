@@ -230,7 +230,7 @@ impl Renderer {
 		{
 			// Draw the background.
 			o.rectangle(x as f64, y as f64, w as f64, h as f64);
-			o.line_width(1.0);
+			o.clip();
 
 			match cursor.shape() {
 				Shape::Block => {
@@ -248,7 +248,7 @@ impl Renderer {
 				}
 			}
 
-			o.fill(false);
+			o.paint();
 
 			// Draw the glyph.
 			if cell.is_occupied() && !(options.blinking() && cell.style().attributes().contains(style::BLINK)) {
@@ -275,9 +275,9 @@ impl Renderer {
 				// outline of the cell.
 				Shape::Block => {
 					if !options.focus() || bc {
-						o.rgba(bg);
 						o.rectangle(x as f64 + 0.5, y as f64 + 0.5, w as f64 - 1.0, h as f64 - 1.0);
 						o.line_width(1.0);
+						o.rgba(bg);
 						o.stroke();
 					}
 				}
@@ -285,10 +285,10 @@ impl Renderer {
 				// The line always covers any glyph underneath, unless it's blinking.
 				Shape::Line => {
 					if !(bc && options.focus()) {
-						o.rgba(bg);
 						o.move_to(x as f64, (y + f.underline().1) as f64 + 0.5);
 						o.line_to((x + w) as f64, (y + f.underline().1) as f64 + 0.5);
 						o.line_width(f.underline().0 as f64);
+						o.rgba(bg);
 						o.stroke();
 					}
 				}
@@ -296,10 +296,10 @@ impl Renderer {
 				// The beam always covers any glyph underneath, unless it's blinking.
 				Shape::Beam => {
 					if !(bc && options.focus()) {
-						o.rgba(bg);
 						o.move_to(x as f64 + 0.5, y as f64);
 						o.line_to(x as f64 + 0.5, (y + h) as f64);
 						o.line_width(f.underline().0 as f64);
+						o.rgba(bg);
 						o.stroke();
 					}
 				}
@@ -309,9 +309,9 @@ impl Renderer {
 	}
 
 	/// Draw the given cell.
-	pub fn cell(&mut self, cell: &cell::Position, options: Options, force: bool) -> bool {
+	pub fn cell(&mut self, cell: &cell::Position, options: Options) -> bool {
 		// Bail out if the character is up to date.
-		if !force && !self.cache.update(cell, options) {
+		if !self.cache.update(cell, options) && !options.damage() {
 			return false;
 		}
 
@@ -341,12 +341,12 @@ impl Renderer {
 		{
 			// Draw the background.
 			o.rectangle(x as f64, y as f64, w as f64, h as f64);
-			o.line_width(1.0);
+			o.clip();
 			o.rgba(bg);
-			o.fill(false);
+			o.paint();
 
 			// Draw the glyph.
-			if !(options.blinking() && cell.style().attributes().contains(style::BLINK)) {
+			if !cell.style().attributes().contains(style::BLINK) || !options.blinking() {
 				if cell.is_occupied() {
 					o.move_to(x as f64, (y + f.ascent()) as f64);
 					o.rgba(fg);

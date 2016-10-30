@@ -17,9 +17,10 @@
 
 bitflags! {
 	pub flags Options: u8 {
-		const BLINKING = 1 << 0,
-		const FOCUS    = 1 << 1,
-		const REVERSE  = 1 << 2,
+		const DAMAGE   = 1 << 0,
+		const BLINKING = 1 << 1,
+		const FOCUS    = 1 << 2,
+		const REVERSE  = 1 << 3,
 	}
 }
 
@@ -30,6 +31,10 @@ impl Default for Options {
 }
 
 impl Options {
+	pub fn damage(&self) -> bool {
+		self.contains(DAMAGE)
+	}
+
 	pub fn blinking(&self) -> bool {
 		self.contains(BLINKING)
 	}

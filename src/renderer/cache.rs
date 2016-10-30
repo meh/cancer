@@ -26,7 +26,7 @@ use sys::pango;
 use style::{self, Style};
 use terminal::cell;
 use font::Font;
-use renderer::{option, Options};
+use renderer::Options;
 
 #[derive(Debug)]
 pub struct Cache {
@@ -40,21 +40,34 @@ pub struct Cache {
 
 #[derive(Clone, Default, Debug)]
 pub struct Cell {
-	style:   Rc<Style>,
-	value:   Option<String>,
-	valid:   bool,
-	options: Options,
+	style: Rc<Style>,
+	value: Option<String>,
+	flags: Flags,
 }
 
 impl Cell {
 	/// Create an empty cache cell.
 	pub fn empty(style: Rc<Style>) -> Self {
 		Cell {
-			style:   style,
-			value:   None,
-			valid:   true,
-			options: Options::empty(),
+			style: style,
+			value: None,
+			flags: Flags::empty(),
 		}
+	}
+}
+
+bitflags! {
+	flags Flags: u8 {
+		const NONE     = 0,
+		const VALID    = 1 << 0,
+		const BLINKING = 1 << 1,
+		const REVERSE  = 1 << 2,
+	}
+}
+
+impl Default for Flags {
+	fn default() -> Self {
+		VALID
 	}
 }
 
@@ -117,39 +130,44 @@ impl Cache {
 	pub fn invalidate(&mut self, cell: &cell::Position) {
 		debug_assert!(!cell.is_reference());
 
-		self.inner[(cell.y() * self.width + cell.x()) as usize].valid = false;
+		self.inner[(cell.y() * self.width + cell.x()) as usize].flags.remove(VALID);
 	}
 
 	/// Update the cache, returns `false` if nothing was changed.
-	pub fn update(&mut self, cell: &cell::Position, mut options: Options) -> bool {
+	pub fn update(&mut self, cell: &cell::Position, options: Options) -> bool {
 		debug_assert!(!cell.is_reference());
 
-		let cache = &mut self.inner[(cell.y() * self.width + cell.x()) as usize];
-
-		// Avoid invalidating the cache because of blinking when the cell is not
-		// blinking.
-		if !cache.style.attributes().contains(style::BLINK) &&
-		   !cell.style().attributes().contains(style::BLINK)
-		{
-			options.remove(option::BLINKING);
-		}
+		let index = (cell.y() * self.width + cell.x()) as usize;
 
 		// Check if the cache is up to date.
-		if cache.valid &&
-		   cache.options == options &&
-		   cell.style() == &cache.style &&
-		   ((cell.is_empty() && cache.value.is_none()) ||
-		    (cell.is_occupied() && cache.value.as_ref().map(AsRef::as_ref) == Some(cell.value())))
 		{
-			return false;
+			let cache = &self.inner[index];
+
+			if cache.flags.contains(VALID) &&
+			   cache.flags.contains(REVERSE) == options.reverse() &&
+			   (!cache.style.attributes().contains(style::BLINK) ||
+				   cache.flags.contains(BLINKING) == options.blinking()) &&
+			   cell.style() == &cache.style &&
+			   ((cell.is_empty() && cache.value.is_none()) ||
+			    (cell.is_occupied() && cache.value.as_ref().map(AsRef::as_ref) == Some(cell.value())))
+			{
+				return false;
+			}
 		}
 
-		*cache = Cell {
-			style:   cell.style().clone(),
-			value:   if cell.is_empty() { None } else { Some(cell.value().into()) },
-			options: options,
-			valid:   true,
+		// Update the cache.
+		self.inner[index] = Cell {
+			style: cell.style().clone(),
+			value: if cell.is_empty() { None } else { Some(cell.value().into()) },
+			flags: VALID
+				| if options.blinking() { BLINKING } else { NONE }
+				| if options.reverse() { REVERSE } else { NONE }
 		};
+
+		// Invalidate reference cells.
+		for cell in &mut self.inner[index + 1 .. index + cell.width() as usize] {
+			cell.flags.remove(VALID);
+		}
 
 		true
 	}
