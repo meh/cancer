@@ -76,64 +76,53 @@ use renderer::Renderer;
 mod tty;
 use tty::Tty;
 
+use std::sync::Arc;
+use std::io::Write;
+
 fn main() {
 	env_logger::init().unwrap();
 
 	let matches = App::new("cancer")
 		.version(env!("CARGO_PKG_VERSION"))
 		.author("meh. <meh@schizofreni.co>")
-		.subcommand(SubCommand::with_name("open")
-			.about("Open the terminal in a window.")
-			.arg(Arg::with_name("config")
-				.short("c")
-				.long("config")
-				.help("The path to the configuration file.")
-				.takes_value(true))
-			.arg(Arg::with_name("display")
-				.short("d")
-				.long("display")
-				.takes_value(true)
-				.help("The X11 display."))
-			.arg(Arg::with_name("execute")
-				.short("e")
-				.long("execute")
-				.takes_value(true)
-				.help("Program to execute."))
-			.arg(Arg::with_name("font")
-				.short("f")
-				.long("font")
-				.takes_value(true)
-				.help("Font to use with the terminal."))
-			.arg(Arg::with_name("name")
-				.short("n")
-				.long("name")
-				.takes_value(true)
-				.help("Name for the window.")))
+		.arg(Arg::with_name("config")
+			.short("c")
+			.long("config")
+			.help("The path to the configuration file.")
+			.takes_value(true))
+		.arg(Arg::with_name("display")
+			.short("d")
+			.long("display")
+			.takes_value(true)
+			.help("The X11 display."))
+		.arg(Arg::with_name("execute")
+			.short("e")
+			.long("execute")
+			.takes_value(true)
+			.help("Program to execute."))
+		.arg(Arg::with_name("font")
+			.short("f")
+			.long("font")
+			.takes_value(true)
+			.help("Font to use with the terminal."))
+		.arg(Arg::with_name("name")
+			.short("n")
+			.long("name")
+			.takes_value(true)
+			.help("Name for the window."))
 		.get_matches();
 
-	match matches.subcommand() {
-		("open", Some(matches)) =>
-			open(matches).unwrap(),
-
-		_ => ()
-	}
-}
-
-fn open(matches: &ArgMatches) -> error::Result<()> {
-	use std::sync::Arc;
-	use std::io::Write;
-
-	let     config   = Arc::new(Config::load(matches.value_of("config"))?);
-	let     font     = Arc::new(Font::load(matches.value_of("font").unwrap_or(config.style().font()))?);
+	let     config   = Arc::new(Config::load(matches.value_of("config")).unwrap());
+	let     font     = Arc::new(Font::load(matches.value_of("font").unwrap_or(config.style().font())).unwrap());
 	let     batch    = timer::periodic_ms(((1.0 / config.environment().batch() as f32) * 1000.0).round() as u32);
 	let     blink    = timer::periodic_ms(config.style().blink());
 	let mut blinking = true;
 	let mut batched  = false;
-	let mut window   = Window::open(matches.value_of("name"), &config, &font)?;
-	let mut keyboard = window.keyboard()?;
+	let mut window   = Window::open(matches.value_of("name"), &config, &font).unwrap();
+	let mut keyboard = window.keyboard().unwrap();
 	let mut render   = Renderer::new(config.clone(), font.clone(), &window, window.width(), window.height());
-	let mut terminal = Terminal::open(config.clone(), render.columns(), render.rows())?;
-	let mut tty      = Tty::spawn(config.clone(), matches.value_of("execute").map(|s| s.into()), render.columns(), render.rows())?;
+	let mut terminal = Terminal::open(config.clone(), render.columns(), render.rows()).unwrap();
+	let mut tty      = Tty::spawn(config.clone(), matches.value_of("execute").map(|s| s.into()), render.columns(), render.rows()).unwrap();
 
 	let input  = tty.output();
 	let events = window.events();
@@ -338,6 +327,4 @@ fn open(matches: &ArgMatches) -> error::Result<()> {
 			}
 		}
 	}
-
-	Ok(())
 }
