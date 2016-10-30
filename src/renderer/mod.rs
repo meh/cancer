@@ -18,6 +18,9 @@
 mod renderer;
 pub use self::renderer::Renderer;
 
+mod glyphs;
+pub use self::glyphs::Glyphs;
+
 mod cache;
 pub use self::cache::Cache;
 

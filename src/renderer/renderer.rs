@@ -17,6 +17,7 @@
 
 use std::mem;
 use std::sync::Arc;
+use std::rc::Rc;
 use std::ops::{Deref, DerefMut};
 
 use picto::Area;
@@ -27,7 +28,7 @@ use font::Font;
 use style;
 use util::clamp;
 use terminal::{cell, cursor};
-use renderer::{Cache, Options};
+use renderer::{Cache, Glyphs, Options};
 
 /// Renderer for a `cairo::Surface`.
 pub struct Renderer {
@@ -41,6 +42,7 @@ pub struct Renderer {
 	context: cairo::Context,
 	font:    Arc<Font>,
 	cache:   Cache,
+	glyphs:  Glyphs,
 }
 
 #[derive(Eq, PartialEq, Copy, Clone, Debug)]
@@ -69,7 +71,8 @@ impl Renderer {
 		};
 
 		let context = cairo::Context::new(surface);
-		let cache   = Cache::new(config.environment().cache(), font.clone(), 0, 0);
+		let cache   = Cache::new(0, 0);
+		let glyphs  = Glyphs::new(config.environment().cache(), font.clone());
 
 		let mut value = Renderer {
 			config: config,
@@ -82,6 +85,7 @@ impl Renderer {
 			context: context,
 			font:    font,
 			cache:   cache,
+			glyphs:  glyphs,
 		};
 
 		value.resize(width, height);
@@ -276,7 +280,7 @@ impl Renderer {
 					}
 				}
 
-				let computed = self.cache.compute(cell.value(), cell.style().attributes());
+				let computed = self.glyphs.compute(Rc::new(cell.value().into()), cell.style().attributes());
 				o.glyph(computed.text(), computed.glyphs());
 			}
 
@@ -362,7 +366,7 @@ impl Renderer {
 					o.move_to(x as f64, (y + f.ascent()) as f64);
 					o.rgba(fg);
 
-					let computed = self.cache.compute(cell.value(), cell.style().attributes());
+					let computed = self.glyphs.compute(Rc::new(cell.value().into()), cell.style().attributes());
 					o.glyph(computed.text(), computed.glyphs());
 				}
 

@@ -16,16 +16,9 @@
 // along with cancer.  If not, see <http://www.gnu.org/licenses/>.
 
 use std::rc::Rc;
-use std::sync::Arc;
 
-use lru::LruCache;
-use std::hash::BuildHasherDefault;
-use fnv::FnvHasher;
-
-use sys::pango;
 use style::{self, Style};
 use terminal::cell;
-use font::Font;
 use renderer::Options;
 
 #[derive(Debug)]
@@ -33,9 +26,6 @@ pub struct Cache {
 	width:  u32,
 	height: u32,
 	inner:  Vec<Cell>,
-
-	font:   Arc<Font>,
-	glyphs: LruCache<Glyph, Rc<Computed>, BuildHasherDefault<FnvHasher>>,
 }
 
 #[derive(Clone, Default, Debug)]
@@ -71,49 +61,15 @@ impl Default for Flags {
 	}
 }
 
-#[derive(Debug)]
-pub struct Computed {
-	text:   String,
-	glyphs: pango::GlyphItem,
-}
-
-impl Computed {
-	pub fn text(&self) -> &str {
-		&self.text
-	}
-
-	pub fn glyphs(&self) -> &pango::GlyphItem {
-		&self.glyphs
-	}
-}
-
-#[derive(Hash, Eq, PartialEq, Clone, Debug)]
-pub struct Glyph {
-	value: String,
-	attrs: style::Attributes,
-}
-
-impl Glyph {
-	pub fn new<T: Into<String>>(value: T, attrs: style::Attributes) -> Self {
-		Glyph {
-			value: value.into(),
-			attrs: attrs & (style::BOLD | style::FAINT | style::ITALIC),
-		}
-	}
-}
-
 impl Cache {
 	/// Create a new cache of the given size.
-	pub fn new(capacity: usize, font: Arc<Font>, width: u32, height: u32) -> Self {
+	pub fn new(width: u32, height: u32) -> Self {
 		let style = Rc::new(Style::default());
 
 		Cache {
 			width:  width,
 			height: height,
 			inner:  vec![Cell::empty(style.clone()); (width * height) as usize],
-
-			font:   font,
-			glyphs: LruCache::with_hasher(capacity, Default::default()),
 		}
 	}
 
@@ -170,22 +126,5 @@ impl Cache {
 		}
 
 		true
-	}
-
-	/// Get a computed glyph.
-	pub fn compute<T: AsRef<str>>(&mut self, string: T, attrs: style::Attributes) -> Rc<Computed> {
-		let glyph = Glyph::new(string.as_ref(), attrs);
-
-		if let Some(computed) = self.glyphs.get_mut(&glyph) {
-			return computed.clone();
-		}
-
-		let computed = Rc::new(Computed {
-			text:   glyph.value.clone(),
-			glyphs: self.font.shape(&glyph.value, glyph.attrs),
-		});
-
-		self.glyphs.insert(glyph, computed.clone());
-		computed
 	}
 }
