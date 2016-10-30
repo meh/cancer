@@ -21,6 +21,8 @@ use style::{self, Style};
 use terminal::cell;
 use renderer::Options;
 
+/// Cache for cells to avoid rendering a cell multiple times when it's not
+/// needed.
 #[derive(Debug)]
 pub struct Cache {
 	width:  u32,
@@ -28,6 +30,7 @@ pub struct Cache {
 	inner:  Vec<Cell>,
 }
 
+/// A cell in the cache.
 #[derive(Clone, Default, Debug)]
 pub struct Cell {
 	style: Rc<Style>,
@@ -89,13 +92,16 @@ impl Cache {
 		self.inner[(cell.y() * self.width + cell.x()) as usize].flags.remove(VALID);
 	}
 
-	/// Update the cache, returns `false` if nothing was changed.
+	/// Update the cache, returns `false` if the cache is valid.
+	///
+	/// The cell is seen as unchanged if it's valid, the style and content match
+	/// and the rendering options match.
 	pub fn update(&mut self, cell: &cell::Position, options: Options) -> bool {
 		debug_assert!(!cell.is_reference());
 
 		let index = (cell.y() * self.width + cell.x()) as usize;
 
-		// Check if the cache is up to date.
+		// Check if the cache is up to date, this is awful logic but alas.
 		{
 			let cache = &self.inner[index];
 

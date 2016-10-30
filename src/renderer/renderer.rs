@@ -45,6 +45,7 @@ pub struct Renderer {
 	glyphs:  Glyphs,
 }
 
+/// Adaptable margins depending on the view size.
 #[derive(Eq, PartialEq, Copy, Clone, Debug)]
 pub struct Margin {
 	horizontal: u32,
@@ -52,6 +53,7 @@ pub struct Margin {
 }
 
 impl Renderer {
+	/// Get the window dimensions for the given grid.
 	pub fn dimensions(columns: u32, rows: u32, config: &Config, font: &Font) -> (u32, u32) {
 		let margin  = config.style().margin();
 		let spacing = config.style().spacing();
@@ -227,9 +229,6 @@ impl Renderer {
 	pub fn cursor(&mut self, cursor: &cursor::Cell, options: Options) {
 		self.cache.invalidate(&cursor.cell());
 
-		// Cache needed values in various places.
-		//
-		// FIXME(meh): Find better names/and or ways to deal with this stuff.
 		let (c, o, f) = (&self.config, &mut self.context, &self.font);
 		let cell = cursor.cell();
 		let bc   = options.blinking() && cursor.blink();
@@ -325,12 +324,11 @@ impl Renderer {
 
 	/// Draw the given cell.
 	pub fn cell(&mut self, cell: &cell::Position, options: Options) -> bool {
-		// Bail out if the character is up to date.
+		// Bail out if the cell is up to date.
 		if !self.cache.update(cell, options) && !options.damage() {
 			return false;
 		}
 
-		// Cache needed values in various places.
 		let (c, o, f) = (&self.config, &mut self.context, &self.font);
 
 		let mut fg = cell.style().foreground().unwrap_or_else(||
