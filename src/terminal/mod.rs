@@ -33,6 +33,9 @@ pub use self::key::Key;
 pub mod cell;
 pub use self::cell::Cell;
 
+mod grid;
+pub use self::grid::Grid;
+
 mod terminal;
 pub use self::terminal::Terminal;
 

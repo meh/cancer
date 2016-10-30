@@ -15,11 +15,8 @@
 // You should have received a copy of the GNU General Public License
 // along with cancer.  If not, see <http://www.gnu.org/licenses/>.
 
-use std::rc::Rc;
 use std::sync::Arc;
 use std::io::Write;
-use std::collections::VecDeque;
-use std::iter;
 use std::mem;
 use std::vec;
 
@@ -30,11 +27,10 @@ use picto::Area;
 use picto::color::Rgba;
 use control::{self, Control, C0, C1, DEC, CSI, SGR};
 use error;
-use util::clamp;
 use config::{self, Config};
 use config::style::Shape;
 use style::{self, Style};
-use terminal::{Iter, Touched, Cell, Key, Action, cell};
+use terminal::{Iter, Touched, Cell, Grid, Key, Action, cell};
 use terminal::mode::{self, Mode};
 use terminal::cursor::{self, Cursor};
 use terminal::touched;
@@ -48,7 +44,7 @@ pub struct Terminal {
 	mode:    Mode,
 
 	scroll: Option<u32>,
-	cells:  VecDeque<VecDeque<Cell>>,
+	grid:   Grid,
 	tabs:   BitVec,
 
 	cursor: Cursor,
@@ -60,29 +56,10 @@ macro_rules! term {
 		$term.cursor.charsets[$term.cursor.charset as usize]
 	);
 
-	($term:ident; row for $y:expr) => (
-		($y + $term.scroll.unwrap_or_else(|| $term.cells.len() as u32 - $term.area.height)) as usize
-	);
-
-	($term:ident; row) => (
-		vec_deque![Cell::empty($term.cursor.style().clone()); $term.area.width as usize]
-	);
-
-	($term:ident; extend $n:expr) => (
-		$term.cells.extend(iter::repeat(term!($term; row)).take($n as usize));
-	);
-
 	($term:ident; scroll! up $n:tt) => (
 		if $term.cursor.scroll == (0, $term.area.height - 1) {
-			term!($term; extend $n);
 			term!($term; touched all);
-
-			let back   = $term.cells.len() - $term.area.height as usize;
-			let scroll = $term.config.environment().scroll();
-
-			if back > scroll {
-				$term.cells.drain(.. back - scroll);
-			}
+			$term.grid.up($n, None);
 		}
 		else {
 			term!($term; scroll up $n)
@@ -94,22 +71,9 @@ macro_rules! term {
 	);
 
 	($term:ident; scroll up $n:tt from $y:expr) => ({
-		let y      = $y;
-		let n      = clamp($n, 0, $term.cursor.scroll.1 - y + 1);
-		let row    = term!($term; row for y);
-		let offset = $term.area.height - ($term.cursor.scroll.1 + 1);
+		$term.grid.up($n as u32, Some(($y, $term.cursor.scroll.1)));
 
-		// Remove the lines.
-		$term.cells.drain(row .. row + n as usize);
-
-		// Fill missing lines.
-		let index = $term.cells.len() - offset as usize;
-		for i in 0 .. n {
-			$term.cells.insert(index + i as usize, term!($term; row));
-		}
-
-		// Mark the affected lines as touched.
-		for y in y ... $term.cursor.scroll.1 {
+		for y in $y ... $term.cursor.scroll.1 {
 			term!($term; touched line y);
 		}
 	});
@@ -119,23 +83,9 @@ macro_rules! term {
 	);
 
 	($term:ident; scroll down $n:tt from $y:expr) => ({
-		let y   = $y;
-		let n   = clamp($n, 0, $term.cursor.scroll.1 - y + 1);
-		let row = term!($term; row for y);
+		$term.grid.down($n as u32, Some(($y, $term.cursor.scroll.1)));
 
-		// Split the cells at the current line.
-		let mut rest = $term.cells.split_off(row);
-
-		// Extend with new lines.
-		term!($term; extend n);
-
-		// Remove the scrolled off lines.
-		let offset = $term.cursor.scroll.1 + 1 - y - n;
-		rest.drain(offset as usize .. (offset + n) as usize);
-		$term.cells.append(&mut rest);
-
-		// Mark the affected lines as touched.
-		for y in y ... $term.cursor.scroll.1 {
+		for y in $y ... $term.cursor.scroll.1 {
 			term!($term; touched line y);
 		}
 	});
@@ -222,22 +172,19 @@ macro_rules! term {
 	);
 
 	($term:ident; mut cell ($x:expr, $y:expr)) => ({
-		let row = term!($term; row for $y);
-		&mut $term.cells[row][$x as usize]
+		$term.grid.get_mut($x, $y)
 	});
 
 	($term:ident; cell ($x:expr, $y:expr)) => ({
-		let row = term!($term; row for $y);
-		&$term.cells[row][$x as usize]
+		$term.grid.get($x, $y)
 	});
 }
 
 impl Terminal {
 	pub fn open(config: Arc<Config>, width: u32, height: u32) -> error::Result<Self> {
-		let area  = Area::from(0, 0, width, height);
-		let style = Rc::new(Style::default());
-		let cells = vec_deque![vec_deque![Cell::empty(style.clone()); width as usize]; height as usize];
-		let tabs  = BitVec::from_fn(width as usize, |i| i % 8 == 0);
+		let area = Area::from(0, 0, width, height);
+		let grid = Grid::new(width, height, config.environment().scroll());
+		let tabs = BitVec::from_fn(width as usize, |i| i % 8 == 0);
 
 		Ok(Terminal {
 			config:  config.clone(),
@@ -247,7 +194,7 @@ impl Terminal {
 			mode:    Mode::default(),
 
 			scroll: None,
-			cells:  cells,
+			grid:   grid,
 			tabs:   tabs,
 
 			cursor: Cursor::new(config.clone(), width, height),
@@ -290,22 +237,12 @@ impl Terminal {
 
 	/// Resize the terminal.
 	pub fn resize(&mut self, width: u32, height: u32) -> touched::Iter {
-		self.cursor.resize(width, height);
-		self.tabs.grow(width as usize, false);
-
-		let length = self.cells.len();
-
-		if height as usize > length {
-			self.cells.append(&mut vec_deque![term!(self; row); height as usize - length]);
-		}
-
-		for row in &mut self.cells {
-			let style = row[(self.area.width - 1) as usize].style().clone();
-			row.resize(width as usize, Cell::empty(style.clone()));
-		}
-
 		self.area.width  = width;
 		self.area.height = height;
+
+		self.cursor.resize(width, height);
+		self.grid.resize(width, height);
+		self.tabs.grow(width as usize, false);
 
 		term!(self; touched all);
 		self.touched.iter(self.area)
@@ -654,16 +591,8 @@ impl Terminal {
 
 				Control::DEC(DEC::BackIndex) => {
 					if self.cursor.x() == 0 {
-						let row = term!(self; row for 0);
-
-						for row in row .. self.area.height as usize {
-							self.cells[row].pop_back();
-							self.cells[row].push_front(Cell::empty(term!(self; style)));
-						}
-
-						for y in 0 .. self.area.height {
-							term!(self; clean references (0, y));
-						}
+						self.grid.left(1);
+						term!(self; touched all);
 					}
 					else {
 						term!(self; cursor Left(1));
@@ -672,16 +601,8 @@ impl Terminal {
 
 				Control::DEC(DEC::ForwardIndex) => {
 					if self.cursor.x() == self.area.width - 1 {
-						let row = term!(self; row for 0);
-
-						for row in row .. self.area.height as usize {
-							self.cells[row].pop_front();
-							self.cells[row].push_back(Cell::empty(term!(self; style)));
-						}
-
-						for y in 0 .. self.area.height {
-							term!(self; clean references (0, y));
-						}
+						self.grid.right(1);
+						term!(self; touched all);
 					}
 					else {
 						term!(self; cursor Right(1));
@@ -786,12 +707,7 @@ impl Terminal {
 
 				Control::C1(C1::ControlSequence(CSI::DeleteCharacter(n))) => {
 					let (x, y) = term!(self; cursor);
-					let n      = clamp(n, 0, self.area.width - x);
-					let row    = term!(self; row for y);
-					let cells  = &mut self.cells[row as usize];
-
-					cells.drain(x as usize .. x as usize + n as usize);
-					cells.append(&mut vec_deque![Cell::empty(term!(self; style)); n as usize]);
+					self.grid.delete(x, y, n);
 
 					for x in x .. self.area.width {
 						term!(self; touched (x, y));
@@ -813,15 +729,7 @@ impl Terminal {
 
 				Control::C1(C1::ControlSequence(CSI::InsertCharacter(n))) => {
 					let (x, y) = term!(self; cursor);
-					let n      = clamp(n, 0, self.area.width);
-					let row    = term!(self; row for y);
-					let cells  = &mut self.cells[row as usize];
-
-					for _ in x .. x + n {
-						cells.insert(x as usize, Cell::empty(term!(self; style)));
-					}
-
-					cells.drain(self.area.width as usize ..);
+					self.grid.insert(x, y, n);
 
 					for x in x .. self.area.width {
 						term!(self; touched (x, y));
