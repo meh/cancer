@@ -125,8 +125,10 @@ fn open(matches: &ArgMatches) -> error::Result<()> {
 
 	let     config   = Arc::new(Config::load(matches.value_of("config"))?);
 	let     font     = Arc::new(Font::load(matches.value_of("font").unwrap_or(config.style().font()))?);
+	let     batch    = timer::periodic_ms(((1.0 / config.environment().batch() as f32) * 1000.0).round() as u32);
 	let     blink    = timer::periodic_ms(config.style().blink());
 	let mut blinking = true;
+	let mut batched  = false;
 	let mut window   = Window::open(matches.value_of("name"), &config, &font)?;
 	let mut keyboard = window.keyboard()?;
 	let mut render   = Renderer::new(config.clone(), font.clone(), &window, window.width(), window.height());
@@ -203,6 +205,18 @@ fn open(matches: &ArgMatches) -> error::Result<()> {
 			window.flush();
 		});
 
+		(batched $iter:expr) => ({
+			let iter = $iter;
+
+			if iter.all() {
+				batched = true;
+			}
+
+			if !batched {
+				render!(iter);
+			}
+		});
+
 		($iter:expr) => ({
 			let iter    = $iter;
 			let options = render!(options);
@@ -225,7 +239,14 @@ fn open(matches: &ArgMatches) -> error::Result<()> {
 		select! {
 			_ = blink.recv() => {
 				blinking = !blinking;
-				render!(terminal.blinking(blinking));
+				render!(batched terminal.blinking(blinking));
+			},
+
+			_ = batch.recv() => {
+				if batched {
+					render!(terminal.area().absolute());
+					batched = false;
+				}
 			},
 
 			event = events.recv() => {
@@ -275,7 +296,7 @@ fn open(matches: &ArgMatches) -> error::Result<()> {
 						let event = xcb::cast_event::<xcb::KeyPressEvent>(&event);
 
 						if let Some(key) = keyboard.key(event.detail()) {
-							render!(terminal.key(key, &mut tty).unwrap());
+							render!(batched terminal.key(key, &mut tty).unwrap());
 							tty.flush().unwrap();
 						}
 					}
@@ -291,7 +312,7 @@ fn open(matches: &ArgMatches) -> error::Result<()> {
 
 				{
 					let (actions, touched) = try!(continue terminal.handle(&input, &mut tty));
-					render!(touched);
+					render!(batched touched);
 
 					for action in actions {
 						match action {

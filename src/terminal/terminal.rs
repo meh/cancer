@@ -277,6 +277,11 @@ impl Terminal {
 		cell::Position::new(x, y, term!(self; cell (x, y)))
 	}
 
+	/// Get the area of the terminal.
+	pub fn area(&self) -> Area {
+		self.area
+	}
+
 	/// Get an iterator over positioned cells.
 	pub fn iter<'a, T: Iterator<Item = (u32, u32)>>(&'a self, iter: T) -> impl Iterator<Item = cell::Position<'a>> {
 		Iter::new(self, iter)
