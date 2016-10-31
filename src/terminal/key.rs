@@ -58,8 +58,8 @@ pub enum Button {
 	Home,
 	End,
 
-	Previous,
-	Next,
+	PageUp,
+	PageDown,
 
 	Up,
 	Down,
@@ -117,8 +117,8 @@ pub enum Keypad {
 	Divide,
 	Decimal,
 
-	Previous,
-	Next,
+	PageUp,
+	PageDown,
 
 	Up,
 	Down,
@@ -253,13 +253,13 @@ impl Key {
 				_ => b"\x1B[8~",
 			},
 
-			Value::Button(Button::Previous) => write! {
+			Value::Button(Button::PageUp) => write! {
 				CTRL  => b"\x1B[5;5~",
 				SHIFT => b"\x1B[5;2~",
 				_     => b"\x1B[5~",
 			},
 
-			Value::Button(Button::Next) => write! {
+			Value::Button(Button::PageDown) => write! {
 				CTRL  => b"\x1B[6;5~",
 				SHIFT => b"\x1B[6;2~",
 				_     => b"\x1B[6~",

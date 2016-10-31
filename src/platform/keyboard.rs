@@ -172,11 +172,11 @@ impl Keyboard {
 			keysyms::KEY_End =>
 				Button::End.into(),
 
-			keysyms::KEY_Prior =>
-				Button::Previous.into(),
+			keysyms::KEY_Page_Up =>
+				Button::PageUp.into(),
 
-			keysyms::KEY_Next =>
-				Button::Next.into(),
+			keysyms::KEY_Page_Down =>
+				Button::PageDown.into(),
 
 			keysyms::KEY_Up =>
 				Button::Up.into(),
@@ -256,11 +256,11 @@ impl Keyboard {
 			keysyms::KEY_KP_Decimal =>
 				Keypad::Decimal.into(),
 
-			keysyms::KEY_KP_Prior =>
-				Keypad::Previous.into(),
+			keysyms::KEY_KP_Page_Up =>
+				Keypad::PageUp.into(),
 
-			keysyms::KEY_KP_Next =>
-				Keypad::Next.into(),
+			keysyms::KEY_KP_Page_Down =>
+				Keypad::PageDown.into(),
 
 			keysyms::KEY_KP_Up =>
 				Keypad::Up.into(),
