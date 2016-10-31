@@ -110,7 +110,7 @@ impl Grid {
 	}
 
 	/// Drop rows in the scrollback that go beyond the history limit.
-	fn clean_history(&mut self) {
+	pub fn clean_history(&mut self) {
 		if self.back.len() > self.history {
 			let overflow = self.back.len() - self.history;
 
@@ -121,7 +121,7 @@ impl Grid {
 	}
 
 	/// Clean left-over references from changes.
-	fn clean_references(&mut self, x: u32, y: u32) {
+	pub fn clean_references(&mut self, x: u32, y: u32) {
 		for x in x .. self.cols {
 			let cell = &mut self.view[y as usize][x as usize];
 
@@ -172,10 +172,11 @@ impl Grid {
 			for row in &mut self.view {
 				row.pop_front();
 				row.push_back(self.free.cell());
-			}
-	
-			for y in 0 .. self.rows {
-				self.clean_references(0, y);
+
+				while row.front().unwrap().is_reference() {
+					row.pop_front();
+					row.push_back(self.free.cell());
+				}
 			}
 		}
 	}

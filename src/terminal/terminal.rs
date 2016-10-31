@@ -119,18 +119,7 @@ macro_rules! term {
 	});
 
 	($term:ident; clean references ($x:expr, $y:expr)) => ({
-		let x = $x;
-		let y = $y;
-
-		// Clear references.
-		for x in x .. $term.area.width {
-			if term!($term; cell (x, y)).is_reference() {
-				term!($term; mut cell (x, y)).into_empty(term!($term; style));
-			}
-			else {
-				break;
-			}
-		}
+		$term.grid.clean_references($x, $y);
 	});
 
 	($term:ident; touched all) => (
