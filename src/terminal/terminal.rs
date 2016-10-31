@@ -20,7 +20,6 @@ use std::io::Write;
 use std::mem;
 use std::vec;
 
-use bit_vec::BitVec;
 use unicode_segmentation::UnicodeSegmentation;
 use unicode_width::UnicodeWidthStr;
 use picto::Area;
@@ -30,7 +29,7 @@ use error;
 use config::{self, Config};
 use config::style::Shape;
 use style::{self, Style};
-use terminal::{Iter, Touched, Cell, Grid, Key, Action, cell};
+use terminal::{Iter, Touched, Cell, Tabs, Grid, Key, Action, cell};
 use terminal::mode::{self, Mode};
 use terminal::cursor::{self, Cursor};
 use terminal::touched;
@@ -45,7 +44,7 @@ pub struct Terminal {
 
 	scroll: Option<u32>,
 	grid:   Grid,
-	tabs:   BitVec,
+	tabs:   Tabs,
 
 	cursor: Cursor,
 	saved:  Option<Cursor>,
@@ -122,7 +121,7 @@ macro_rules! term {
 			while x < $term.area.width {
 				x += 1;
 
-				if $term.tabs.get(x as usize).unwrap_or(false) {
+				if $term.tabs.get(x) {
 					break;
 				}
 			}
@@ -131,7 +130,7 @@ macro_rules! term {
 			while x != 0 {
 				x -= 1;
 
-				if $term.tabs.get(x as usize).unwrap_or(false) {
+				if $term.tabs.get(x) {
 					break;
 				}
 			}
@@ -184,7 +183,7 @@ impl Terminal {
 	pub fn open(config: Arc<Config>, width: u32, height: u32) -> error::Result<Self> {
 		let area = Area::from(0, 0, width, height);
 		let grid = Grid::new(width, height, config.environment().scroll());
-		let tabs = BitVec::from_fn(width as usize, |i| i % 8 == 0);
+		let tabs = Tabs::new(width, height);
 
 		Ok(Terminal {
 			config:  config.clone(),
@@ -242,7 +241,7 @@ impl Terminal {
 
 		self.cursor.resize(width, height);
 		self.grid.resize(width, height);
-		self.tabs.grow(width as usize, false);
+		self.tabs.resize(width, height);
 
 		term!(self; touched all);
 		self.touched.iter(self.area)
@@ -750,7 +749,7 @@ impl Terminal {
 
 				Control::C1(C1::HorizontalTabulationSet) => {
 					let (x, _) = term!(self; cursor);
-					self.tabs.set(x as usize, true);
+					self.tabs.set(x, true);
 				}
 
 				Control::C1(C1::ControlSequence(CSI::TabulationClear(CSI::Tabulation::AllCharacters))) => {
@@ -759,7 +758,7 @@ impl Terminal {
 
 				Control::C1(C1::ControlSequence(CSI::TabulationClear(CSI::Tabulation::Character))) => {
 					let (x, _) = term!(self; cursor);
-					self.tabs.set(x as usize, false);
+					self.tabs.set(x, false);
 				}
 
 				Control::None(string) => {

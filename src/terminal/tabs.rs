@@ -15,32 +15,41 @@
 // You should have received a copy of the GNU General Public License
 // along with cancer.  If not, see <http://www.gnu.org/licenses/>.
 
-mod iter;
-pub use self::iter::Iter;
+use bit_vec::BitVec;
 
-mod touched;
-pub use self::touched::Touched;
+#[derive(Debug)]
+pub struct Tabs {
+	cols: u32,
+	rows: u32,
 
-pub mod mode;
-pub use self::mode::Mode;
+	inner: BitVec,
+}
 
-pub mod cursor;
-pub use self::cursor::Cursor;
+impl Tabs {
+	pub fn new(cols: u32, rows: u32) -> Self {
+		Tabs {
+			cols: cols,
+			rows: rows,
 
-pub mod key;
-pub use self::key::Key;
+			inner: BitVec::from_fn(cols as usize, |i| i % 8 == 0)
+		}
+	}
 
-pub mod cell;
-pub use self::cell::Cell;
+	pub fn resize(&mut self, cols: u32, rows: u32) {
+		self.cols = cols;
+		self.rows = rows;
+		self.inner.grow(cols as usize, false);
+	}
 
-mod grid;
-pub use self::grid::Grid;
+	pub fn set(&mut self, x: u32, value: bool) {
+		self.inner.set(x as usize, value);
+	}
 
-mod tabs;
-pub use self::tabs::Tabs;
+	pub fn get(&self, x: u32) -> bool {
+		self.inner.get(x as usize).unwrap_or(false)
+	}
 
-mod terminal;
-pub use self::terminal::Terminal;
-
-mod action;
-pub use self::action::Action;
+	pub fn clear(&mut self) {
+		self.inner.clear()
+	}
+}
