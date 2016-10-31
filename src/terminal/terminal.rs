@@ -109,9 +109,12 @@ macro_rules! term {
 		}
 	});
 
-	($term:ident; cursor $($travel:tt)*) => (
-		$term.cursor.travel(cursor::$($travel)*, &mut $term.touched)
-	);
+	($term:ident; cursor $($travel:tt)*) => ({
+		$term.touched.push(term!($term; cursor));
+		let r = $term.cursor.travel(cursor::$($travel)*);
+		$term.touched.push(term!($term; cursor));
+		r
+	});
 
 	($term:ident; tab $n:expr) => ({
 		let (x, _) = term!($term; cursor);

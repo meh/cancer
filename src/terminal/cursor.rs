@@ -169,9 +169,8 @@ impl Cursor {
 		}
 	}
 
-	pub fn travel(&mut self, value: Travel, touched: &mut Touched) -> Option<i32> {
+	pub fn travel(&mut self, value: Travel) -> Option<i32> {
 		self.state.remove(WRAP);
-		touched.mark(self.x, self.y);
 
 		let mut overflow = None;
 
@@ -249,7 +248,6 @@ impl Cursor {
 			}
 		}
 
-		touched.mark(self.x, self.y);
 		overflow
 	}
 }
