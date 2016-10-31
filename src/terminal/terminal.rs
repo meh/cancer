@@ -293,7 +293,7 @@ impl Terminal {
 		let mut input   = buffer.as_ref().map(AsRef::as_ref).unwrap_or(input);
 		let mut actions = Vec::new(): Vec<Action>;
 
-		debug!(target: "cancer::terminal::input", "input: {:?}", input);
+		debug!(target: "cancer::terminal::input::raw", "input: {:?}", input);
 
 		loop {
 			if input.is_empty() {
@@ -321,7 +321,7 @@ impl Terminal {
 				}
 			};
 
-			debug!(target: "cancer::terminal::input::item", "item: {:?}", item);
+			debug!(target: "cancer::terminal::input::parsed", "item: {:?}", item);
 
 			match item {
 				// Attributes.
