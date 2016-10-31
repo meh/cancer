@@ -104,7 +104,7 @@ impl Iter {
 	}
 
 	pub fn all(&self) -> bool {
-		self.all
+		self.all || self.lines.len() == self.area.height as usize
 	}
 }
 
