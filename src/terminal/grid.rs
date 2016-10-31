@@ -136,6 +136,10 @@ impl Grid {
 		self.cols = cols;
 		self.rows = rows;
 
+		for row in &mut self.view {
+			row.resize(cols as usize, self.free.cell());
+		}
+
 		if self.view.len() > rows as usize {
 			let overflow = self.view.len() - rows as usize;
 			self.back.extend(self.view.drain(.. overflow));
