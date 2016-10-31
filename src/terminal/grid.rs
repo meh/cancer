@@ -132,11 +132,14 @@ impl Grid {
 	}
 
 	/// Resize the grid.
-	pub fn resize(&mut self, cols: u32, rows: u32) {
+	pub fn resize(&mut self, cols: u32, rows: u32) -> u32 {
 		self.cols = cols;
 		self.rows = rows;
 
-		for row in &mut self.view {
+		let mut down = 0;
+
+		// Resize the rows.
+		for row in self.view.iter_mut().chain(self.back.iter_mut()) {
 			row.resize(cols as usize, self.free.cell());
 		}
 
@@ -145,12 +148,21 @@ impl Grid {
 			self.back.extend(self.view.drain(.. overflow));
 		}
 		else {
-			for _ in 0 .. rows as usize - self.view.len() {
-				self.view.push_back(self.free.pop(cols as usize));
+			let overflow = rows as usize - self.view.len();
+
+			for _ in 0 .. overflow {
+				if let Some(row) = self.back.pop_back() {
+					down += 1;
+					self.view.push_front(row);
+				}
+				else {
+					self.view.push_back(self.free.pop(cols as usize));
+				}
 			}
 		}
 
 		self.clean_history();
+		down
 	}
 
 	/// Move the view `n` cells to the left, dropping cells from the back.

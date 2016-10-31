@@ -211,8 +211,8 @@ impl Terminal {
 		self.area.height = height;
 
 		self.cursor.resize(width, height);
-		self.grid.resize(width, height);
 		self.tabs.resize(width, height);
+		self.cursor.travel(cursor::Down(self.grid.resize(width, height)));
 
 		term!(self; touched all);
 		self.touched.iter(self.area)
