@@ -21,10 +21,10 @@ use std::sync::Arc;
 
 use picto::color::Rgba;
 use style::Style;
-use terminal::{cell, Touched};
 use config::Config;
 use config::style::Shape;
 use control::DEC;
+use terminal::cell;
 
 #[derive(PartialEq, Clone, Debug)]
 pub struct Cursor {

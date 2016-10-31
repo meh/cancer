@@ -49,11 +49,11 @@ impl Environment {
 		}
 
 		if let Some(value) = table.get("cache") {
-			match value {
-				&Value::Integer(value) =>
+			match *value {
+				Value::Integer(value) =>
 					self.cache = value as usize,
 
-				&Value::Boolean(false) =>
+				Value::Boolean(false) =>
 					self.cache = 0,
 
 				_ => ()
@@ -61,11 +61,11 @@ impl Environment {
 		}
 
 		if let Some(value) = table.get("scroll") {
-			match value {
-				&Value::Integer(value) =>
+			match *value {
+				Value::Integer(value) =>
 					self.scroll = value as usize,
 
-				&Value::Boolean(false) =>
+				Value::Boolean(false) =>
 					self.scroll = 0,
 
 				_ => ()

@@ -101,7 +101,7 @@ macro_rules! term {
 		let x = $term.cursor.x();
 		let y = $term.cursor.y();
 
-		if let &Cell::Reference(offset) = term!($term; cell (x, y)) {
+		if let Cell::Reference(offset) = *term!($term; cell (x, y)) {
 			(x - offset as u32, y)
 		}
 		else {
@@ -228,9 +228,9 @@ impl Terminal {
 		}
 
 		for (x, y) in self.area.absolute() {
-			match term!(self; cell (x, y)) {
-				&Cell::Empty { ref style, .. } |
-				&Cell::Occupied { ref style, .. } if style.attributes().contains(style::BLINK) => {
+			match *term!(self; cell (x, y)) {
+				Cell::Empty { ref style, .. } |
+				Cell::Occupied { ref style, .. } if style.attributes().contains(style::BLINK) => {
 					term!(self; touched (x, y));
 				}
 
@@ -593,14 +593,14 @@ impl Terminal {
 
 					for x in x .. self.area.width {
 						term!(self; touched (x, y));
-						term!(self; mut cell (x, y)).into_empty(term!(self; style));
+						term!(self; mut cell (x, y)).make_empty(term!(self; style));
 					}
 
 					for y in y + 1 .. self.area.height {
 						term!(self; touched line y);
 
 						for x in 0 .. self.area.width {
-							term!(self; mut cell (x, y)).into_empty(term!(self; style));
+							term!(self; mut cell (x, y)).make_empty(term!(self; style));
 						}
 					}
 				}
@@ -610,14 +610,14 @@ impl Terminal {
 
 					for x in 0 ... x {
 						term!(self; touched (x, y));
-						term!(self; mut cell (x, y)).into_empty(term!(self; style));
+						term!(self; mut cell (x, y)).make_empty(term!(self; style));
 					}
 
 					for y in 0 .. y {
 						term!(self; touched line y);
 
 						for x in 0 .. self.area.width {
-							term!(self; mut cell (x, y)).into_empty(term!(self; style));
+							term!(self; mut cell (x, y)).make_empty(term!(self; style));
 						}
 					}
 				}
@@ -627,7 +627,7 @@ impl Terminal {
 
 					for y in 0 .. self.area.height {
 						for x in 0 .. self.area.width {
-							term!(self; mut cell (x, y)).into_empty(term!(self; style));
+							term!(self; mut cell (x, y)).make_empty(term!(self; style));
 						}
 					}
 				}
@@ -637,7 +637,7 @@ impl Terminal {
 
 					for x in x .. self.area.width {
 						term!(self; touched (x, y));
-						term!(self; mut cell (x, y)).into_empty(term!(self; style));
+						term!(self; mut cell (x, y)).make_empty(term!(self; style));
 					}
 				}
 
@@ -646,7 +646,7 @@ impl Terminal {
 
 					for x in 0 ... x {
 						term!(self; touched (x, y));
-						term!(self; mut cell (x, y)).into_empty(term!(self; style));
+						term!(self; mut cell (x, y)).make_empty(term!(self; style));
 					}
 				}
 
@@ -656,7 +656,7 @@ impl Terminal {
 					term!(self; touched line y);
 
 					for x in 0 .. self.area.width {
-						term!(self; mut cell (x, y)).into_empty(term!(self; style));
+						term!(self; mut cell (x, y)).make_empty(term!(self; style));
 					}
 				}
 
@@ -664,7 +664,7 @@ impl Terminal {
 					let (x, y) = term!(self; cursor);
 
 					for x in x .. x + n {
-						term!(self; mut cell (x, y)).into_empty(term!(self; style));
+						term!(self; mut cell (x, y)).make_empty(term!(self; style));
 						term!(self; touched (x, y));
 					}
 
@@ -687,7 +687,7 @@ impl Terminal {
 				// Insertion functions.
 				Control::DEC(DEC::AlignmentTest) => {
 					for (x, y) in self.area.absolute() {
-						term!(self; mut cell (x, y)).into_occupied("E", term!(self; style));
+						term!(self; mut cell (x, y)).make_occupied("E", term!(self; style));
 					}
 
 					term!(self; touched all);
@@ -798,7 +798,7 @@ impl Terminal {
 							if ch.chars().all(char::is_whitespace) {
 								if !term!(self; cell (x, y)).is_empty() || term!(self; cell (x, y)).style() != term!(self; style!) {
 									for x in x .. x + width {
-										term!(self; mut cell (x, y)).into_empty(term!(self; style));
+										term!(self; mut cell (x, y)).make_empty(term!(self; style));
 										term!(self; touched (x, y));
 									}
 
@@ -806,23 +806,23 @@ impl Terminal {
 								}
 							}
 							else {
-								let changed = match term!(self; cell (x, y)) {
-									&Cell::Empty { .. } =>
+								let changed = match *term!(self; cell (x, y)) {
+									Cell::Empty { .. } =>
 										true,
 
-									&Cell::Occupied { ref style, ref value, .. } =>
+									Cell::Occupied { ref style, ref value, .. } =>
 										value != ch || style != term!(self; style!),
 
-									&Cell::Reference(..) =>
+									Cell::Reference(..) =>
 										unreachable!()
 								};
 
 								if changed {
-									term!(self; mut cell (x, y)).into_occupied(ch, term!(self; style));
+									term!(self; mut cell (x, y)).make_occupied(ch, term!(self; style));
 									term!(self; touched (x, y));
 
 									for (i, x) in (x + 1 .. x + width).enumerate() {
-										term!(self; mut cell (x, y)).into_reference(i as u8 + 1);
+										term!(self; mut cell (x, y)).make_reference(i as u8 + 1);
 									}
 
 									term!(self; clean references (x + width, y));

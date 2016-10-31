@@ -21,7 +21,6 @@ use std::io;
 use std::ffi;
 
 use xcb;
-use clap;
 
 pub type Result<T> = ::std::result::Result<T, Error>;
 
@@ -32,9 +31,7 @@ pub enum Error {
 	Nul(ffi::NulError),
 	Unknown,
 	Config,
-
 	X(X),
-	Cli(clap::Error),
 }
 
 #[derive(Debug)]
@@ -124,9 +121,6 @@ impl error::Error for Error {
 				X::Connection(..) =>
 					"Connection to the X display failed.",
 			},
-
-			Error::Cli(ref err) =>
-				err.description(),
 		}
 	}
 }

@@ -37,7 +37,7 @@ extern crate control_code as control;
 extern crate xdg;
 extern crate toml;
 extern crate clap;
-use clap::{App, Arg, SubCommand, ArgMatches};
+use clap::{App, Arg};
 
 extern crate libc;
 extern crate xcb;

@@ -65,7 +65,7 @@ impl Free {
 			Some(mut row) => {
 				// Reset the cells.
 				for cell in &mut row {
-					cell.into_empty(self.empty.clone());
+					cell.make_empty(self.empty.clone());
 				}
 
 				// Resize the row to the wanted width.
@@ -126,7 +126,7 @@ impl Grid {
 			let cell = &mut self.view[y as usize][x as usize];
 
 			if cell.is_reference() {
-				cell.into_empty(self.free.style());
+				cell.make_empty(self.free.style());
 			}
 		}
 	}

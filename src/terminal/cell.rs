@@ -110,14 +110,14 @@ impl Cell {
 	}
 
 	/// Make the cell empty.
-	pub fn into_empty(&mut self, style: Rc<Style>) {
+	pub fn make_empty(&mut self, style: Rc<Style>) {
 		mem::replace(self, Cell::Empty {
 			style: style,
 		});
 	}
 
 	/// Make the cell occupied.
-	pub fn into_occupied<T: Into<String>>(&mut self, value: T, style: Rc<Style>) {
+	pub fn make_occupied<T: Into<String>>(&mut self, value: T, style: Rc<Style>) {
 		mem::replace(self, Cell::Occupied {
 			value: value.into(),
 			style: style,
@@ -125,7 +125,7 @@ impl Cell {
 	}
 
 	/// Make the cell into a reference.
-	pub fn into_reference(&mut self, offset: u8) {
+	pub fn make_reference(&mut self, offset: u8) {
 		mem::replace(self, Cell::Reference(offset));
 	}
 

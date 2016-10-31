@@ -139,11 +139,11 @@ impl Style {
 		}
 
 		if let Some(value) = table.get("blink") {
-			match value {
-				&Value::Boolean(false) =>
+			match *value {
+				Value::Boolean(false) =>
 					self.blink = 0,
 
-				&Value::Integer(value) =>
+				Value::Integer(value) =>
 					self.blink = value as u32,
 
 				_ => ()

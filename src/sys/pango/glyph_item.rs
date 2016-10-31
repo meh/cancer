@@ -40,8 +40,8 @@ impl GlyphItem {
 impl Drop for GlyphItem {
 	fn drop(&mut self) {
 		unsafe {
-			Item(self.0.item);
-			GlyphString(self.0.string);
+			pango_item_free(self.0.item);
+			pango_glyph_string_free(self.0.string);
 		}
 	}
 }

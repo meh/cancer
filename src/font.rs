@@ -40,7 +40,7 @@ impl Font {
 		let map     = pango::Map::new();
 		let context = pango::Context::new(&map);
 		let set     = context.fonts(&pango::Description::from(name))
-			.ok_or(Error::Message("missing font".into()))?;
+			.ok_or_else(|| Error::Message("missing font".into()))?;
 
 		let metrics = set.metrics();
 		if metrics.width() == 0 || metrics.height() == 0 {
