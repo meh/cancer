@@ -35,18 +35,18 @@ impl Default for Color {
 
 		// Base 16 colors.
 		table.insert(0,  to_color("#000000").unwrap());
-		table.insert(1,  to_color("#800000").unwrap());
-		table.insert(2,  to_color("#008000").unwrap());
-		table.insert(3,  to_color("#808000").unwrap());
-		table.insert(4,  to_color("#000080").unwrap());
-		table.insert(5,  to_color("#800080").unwrap());
-		table.insert(6,  to_color("#008080").unwrap());
-		table.insert(7,  to_color("#c0c0c0").unwrap());
-		table.insert(8,  to_color("#808080").unwrap());
+		table.insert(1,  to_color("#cd0000").unwrap());
+		table.insert(2,  to_color("#00cd00").unwrap());
+		table.insert(3,  to_color("#cdcd00").unwrap());
+		table.insert(4,  to_color("#0000cd").unwrap());
+		table.insert(5,  to_color("#cd00cd").unwrap());
+		table.insert(6,  to_color("#00cdcd").unwrap());
+		table.insert(7,  to_color("#e5e5e5").unwrap());
+		table.insert(8,  to_color("#7f7f7f").unwrap());
 		table.insert(9,  to_color("#ff0000").unwrap());
 		table.insert(10, to_color("#00ff00").unwrap());
 		table.insert(11, to_color("#ffff00").unwrap());
-		table.insert(12, to_color("#0000ff").unwrap());
+		table.insert(12, to_color("#5c5cff").unwrap());
 		table.insert(13, to_color("#ff00ff").unwrap());
 		table.insert(14, to_color("#00ffff").unwrap());
 		table.insert(15, to_color("#ffffff").unwrap());
