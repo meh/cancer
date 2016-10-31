@@ -52,4 +52,29 @@ impl Tabs {
 	pub fn clear(&mut self) {
 		self.inner.clear()
 	}
+
+	pub fn next(&self, n: i32, x: u32) -> u32 {
+		let mut x = x;
+
+		if n > 0 {
+			while x < self.cols {
+				x += 1;
+
+				if self.get(x) {
+					break;
+				}
+			}
+		}
+		else {
+			while x != 0 {
+				x -= 1;
+
+				if self.get(x) {
+					break;
+				}
+			}
+		}
+
+		x
+	}
 }

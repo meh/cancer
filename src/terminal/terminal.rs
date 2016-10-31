@@ -114,29 +114,8 @@ macro_rules! term {
 	);
 
 	($term:ident; tab $n:expr) => ({
-		let n: i32     = $n;
-		let (mut x, _) = term!($term; cursor);
-
-		if n > 0 {
-			while x < $term.area.width {
-				x += 1;
-
-				if $term.tabs.get(x) {
-					break;
-				}
-			}
-		}
-		else {
-			while x != 0 {
-				x -= 1;
-
-				if $term.tabs.get(x) {
-					break;
-				}
-			}
-		}
-
-		term!($term; cursor Position(Some(x), None));
+		let (x, _) = term!($term; cursor);
+		term!($term; cursor Position(Some($term.tabs.next($n, x)), None));
 	});
 
 	($term:ident; clean references ($x:expr, $y:expr)) => ({
