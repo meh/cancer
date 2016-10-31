@@ -128,6 +128,9 @@ impl Grid {
 			if cell.is_reference() {
 				cell.make_empty(self.free.style());
 			}
+			else {
+				break;
+			}
 		}
 	}
 
