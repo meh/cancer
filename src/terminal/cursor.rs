@@ -107,11 +107,11 @@ impl Cursor {
 			self.scroll = (0, height - 1);
 		}
 
-		if self.x > width {
+		if self.x >= width {
 			self.x = width - 1;
 		}
 		
-		if self.y > height {
+		if self.y >= height {
 			self.y = height - 1;
 		}
 
