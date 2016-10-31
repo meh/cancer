@@ -15,9 +15,9 @@
 // You should have received a copy of the GNU General Public License
 // along with cancer.  If not, see <http://www.gnu.org/licenses/>.
 
-#![feature(question_mark, mpsc_select, conservative_impl_trait, slice_patterns)]
-#![feature(static_in_const, trace_macros, type_ascription, inclusive_range_syntax)]
-#![feature(pub_restricted, deque_extras)]
+#![feature(mpsc_select, conservative_impl_trait, slice_patterns, static_in_const)]
+#![feature(trace_macros, type_ascription, inclusive_range_syntax, pub_restricted)]
+#![feature(deque_extras)]
 #![recursion_limit="100"]
 
 #[macro_use]
@@ -120,9 +120,9 @@ fn main() {
 	let mut batched  = false;
 	let mut window   = Window::open(matches.value_of("name"), &config, &font).unwrap();
 	let mut keyboard = window.keyboard().unwrap();
-	let mut render   = Renderer::new(config.clone(), font.clone(), &window, window.width(), window.height());
-	let mut terminal = Terminal::open(config.clone(), render.columns(), render.rows()).unwrap();
-	let mut tty      = Tty::spawn(config.clone(), matches.value_of("execute").map(|s| s.into()), render.columns(), render.rows()).unwrap();
+	let mut renderer = Renderer::new(config.clone(), font.clone(), &window, window.width(), window.height());
+	let mut terminal = Terminal::open(config.clone(), renderer.columns(), renderer.rows()).unwrap();
+	let mut tty      = Tty::spawn(config.clone(), matches.value_of("execute").map(|s| s.into()), renderer.columns(), renderer.rows()).unwrap();
 
 	let input  = tty.output();
 	let events = window.events();
@@ -130,10 +130,10 @@ fn main() {
 	macro_rules! render {
 		(resize $width:expr, $height:expr) => ({
 			window.resized($width, $height);
-			render.resize($width, $height);
+			renderer.resize($width, $height);
 
-			let rows    = render.rows();
-			let columns = render.columns();
+			let rows    = renderer.rows();
+			let columns = renderer.columns();
 
 			if terminal.columns() != columns || terminal.rows() != rows {
 				render!(terminal.resize(columns, rows));
@@ -170,7 +170,7 @@ fn main() {
 			let options = render!(options!);
 
 			// Redraw the cursor.
-			render.update(|mut o| {
+			renderer.update(|mut o| {
 				if terminal.cursor().is_visible() {
 					o.cursor(&terminal.cursor(), options);
 				}
@@ -186,7 +186,7 @@ fn main() {
 			let area    = $area;
 			let options = render!(options!);
 
-			render.update(|mut o| {
+			renderer.update(|mut o| {
 				// Redraw margins.
 				o.margin(&area);
 
@@ -223,7 +223,7 @@ fn main() {
 			let iter    = $iter;
 			let options = render!(options);
 
-			render.update(|mut o| {
+			renderer.update(|mut o| {
 				for cell in terminal.iter(iter) {
 					o.cell(&cell, options);
 				}
