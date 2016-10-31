@@ -618,14 +618,14 @@ impl Terminal {
 
 				// Erase functions.
 				Control::C1(C1::ControlSequence(CSI::EraseDisplay(CSI::Erase::ToEnd))) => {
-					let (x, y) = self.cursor.position();
+					let (x, y) = term!(self; cursor);
 
 					for x in x .. self.area.width {
 						term!(self; touched (x, y));
 						term!(self; mut cell (x, y)).into_empty(term!(self; style));
 					}
 
-					for y in y .. self.area.height {
+					for y in y + 1 .. self.area.height {
 						term!(self; touched line y);
 
 						for x in 0 .. self.area.width {
@@ -635,7 +635,7 @@ impl Terminal {
 				}
 
 				Control::C1(C1::ControlSequence(CSI::EraseDisplay(CSI::Erase::ToStart))) => {
-					let (x, y) = self.cursor.position();
+					let (x, y) = term!(self; cursor);
 
 					for x in 0 ... x {
 						term!(self; touched (x, y));
@@ -662,7 +662,7 @@ impl Terminal {
 				}
 
 				Control::C1(C1::ControlSequence(CSI::EraseLine(CSI::Erase::ToEnd))) => {
-					let (x, y) = self.cursor.position();
+					let (x, y) = term!(self; cursor);
 
 					for x in x .. self.area.width {
 						term!(self; touched (x, y));
@@ -671,7 +671,7 @@ impl Terminal {
 				}
 
 				Control::C1(C1::ControlSequence(CSI::EraseLine(CSI::Erase::ToStart))) => {
-					let (x, y) = self.cursor.position();
+					let (x, y) = term!(self; cursor);
 
 					for x in 0 ... x {
 						term!(self; touched (x, y));
