@@ -191,7 +191,7 @@ impl Cursor {
 					}
 
 					if y >= self.height {
-						self.y = self.height;
+						self.y = self.height - 1;
 					}
 					else {
 						self.y = y;
