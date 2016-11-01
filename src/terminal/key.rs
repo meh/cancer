@@ -239,8 +239,8 @@ impl Key {
 				SHIFT # APPLICATION_CURSOR => b"\x1B[1;2H",
 				SHIFT                      => b"\x1B[2J",
 
-				_ # APPLICATION_CURSOR => b"\x1B[7~",
-				_                      => b"\x1B[H",
+				_ # APPLICATION_CURSOR => b"\x1B[H",
+				_                      => b"\x1B[7~",
 			},
 
 			Value::Button(Button::End) => write! {
