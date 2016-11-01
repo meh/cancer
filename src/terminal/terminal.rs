@@ -16,7 +16,7 @@
 // along with cancer.  If not, see <http://www.gnu.org/licenses/>.
 
 use std::sync::Arc;
-use std::io::Write;
+use std::io::{self, Write};
 use std::mem;
 use std::vec;
 
@@ -29,7 +29,8 @@ use error;
 use config::{self, Config};
 use config::style::Shape;
 use style::{self, Style};
-use terminal::{Iter, Touched, Cell, Tabs, Grid, Key, Action, cell};
+use platform::key::{self, Key};
+use terminal::{Iter, Touched, Cell, Tabs, Grid, Action, cell};
 use terminal::mode::{self, Mode};
 use terminal::cursor::{self, Cursor};
 use terminal::touched;
@@ -242,12 +243,348 @@ impl Terminal {
 	}
 
 	/// Handle a key.
-	pub fn key<O: Write>(&mut self, key: Key, output: O) -> error::Result<touched::Iter> {
-		if !self.mode.contains(mode::KEYBOARD_LOCK) {
-			try!(key.write(self.mode, output));
+	pub fn key<O: Write>(&mut self, key: Key, mut output: O) -> io::Result<()> {
+		macro_rules! write {
+			() => ();
+
+			(_ # $($modes:ident)|+ => $string:expr, $($rest:tt)*) => ({
+				if self.mode.contains($(mode::$modes)|*) {
+					return output.write_all($string);
+				}
+
+				write!($($rest)*)
+			});
+
+			(_ => $string:expr,) => ({
+				output.write_all($string)
+			});
+
+			($($modifier:ident)|+ # $($modes:ident)|+ => $string:expr, $($rest:tt)*) => ({
+				if key.modifier().contains($(key::$modifier)|*) && self.mode.contains($(mode::$modes)|*) {
+					return output.write_all($string);
+				}
+
+				write!($($rest)*)
+			});
+
+			($($modifier:ident)|+ => $string:expr, $($rest:tt)*) => ({
+				if key.modifier().contains($(key::$modifier)|*) {
+					return output.write_all($string);
+				}
+
+				write!($($rest)*)
+			});
 		}
 
-		Ok(self.touched.iter(self.area))
+		if self.mode.contains(mode::KEYBOARD_LOCK) {
+			return Ok(());
+		}
+
+		match *key.value() {
+			key::Value::Char(ref string) => {
+				if key.modifier().contains(key::ALT) {
+					try!(output.write_all(b"\x1B"));
+				}
+
+				output.write_all(string.as_bytes())
+			}
+
+			key::Value::Button(key::Button::Escape) => write! {
+				_ => b"\x1B",
+			},
+
+			key::Value::Button(key::Button::Backspace) => write! {
+				ALT => b"\x1B\x7F",
+				_   => b"\x7F",
+			},
+
+			key::Value::Button(key::Button::Enter) => write! {
+				ALT # CRLF => b"\x1B\r\n",
+				ALT        => b"\x1B\r",
+
+				_ # CRLF => b"\r\n",
+				_        => b"\r",
+			},
+
+			key::Value::Button(key::Button::Delete) => write! {
+				CTRL # APPLICATION_KEYPAD => b"\x1B[3;5~",
+				CTRL                      => b"\x1B[M",
+
+				SHIFT # APPLICATION_KEYPAD => b"\x1B[3;2~",
+				SHIFT                      => b"\x1B[2K",
+
+				_ # APPLICATION_KEYPAD => b"\x1B[3~",
+				_                      => b"\x1B[P",
+			},
+
+			key::Value::Button(key::Button::Insert) => write! {
+				CTRL # APPLICATION_KEYPAD => b"\x1B[2;5~",
+				CTRL                      => b"\x1B[L",
+
+				SHIFT # APPLICATION_KEYPAD => b"\x1B[2;2~",
+				SHIFT                      => b"\x1B[4l",
+
+				_ # APPLICATION_KEYPAD => b"\x1B[2~",
+				_                      => b"\x1B[M",
+			},
+
+			key::Value::Button(key::Button::Home) => write! {
+				SHIFT # APPLICATION_CURSOR => b"\x1B[1;2H",
+				SHIFT                      => b"\x1B[2J",
+
+				_ # APPLICATION_CURSOR => b"\x1B[H",
+				_                      => b"\x1B[7~",
+			},
+
+			key::Value::Button(key::Button::End) => write! {
+				CTRL # APPLICATION_KEYPAD => b"\x1B[1;5F",
+				CTRL                      => b"\x1B[J",
+
+				SHIFT # APPLICATION_KEYPAD => b"\x1B[1;2F",
+				SHIFT                      => b"\x1B[K",
+
+				_ => b"\x1B[8~",
+			},
+
+			key::Value::Button(key::Button::PageUp) => write! {
+				CTRL  => b"\x1B[5;5~",
+				SHIFT => b"\x1B[5;2~",
+				_     => b"\x1B[5~",
+			},
+
+			key::Value::Button(key::Button::PageDown) => write! {
+				CTRL  => b"\x1B[6;5~",
+				SHIFT => b"\x1B[6;2~",
+				_     => b"\x1B[6~",
+			},
+
+			key::Value::Button(key::Button::Up) => write! {
+				CTRL  => b"\x1B[1;5A",
+				ALT   => b"\x1B[1;3A",
+				SHIFT => b"\x1B[1;2A",
+
+				_ # APPLICATION_CURSOR => b"\x1BOA",
+				_                      => b"\x1B[A",
+			},
+
+			key::Value::Button(key::Button::Down) => write! {
+				CTRL  => b"\x1B[1;5B",
+				ALT   => b"\x1B[1;3B",
+				SHIFT => b"\x1B[1;2B",
+
+				_ # APPLICATION_CURSOR => b"\x1BOB",
+				_                      => b"\x1B[B",
+			},
+
+			key::Value::Button(key::Button::Right) => write! {
+				CTRL  => b"\x1B[1;5C",
+				ALT   => b"\x1B[1;3C",
+				SHIFT => b"\x1B[1;2C",
+
+				_ # APPLICATION_CURSOR => b"\x1BOC",
+				_                      => b"\x1B[C",
+			},
+
+			key::Value::Button(key::Button::Left) => write! {
+				CTRL  => b"\x1B[1;5D",
+				ALT   => b"\x1B[1;3D",
+				SHIFT => b"\x1B[1;2D",
+
+				_ # APPLICATION_CURSOR => b"\x1BOD",
+				_                      => b"\x1B[D",
+			},
+
+			key::Value::Button(key::Button::F1) => write! {
+				CTRL  => b"\x1B[1;5P",
+				ALT   => b"\x1B[1;3P",
+				LOGO  => b"\x1B[1;6P",
+				SHIFT => b"\x1B[1;2P",
+				_     => b"\x1BOP",
+			},
+
+			key::Value::Button(key::Button::F2) => write! {
+				CTRL  => b"\x1B[1;5Q",
+				ALT   => b"\x1B[1;3Q",
+				LOGO  => b"\x1B[1;6Q",
+				SHIFT => b"\x1B[1;2Q",
+				_     => b"\x1BOQ",
+			},
+
+			key::Value::Button(key::Button::F3) => write! {
+				CTRL  => b"\x1B[1;5R",
+				ALT   => b"\x1B[1;3R",
+				LOGO  => b"\x1B[1;6R",
+				SHIFT => b"\x1B[1;2R",
+				_     => b"\x1BOR",
+			},
+
+			key::Value::Button(key::Button::F4) => write! {
+				CTRL  => b"\x1B[1;5S",
+				ALT   => b"\x1B[1;3S",
+				LOGO  => b"\x1B[1;6S",
+				SHIFT => b"\x1B[1;2S",
+				_     => b"\x1BOS",
+			},
+
+			key::Value::Button(key::Button::F5) => write! {
+				CTRL  => b"\x1B[15;5~",
+				ALT   => b"\x1B[15;3~",
+				LOGO  => b"\x1B[15;6~",
+				SHIFT => b"\x1B[15;2~",
+				_     => b"\x1B[15~",
+			},
+
+			key::Value::Button(key::Button::F6) => write! {
+				CTRL  => b"\x1B[17;5~",
+				ALT   => b"\x1B[17;3~",
+				LOGO  => b"\x1B[17;6~",
+				SHIFT => b"\x1B[17;2~",
+				_     => b"\x1B[17~",
+			},
+
+			key::Value::Button(key::Button::F7) => write! {
+				CTRL  => b"\x1B[18;5~",
+				ALT   => b"\x1B[18;3~",
+				LOGO  => b"\x1B[18;6~",
+				SHIFT => b"\x1B[18;2~",
+				_     => b"\x1B[18~",
+			},
+
+			key::Value::Button(key::Button::F8) => write! {
+				CTRL  => b"\x1B[19;5~",
+				ALT   => b"\x1B[19;3~",
+				LOGO  => b"\x1B[19;6~",
+				SHIFT => b"\x1B[19;2~",
+				_     => b"\x1B[19~",
+			},
+
+			key::Value::Button(key::Button::F9) => write! {
+				CTRL  => b"\x1B[20;5~",
+				ALT   => b"\x1B[20;3~",
+				LOGO  => b"\x1B[20;6~",
+				SHIFT => b"\x1B[20;2~",
+				_     => b"\x1B[20~",
+			},
+
+			key::Value::Button(key::Button::F10) => write! {
+				CTRL  => b"\x1B[21;5~",
+				ALT   => b"\x1B[21;3~",
+				LOGO  => b"\x1B[21;6~",
+				SHIFT => b"\x1B[21;2~",
+				_     => b"\x1B[21~",
+			},
+
+			key::Value::Button(key::Button::F11) => write! {
+				CTRL  => b"\x1B[23;5~",
+				ALT   => b"\x1B[23;3~",
+				LOGO  => b"\x1B[23;6~",
+				SHIFT => b"\x1B[23;2~",
+				_     => b"\x1B[23~",
+			},
+
+			key::Value::Button(key::Button::F12) => write! {
+				CTRL  => b"\x1B[24;5~",
+				ALT   => b"\x1B[24;3~",
+				LOGO  => b"\x1B[24;6~",
+				SHIFT => b"\x1B[24;2~",
+				_     => b"\x1B[24~",
+			},
+
+			key::Value::Button(key::Button::F13) => write! {
+				_ => b"\x1B[1;2P",
+			},
+
+			key::Value::Button(key::Button::F14) => write! {
+				_ => b"\x1B[1;2Q",
+			},
+
+			key::Value::Button(key::Button::F15) => write! {
+				_ => b"\x1B[1;2R",
+			},
+
+			key::Value::Button(key::Button::F16) => write! {
+				_ => b"\x1B[1;2S",
+			},
+
+			key::Value::Button(key::Button::F17) => write! {
+				_ => b"\x1B[15;2~",
+			},
+
+			key::Value::Button(key::Button::F18) => write! {
+				_ => b"\x1B[17;2~",
+			},
+
+			key::Value::Button(key::Button::F19) => write! {
+				_ => b"\x1B[18;2~",
+			},
+
+			key::Value::Button(key::Button::F20) => write! {
+				_ => b"\x1B[19;2~",
+			},
+
+			key::Value::Button(key::Button::F21) => write! {
+				_ => b"\x1B[20;2~",
+			},
+
+			key::Value::Button(key::Button::F22) => write! {
+				_ => b"\x1B[21;2~",
+			},
+
+			key::Value::Button(key::Button::F23) => write! {
+				_ => b"\x1B[23;2~",
+			},
+
+			key::Value::Button(key::Button::F24) => write! {
+				_ => b"\x1B[24;2~",
+			},
+
+			key::Value::Button(key::Button::F25) => write! {
+				_ => b"\x1B[1;5P",
+			},
+
+			key::Value::Button(key::Button::F26) => write! {
+				_ => b"\x1B[1;5Q",
+			},
+
+			key::Value::Button(key::Button::F27) => write! {
+				_ => b"\x1B[1;5R",
+			},
+
+			key::Value::Button(key::Button::F28) => write! {
+				_ => b"\x1B[1;5S",
+			},
+
+			key::Value::Button(key::Button::F29) => write! {
+				_ => b"\x1B[15;5~",
+			},
+
+			key::Value::Button(key::Button::F30) => write! {
+				_ => b"\x1B[17;5~",
+			},
+
+			key::Value::Button(key::Button::F31) => write! {
+				_ => b"\x1B[18;5~",
+			},
+
+			key::Value::Button(key::Button::F32) => write! {
+				_ => b"\x1B[19;5~",
+			},
+
+			key::Value::Button(key::Button::F33) => write! {
+				_ => b"\x1B[20;5~",
+			},
+
+			key::Value::Button(key::Button::F34) => write! {
+				_ => b"\x1B[21;5~",
+			},
+
+			key::Value::Button(key::Button::F35) => write! {
+				_ => b"\x1B[23;5~",
+			},
+
+			key::Value::Keypad(..) =>
+				unimplemented!(),
+		}
 	}
 
 	/// Handle output from the tty.

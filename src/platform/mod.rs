@@ -20,3 +20,6 @@ pub use self::window::Window;
 
 mod keyboard;
 pub use self::keyboard::Keyboard;
+
+pub mod key;
+pub use self::key::Key;

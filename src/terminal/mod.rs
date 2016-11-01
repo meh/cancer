@@ -27,9 +27,6 @@ pub use self::mode::Mode;
 pub mod cursor;
 pub use self::cursor::Cursor;
 
-pub mod key;
-pub use self::key::Key;
-
 pub mod cell;
 pub use self::cell::Cell;
 

@@ -22,7 +22,7 @@ use xcbu::ewmh;
 use xkbcommon::xkb::{self, keysyms};
 
 use error;
-use terminal::key::{self, Key, Button, Keypad, Modifier};
+use platform::key::{self, Key, Button, Keypad, Modifier};
 
 pub struct Keyboard {
 	connection: Arc<ewmh::Connection>,

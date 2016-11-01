@@ -289,7 +289,7 @@ fn main() {
 						let event = xcb::cast_event::<xcb::KeyPressEvent>(&event);
 
 						if let Some(key) = keyboard.key(event.detail()) {
-							render!(batched terminal.key(key, &mut tty).unwrap());
+							terminal.key(key, &mut tty).unwrap();
 							tty.flush().unwrap();
 						}
 					}
