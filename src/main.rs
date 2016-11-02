@@ -110,6 +110,11 @@ fn main() {
 			.long("name")
 			.takes_value(true)
 			.help("Name for the window."))
+		.arg(Arg::with_name("term")
+			.short("t")
+			.long("term")
+			.takes_value(true).
+			help("Specify the TERM environment variable to use."))
 		.get_matches();
 
 	let     config   = Arc::new(Config::load(matches.value_of("config")).unwrap());
@@ -122,7 +127,9 @@ fn main() {
 	let mut keyboard = window.keyboard().unwrap();
 	let mut renderer = Renderer::new(config.clone(), font.clone(), &window, window.width(), window.height());
 	let mut terminal = Terminal::open(config.clone(), renderer.columns(), renderer.rows()).unwrap();
-	let mut tty      = Tty::spawn(config.clone(), matches.value_of("execute").map(|s| s.into()), renderer.columns(), renderer.rows()).unwrap();
+	let mut tty      = Tty::spawn(renderer.columns(), renderer.rows(),
+	                              matches.value_of("term").or_else(|| config.environment().term()),
+	                              matches.value_of("execute").or_else(|| config.environment().program())).unwrap();
 
 	let input  = tty.output();
 	let events = window.events();

@@ -21,9 +21,11 @@ use toml::{self, Value};
 pub struct Environment {
 	display: Option<String>,
 	program: Option<String>,
-	cache:   usize,
-	scroll:  usize,
-	batch:   u32,
+	term:    Option<String>,
+
+	cache:  usize,
+	scroll: usize,
+	batch:  u32,
 }
 
 impl Default for Environment {
@@ -31,9 +33,11 @@ impl Default for Environment {
 		Environment {
 			display: None,
 			program: None,
-			cache:   4096,
-			scroll:  4096,
-			batch:   30,
+			term:    None,
+
+			cache:  4096,
+			scroll: 4096,
+			batch:  30,
 		}
 	}
 }
@@ -46,6 +50,10 @@ impl Environment {
 
 		if let Some(value) = table.get("program").and_then(|v| v.as_str()) {
 			self.program = Some(value.into());
+		}
+
+		if let Some(value) = table.get("term").and_then(|v| v.as_str()) {
+			self.term = Some(value.into());
 		}
 
 		if let Some(value) = table.get("cache") {
@@ -83,6 +91,10 @@ impl Environment {
 
 	pub fn program(&self) -> Option<&str> {
 		self.program.as_ref().map(AsRef::as_ref)
+	}
+
+	pub fn term(&self) -> Option<&str> {
+		self.term.as_ref().map(AsRef::as_ref)
 	}
 
 	pub fn cache(&self) -> usize {

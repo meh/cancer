@@ -20,14 +20,12 @@ use std::fs::File;
 use std::os::unix::io::{RawFd, FromRawFd};
 use std::io::{self, Write, BufRead, BufReader};
 use std::thread;
-use std::sync::Arc;
 use std::sync::mpsc::{SyncSender, Receiver, sync_channel};
 
 use libc::{c_void, c_char, c_ushort, c_int, winsize};
 use libc::{SIGCHLD, SIGHUP, SIGINT, SIGQUIT, SIGTERM, SIGALRM, SIG_DFL, TIOCSCTTY, TIOCSWINSZ};
 use libc::{close, openpty, fork, setsid, dup2, signal, ioctl, getpwuid, getuid, execvp};
 
-use config::Config;
 use error::{self, Error};
 
 #[derive(Debug)]
@@ -41,7 +39,7 @@ pub struct Tty {
 }
 
 impl Tty {
-	pub fn spawn(config: Arc<Config>, program: Option<String>, width: u32, height: u32) -> error::Result<Self> {
+	pub fn spawn(width: u32, height: u32, term: Option<&str>, program: Option<&str>) -> error::Result<Self> {
 		unsafe {
 			let size = winsize {
 				ws_row:    height as c_ushort,
@@ -82,7 +80,7 @@ impl Tty {
 					close(slave);
 
 					// Execute program.
-					execute(&config, program.as_ref().map(AsRef::as_ref));
+					execute(term, program);
 				}
 
 				// From our process.
@@ -178,16 +176,13 @@ impl Write for Tty {
 	}
 }
 
-unsafe fn execute(config: &Config, program: Option<&str>) -> ! {
+unsafe fn execute(term: Option<&str>, program: Option<&str>) -> ! {
 	use std::env;
 	use std::ffi::{CString, CStr};
 	use shlex;
 
 	let passwd  = getpwuid(getuid()).as_mut().expect("no user?");
 	let program = if let Some(program) = program {
-		program.into()
-	}
-	else if let Some(program) = config.environment().program() {
 		program.into()
 	}
 	else if let Ok(program) = env::var("SHELL") {
@@ -212,13 +207,14 @@ unsafe fn execute(config: &Config, program: Option<&str>) -> ! {
 	env::remove_var("COLUMNS");
 	env::remove_var("LINES");
 	env::remove_var("TERMCAP");
+	env::remove_var("TERMINFO");
 
 	// Fill environment.
 	env::set_var("LOGNAME", CStr::from_ptr((*passwd).pw_name).to_str().unwrap());
 	env::set_var("USER", CStr::from_ptr((*passwd).pw_name).to_str().unwrap());
 	env::set_var("SHELL", &program);
 	env::set_var("HOME", CStr::from_ptr((*passwd).pw_dir).to_str().unwrap());
-	env::set_var("TERM", "cancer-256color");
+	env::set_var("TERM", term.unwrap_or("cancer-256color"));
 
 	// Parse program line.
 	let mut name = shlex::split(&program).unwrap();
