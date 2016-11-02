@@ -22,7 +22,7 @@ use std::vec;
 
 use unicode_segmentation::UnicodeSegmentation;
 use unicode_width::UnicodeWidthStr;
-use picto::Area;
+use picto::Region;
 use picto::color::Rgba;
 use control::{self, Control, C0, C1, DEC, CSI, SGR};
 use error;
@@ -38,7 +38,7 @@ use terminal::touched;
 #[derive(Debug)]
 pub struct Terminal {
 	config:  Arc<Config>,
-	area:    Area,
+	region:  Region,
 	cache:   Option<Vec<u8>>,
 	touched: Touched,
 	mode:    Mode,
@@ -57,7 +57,7 @@ macro_rules! term {
 	);
 
 	($term:ident; scroll! up $n:tt) => (
-		if $term.cursor.scroll == (0, $term.area.height - 1) {
+		if $term.cursor.scroll == (0, $term.region.height - 1) {
 			term!($term; touched all);
 			$term.grid.up($n, None);
 		}
@@ -153,13 +153,13 @@ macro_rules! term {
 
 impl Terminal {
 	pub fn open(config: Arc<Config>, width: u32, height: u32) -> error::Result<Self> {
-		let area = Area::from(0, 0, width, height);
-		let grid = Grid::new(width, height, config.environment().scroll());
-		let tabs = Tabs::new(width, height);
+		let region = Region::from(0, 0, width, height);
+		let grid   = Grid::new(width, height, config.environment().scroll());
+		let tabs   = Tabs::new(width, height);
 
 		Ok(Terminal {
 			config:  config.clone(),
-			area:    area,
+			region:  region,
 			cache:   Default::default(),
 			touched: Touched::default(),
 			mode:    Mode::default(),
@@ -174,11 +174,11 @@ impl Terminal {
 	}
 
 	pub fn columns(&self) -> u32 {
-		self.area.width
+		self.region.width
 	}
 
 	pub fn rows(&self) -> u32 {
-		self.area.height
+		self.region.height
 	}
 
 	pub fn mode(&self) -> Mode {
@@ -196,9 +196,9 @@ impl Terminal {
 		cell::Position::new(x, y, term!(self; cell (x, y)))
 	}
 
-	/// Get the area of the terminal.
-	pub fn area(&self) -> Area {
-		self.area
+	/// Get the region of the terminal.
+	pub fn region(&self) -> Region {
+		self.region
 	}
 
 	/// Get an iterator over positioned cells.
@@ -208,15 +208,15 @@ impl Terminal {
 
 	/// Resize the terminal.
 	pub fn resize(&mut self, width: u32, height: u32) -> touched::Iter {
-		self.area.width  = width;
-		self.area.height = height;
+		self.region.width  = width;
+		self.region.height = height;
 
 		self.cursor.resize(width, height);
 		self.tabs.resize(width, height);
 		self.cursor.travel(cursor::Down(self.grid.resize(width, height)));
 
 		term!(self; touched all);
-		self.touched.iter(self.area)
+		self.touched.iter(self.region)
 	}
 
 	/// Enable or disable blinking and return the affected cells.
@@ -228,7 +228,7 @@ impl Terminal {
 			self.mode.remove(mode::BLINK);
 		}
 
-		for (x, y) in self.area.absolute() {
+		for (x, y) in self.region.absolute() {
 			match *term!(self; cell (x, y)) {
 				Cell::Empty { ref style, .. } |
 				Cell::Occupied { ref style, .. } if style.attributes().contains(style::BLINK) => {
@@ -239,7 +239,7 @@ impl Terminal {
 			}
 		}
 
-		self.touched.iter(self.area)
+		self.touched.iter(self.region)
 	}
 
 	/// Handle a key.
@@ -610,12 +610,31 @@ impl Terminal {
 
 			// Try to parse the rest of the input.
 			let item = match control::parse(input) {
-				// This should never happen.
-				control::Result::Error(err) => {
-					error!(target: "cancer::terminal::input", "cannot parse control code: {:?}", err);
+				// No control code.
+				control::Result::Error(_) => {
+					match unicode(input) {
+						Unicode::Error(0) => {
+							input = &input[1..];
+							Control::C1(C1::String("�"))
+						}
 
-					input = &input[1..];
-					Control::None("�")
+						Unicode::Error(length) => {
+							input = &input[length..];
+							Control::C1(C1::String("�"))
+						}
+
+						Unicode::Incomplete(_) => {
+							debug!(target: "cancer::terminal::input", "incomplete input: {:?}", input);
+
+							self.cache = Some(input.to_vec());
+							break;
+						}
+
+						Unicode::Done(rest, value) => {
+							input = rest;
+							Control::C1(C1::String(value))
+						}
+					}
 				}
 
 				// The given input isn't a complete sequence, cache the current input.
@@ -648,7 +667,7 @@ impl Terminal {
 
 				Control::DEC(DEC::ScrollRegion { top, bottom }) => {
 					let mut top    = top;
-					let mut bottom = bottom.unwrap_or(self.area.height - 1);
+					let mut bottom = bottom.unwrap_or(self.region.height - 1);
 
 					if top > bottom {
 						mem::swap(&mut top, &mut bottom);
@@ -911,7 +930,7 @@ impl Terminal {
 				}
 
 				Control::DEC(DEC::ForwardIndex) => {
-					if self.cursor.x() == self.area.width - 1 {
+					if self.cursor.x() == self.region.width - 1 {
 						self.grid.right(1);
 						term!(self; touched all);
 					}
@@ -932,15 +951,15 @@ impl Terminal {
 				Control::C1(C1::ControlSequence(CSI::EraseDisplay(CSI::Erase::ToEnd))) => {
 					let (x, y) = term!(self; cursor);
 
-					for x in x .. self.area.width {
+					for x in x .. self.region.width {
 						term!(self; touched (x, y));
 						term!(self; mut cell (x, y)).make_empty(term!(self; style));
 					}
 
-					for y in y + 1 .. self.area.height {
+					for y in y + 1 .. self.region.height {
 						term!(self; touched line y);
 
-						for x in 0 .. self.area.width {
+						for x in 0 .. self.region.width {
 							term!(self; mut cell (x, y)).make_empty(term!(self; style));
 						}
 					}
@@ -957,7 +976,7 @@ impl Terminal {
 					for y in 0 .. y {
 						term!(self; touched line y);
 
-						for x in 0 .. self.area.width {
+						for x in 0 .. self.region.width {
 							term!(self; mut cell (x, y)).make_empty(term!(self; style));
 						}
 					}
@@ -966,8 +985,8 @@ impl Terminal {
 				Control::C1(C1::ControlSequence(CSI::EraseDisplay(CSI::Erase::All))) => {
 					term!(self; touched all);
 
-					for y in 0 .. self.area.height {
-						for x in 0 .. self.area.width {
+					for y in 0 .. self.region.height {
+						for x in 0 .. self.region.width {
 							term!(self; mut cell (x, y)).make_empty(term!(self; style));
 						}
 					}
@@ -976,7 +995,7 @@ impl Terminal {
 				Control::C1(C1::ControlSequence(CSI::EraseLine(CSI::Erase::ToEnd))) => {
 					let (x, y) = term!(self; cursor);
 
-					for x in x .. self.area.width {
+					for x in x .. self.region.width {
 						term!(self; touched (x, y));
 						term!(self; mut cell (x, y)).make_empty(term!(self; style));
 					}
@@ -996,7 +1015,7 @@ impl Terminal {
 
 					term!(self; touched line y);
 
-					for x in 0 .. self.area.width {
+					for x in 0 .. self.region.width {
 						term!(self; mut cell (x, y)).make_empty(term!(self; style));
 					}
 				}
@@ -1020,14 +1039,14 @@ impl Terminal {
 					let (x, y) = term!(self; cursor);
 					self.grid.delete(x, y, n);
 
-					for x in x .. self.area.width {
+					for x in x .. self.region.width {
 						term!(self; touched (x, y));
 					}
 				}
 
 				// Insertion functions.
 				Control::DEC(DEC::AlignmentTest) => {
-					for (x, y) in self.area.absolute() {
+					for (x, y) in self.region.absolute() {
 						term!(self; mut cell (x, y)).make_occupied("E", term!(self; style));
 					}
 
@@ -1042,7 +1061,7 @@ impl Terminal {
 					let (x, y) = term!(self; cursor);
 					self.grid.insert(x, y, n);
 
-					for x in x .. self.area.width {
+					for x in x .. self.region.width {
 						term!(self; touched (x, y));
 					}
 				}
@@ -1073,7 +1092,7 @@ impl Terminal {
 					self.tabs.set(x, false);
 				}
 
-				Control::None(string) => {
+				Control::C1(C1::String(string)) => {
 					for mut ch in string.graphemes(true) {
 						if term!(self; charset) == DEC::Charset::DEC(DEC::charset::DEC::Graphic) {
 							ch = match ch {
@@ -1171,8 +1190,8 @@ impl Terminal {
 							}
 						}
 
-						// If the character overflows the area, mark it for wrapping.
-						if self.cursor.x() + width >= self.area.width {
+						// If the character overflows the region, mark it for wrapping.
+						if self.cursor.x() + width >= self.region.width {
 							self.cursor.state.insert(cursor::WRAP);
 						}
 						else {
@@ -1422,6 +1441,68 @@ impl Terminal {
 			}
 		}
 
-		Ok((actions.into_iter(), self.touched.iter(self.area)))
+		Ok((actions.into_iter(), self.touched.iter(self.region)))
 	}
+}
+
+enum Unicode<'a> {
+	Done(&'a [u8], &'a str),
+	Incomplete(Option<usize>),
+	Error(usize),
+}
+
+fn unicode(i: &[u8]) -> Unicode {
+	use std::str;
+
+	const WIDTH: [u8; 256] = [
+		1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
+		1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, // 0x1F
+		1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
+		1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, // 0x3F
+		1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
+		1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, // 0x5F
+		1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
+		1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, // 0x7F
+		0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+		0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, // 0x9F
+		0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+		0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, // 0xBF
+		0, 0, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2,
+		2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, // 0xDF
+		3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, // 0xEF
+		4, 4, 4, 4, 4, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, // 0xFF
+	];
+
+	let mut length = WIDTH[i[0] as usize] as usize;
+
+	if length == 0 {
+		return Unicode::Error(0);
+	}
+	else if i.len() < length {
+		return Unicode::Incomplete(None);
+	}
+	else if str::from_utf8(&i[..length]).is_err() {
+		return Unicode::Error(length);
+	}
+
+	let mut rest = &i[length..];
+
+	while !rest.is_empty() && !control::parse(rest).is_done() {
+		let w = WIDTH[rest[0] as usize] as usize;
+
+		if w == 0 {
+			return Unicode::Error(0);
+		}
+		else if rest.len() < w {
+			return Unicode::Incomplete(Some(w - rest.len()));
+		}
+		else if str::from_utf8(&rest[..w]).is_err() {
+			break;
+		}
+
+		length += w;
+		rest    = &rest[w..];
+	}
+
+	Unicode::Done(&i[length..], unsafe { str::from_utf8_unchecked(&i[..length]) })
 }

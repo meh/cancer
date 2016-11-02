@@ -17,23 +17,24 @@ panic = "abort"
 log        = "0.3"
 env_logger = "0.3"
 
+libc          = "0.2"
 bitflags      = "0.7"
 bit-vec       = "0.4"
 fnv           = "1.0"
 lru-cache     = "0.1"
 shlex         = "0.1"
 schedule_recv = "0.1"
-control-code  = "0.3.5"
+control-code  = "0.4"
 
 clap  = "2"
 xdg   = "2"
 toml  = "0.1"
-picto = "0.3"
+picto = "0.4"
 
 unicode-segmentation = "0.1"
 unicode-width        = "0.1"
 
-libc      = "0.2"
+[target.'cfg(target_os = "linux")'.dependencies]
 xcb       = { version = "0.7.5", features = ["thread"] }
 xcb-util  = { version = "0.1.5", features = ["icccm", "ewmh", "thread"] }
 xkbcommon = { version = "0.2",   features = ["x11"] }

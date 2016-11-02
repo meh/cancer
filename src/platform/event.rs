@@ -15,18 +15,20 @@
 // You should have received a copy of the GNU General Public License
 // along with cancer.  If not, see <http://www.gnu.org/licenses/>.
 
-#[cfg(target_os = "linux")]
-mod x11;
-#[cfg(target_os = "linux")]
-pub use self::x11::Window;
+use picto::Region;
+use platform::Key;
 
-#[cfg(unix)]
-mod unix;
-#[cfg(unix)]
-pub use self::unix::Tty;
+#[derive(Eq, PartialEq, Clone, Debug)]
+pub enum Event {
+	/// Redraw the specified region.
+	Redraw(Region),
 
-pub mod event;
-pub use self::event::Event;
+	/// Focus change.
+	Focus(bool),
 
-pub mod key;
-pub use self::key::Key;
+	/// Window resize.
+	Resize(u32, u32),
+
+	/// Key press.
+	Key(Key),
+}

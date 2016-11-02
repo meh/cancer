@@ -17,7 +17,7 @@
 
 #![feature(mpsc_select, conservative_impl_trait, slice_patterns, static_in_const)]
 #![feature(trace_macros, type_ascription, inclusive_range_syntax, pub_restricted)]
-#![feature(deque_extras)]
+#![feature(deque_extras, integer_atomics)]
 #![recursion_limit="100"]
 
 #[macro_use]
@@ -30,6 +30,7 @@ extern crate bit_vec;
 extern crate fnv;
 extern crate lru_cache as lru;
 extern crate shlex;
+extern crate picto;
 extern crate schedule_recv as timer;
 #[macro_use]
 extern crate control_code as control;
@@ -40,12 +41,13 @@ extern crate clap;
 use clap::{App, Arg};
 
 extern crate libc;
-extern crate xcb;
-extern crate xcb_util as xcbu;
-extern crate xkbcommon;
 
-extern crate picto;
-use picto::Area;
+#[cfg(target_os = "linux")]
+extern crate xcb;
+#[cfg(target_os = "linux")]
+extern crate xcb_util as xcbu;
+#[cfg(target_os = "linux")]
+extern crate xkbcommon;
 
 extern crate unicode_segmentation;
 extern crate unicode_width;
@@ -68,13 +70,10 @@ use terminal::{Terminal, Action};
 mod style;
 
 mod platform;
-use platform::Window;
+use platform::{Event, Window, Tty};
 
 mod renderer;
 use renderer::Renderer;
-
-mod tty;
-use tty::Tty;
 
 use std::sync::Arc;
 use std::io::Write;
@@ -124,8 +123,8 @@ fn main() {
 	let mut blinking = true;
 	let mut batched  = false;
 	let mut window   = Window::open(matches.value_of("name"), &config, &font).unwrap();
-	let mut keyboard = window.keyboard().unwrap();
-	let mut renderer = Renderer::new(config.clone(), font.clone(), &window, window.width(), window.height());
+	let mut surface  = window.surface();
+	let mut renderer = Renderer::new(config.clone(), font.clone(), &surface, window.width(), window.height());
 	let mut terminal = Terminal::open(config.clone(), renderer.columns(), renderer.rows()).unwrap();
 	let mut tty      = Tty::spawn(renderer.columns(), renderer.rows(),
 	                              matches.value_of("term").or_else(|| config.environment().term()),
@@ -135,19 +134,6 @@ fn main() {
 	let events = window.events();
 
 	macro_rules! render {
-		(resize $width:expr, $height:expr) => ({
-			window.resized($width, $height);
-			renderer.resize($width, $height);
-
-			let rows    = renderer.rows();
-			let columns = renderer.columns();
-
-			if terminal.columns() != columns || terminal.rows() != rows {
-				render!(terminal.resize(columns, rows));
-				tty.resize(columns, rows).unwrap();
-			}
-		});
-
 		(options) => ({
 			let mut options = renderer::Options::empty();
 
@@ -161,6 +147,10 @@ fn main() {
 
 			if terminal.mode().contains(terminal::mode::REVERSE) {
 				options.insert(renderer::option::REVERSE);
+			}
+
+			if terminal.cursor().is_visible() {
+				options.insert(renderer::option::CURSOR);
 			}
 
 			options
@@ -178,7 +168,7 @@ fn main() {
 
 			// Redraw the cursor.
 			renderer.update(|mut o| {
-				if terminal.cursor().is_visible() {
+				if options.cursor() {
 					o.cursor(&terminal.cursor(), options);
 				}
 				else {
@@ -186,44 +176,8 @@ fn main() {
 				}
 			});
 
+			surface.flush();
 			window.flush();
-		});
-
-		(damaged $area:expr) => ({
-			let area    = $area;
-			let options = render!(options!);
-
-			renderer.update(|mut o| {
-				// Redraw margins.
-				o.margin(&area);
-
-				// Redraw the cells that fall within the damaged area.
-				for cell in terminal.iter(o.damaged(&area).relative()) {
-					o.cell(&cell, options);
-				}
-
-				// Redraw the cursor.
-				if terminal.cursor().is_visible() {
-					o.cursor(&terminal.cursor(), options);
-				}
-				else {
-					o.cell(&terminal.cursor().cell(), options);
-				}
-			});
-
-			window.flush();
-		});
-
-		(batched $iter:expr) => ({
-			let iter = $iter;
-
-			if iter.all() {
-				batched = true;
-			}
-
-			if !batched {
-				render!(iter);
-			}
 		});
 
 		($iter:expr) => ({
@@ -235,11 +189,12 @@ fn main() {
 					o.cell(&cell, options);
 				}
 
-				if terminal.cursor().is_visible() {
+				if options.cursor() {
 					o.cursor(&terminal.cursor(), options);
 				}
 			});
 
+			surface.flush();
 			window.flush();
 		});
 	}
@@ -248,61 +203,63 @@ fn main() {
 		select! {
 			_ = blink.recv() => {
 				blinking = !blinking;
-				render!(batched terminal.blinking(blinking));
+				render!(terminal.blinking(blinking));
 			},
 
 			_ = batch.recv() => {
 				if batched {
-					render!(terminal.area().absolute());
+					render!(terminal.region().absolute());
 					batched = false;
 				}
 			},
 
 			event = events.recv() => {
-				let event = event.unwrap();
-
-				match event.response_type() {
-					// Redraw the areas that have been damaged.
-					xcb::EXPOSE => {
-						let event = xcb::cast_event::<xcb::ExposeEvent>(&event);
-
-						render!(damaged Area::from(event.x() as u32, event.y() as u32,
-							event.width() as u32, event.height() as u32));
+				match try!(break event) {
+					Event::Redraw(region) => {
+						let options = render!(options!);
+			
+						renderer.update(|mut o| {
+							// Redraw margins.
+							o.margin(&region);
+			
+							// Redraw the cells that fall within the damaged region.
+							for cell in terminal.iter(o.damaged(&region).relative()) {
+								o.cell(&cell, options);
+							}
+			
+							// Redraw the cursor.
+							if options.cursor() {
+								o.cursor(&terminal.cursor(), options);
+							}
+							else {
+								o.cell(&terminal.cursor().cell(), options);
+							}
+						});
+			
+						surface.flush();
+						window.flush();
 					}
 
-					// Handle focus changes.
-					xcb::FOCUS_IN | xcb::FOCUS_OUT => {
-						window.focus(event.response_type() == xcb::FOCUS_IN);
+					Event::Focus(_) => {
 						render!(cursor);
 					}
 
-					// Handle resizes.
-					xcb::CONFIGURE_NOTIFY => {
-						let event  = xcb::cast_event::<xcb::ConfigureNotifyEvent>(&event);
-						let width  = event.width() as u32;
-						let height = event.height() as u32;
+					Event::Resize(width, height) => {
+						renderer.resize(width, height);
+						surface.resize(width, height);
 
-						if window.width() != width || window.height() != height {
-							render!(resize width, height);
+						let rows    = renderer.rows();
+						let columns = renderer.columns();
+
+						if terminal.columns() != columns || terminal.rows() != rows {
+							try!(break tty.resize(columns, rows));
+							render!(terminal.resize(columns, rows));
 						}
 					}
 
-					// Handle keyboard.
-					e if keyboard.owns_event(e) => {
-						keyboard.handle(&event);
-					}
-
-					xcb::KEY_PRESS => {
-						let event = xcb::cast_event::<xcb::KeyPressEvent>(&event);
-
-						if let Some(key) = keyboard.key(event.detail()) {
-							terminal.key(key, &mut tty).unwrap();
-							tty.flush().unwrap();
-						}
-					}
-
-					e => {
-						debug!(target: "cancer::x11", "unhandled X event: {:?}", e);
+					Event::Key(key) => {
+						try!(break terminal.key(key, &mut tty));
+						try!(break tty.flush());
 					}
 				}
 			},
@@ -310,22 +267,27 @@ fn main() {
 			input = input.recv() => {
 				let input = try!(break input);
 				let (actions, touched) = try!(continue terminal.handle(&input, tty.by_ref()));
-				render!(batched touched);
+
+				if touched.all() {
+					batched = true;
+				}
+				else {
+					render!(touched);
+				}
 
 				for action in actions {
 					match action {
 						Action::Title(string) => {
-							window.set_title(&string);
+							window.set_title(string);
 						}
 
 						Action::Resize(columns, rows) => {
 							let (width, height) = Renderer::dimensions(columns, rows, &config, &font);
 							window.resize(width, height);
-							render!(resize width, height);
 						}
 
 						Action::Clipboard(name, value) => {
-							// TODO: handle clipboard setting
+							window.clipboard(name, value);
 						}
 					}
 				}

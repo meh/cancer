@@ -25,9 +25,9 @@ use super::Surface;
 pub struct Context(pub *mut cairo_t);
 
 impl Context {
-	pub fn new<S: AsRef<Surface>>(surface: S) -> Self {
+	pub fn new(surface: &Surface) -> Self {
 		unsafe {
-			Context(cairo_create(surface.as_ref().0))
+			Context(cairo_create(surface.0))
 		}
 	}
 

@@ -19,7 +19,7 @@ use std::mem;
 use std::collections::{hash_set, HashSet};
 use std::hash::BuildHasherDefault;
 use fnv::FnvHasher;
-use picto::Area;
+use picto::Region;
 use picto::iter::Coordinates;
 
 #[derive(Eq, PartialEq, Clone, Default, Debug)]
@@ -59,8 +59,8 @@ impl Touched {
 		self
 	}
 
-	pub fn iter(&mut self, area: Area) -> Iter {
-		Iter::new(area,
+	pub fn iter(&mut self, region: Region) -> Iter {
+		Iter::new(region,
 			mem::replace(&mut self.all, false),
 			mem::replace(&mut self.line, Default::default()),
 			mem::replace(&mut self.position, Default::default()))
@@ -68,9 +68,9 @@ impl Touched {
 }
 
 pub struct Iter {
-	area:  Area,
-	state: State,
-	lines: HashSet<u32, BuildHasherDefault<FnvHasher>>,
+	region: Region,
+	state:  State,
+	lines:  HashSet<u32, BuildHasherDefault<FnvHasher>>,
 
 	all:      bool,
 	line:     Option<HashSet<u32, BuildHasherDefault<FnvHasher>>>,
@@ -87,24 +87,26 @@ enum State {
 }
 
 impl Iter {
-	pub fn new(area:     Area,
+	pub fn new(region:   Region,
 	           all:      bool,
 	           line:     HashSet<u32, BuildHasherDefault<FnvHasher>>,
-	           position: HashSet<(u32, u32), BuildHasherDefault<FnvHasher>>) -> Self {
+	           position: HashSet<(u32, u32), BuildHasherDefault<FnvHasher>>)
+	-> Self {
+		let all = all || line.len() == region.height as usize || position.len() == (region.width * region.height) as usize;
 
 		Iter {
-			area:  area,
-			state: State::None,
-			lines: line.clone(),
+			region: region,
+			state:  State::None,
+			lines:  line.clone(),
 
 			all:      all,
-			line:     if line.is_empty() { None } else { Some(line) },
-			position: if position.is_empty() { None } else { Some(position) },
+			line:     if all || line.is_empty() { None } else { Some(line) },
+			position: if all | position.is_empty() { None } else { Some(position) },
 		}
 	}
 
 	pub fn all(&self) -> bool {
-		self.all || self.lines.len() == self.area.height as usize
+		self.all
 	}
 }
 
@@ -122,7 +124,7 @@ impl Iterator for Iter {
 
 				State::None => {
 					self.state = if self.all {
-						State::All(self.area.absolute())
+						State::All(self.region.absolute())
 					}
 					else if let Some(line) = self.line.take() {
 						State::Lines(None, line.into_iter())
@@ -148,7 +150,7 @@ impl Iterator for Iter {
 
 				State::Lines(mut cur, mut iter) => {
 					if let Some((x, y)) = cur.take() {
-						if x < self.area.width {
+						if x < self.region.width {
 							self.state = State::Lines(Some((x + 1, y)), iter);
 
 							return Some((x, y));

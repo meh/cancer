@@ -32,6 +32,8 @@ pub struct Keyboard {
 	state:      xkb::State,
 }
 
+unsafe impl Send for Keyboard { }
+
 impl Keyboard {
 	/// Create a keyboard for the given connection.
 	pub fn new(connection: Arc<ewmh::Connection>) -> error::Result<Self> {

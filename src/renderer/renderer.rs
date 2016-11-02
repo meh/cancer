@@ -20,7 +20,7 @@ use std::sync::Arc;
 use std::rc::Rc;
 use std::ops::{Deref, DerefMut};
 
-use picto::Area;
+use picto::Region;
 use config::Config;
 use config::style::Shape;
 use sys::cairo;
@@ -65,7 +65,7 @@ impl Renderer {
 	}
 
 	/// Create a new renderer for the given settings and surface.
-	pub fn new<S: AsRef<cairo::Surface>>(config: Arc<Config>, font: Arc<Font>, surface: S, width: u32, height: u32) -> Self {
+	pub fn new(config: Arc<Config>, font: Arc<Font>, surface: &cairo::Surface, width: u32, height: u32) -> Self {
 		let spacing = config.style().spacing();
 		let margin  = Margin {
 			horizontal: config.style().margin(),
@@ -124,20 +124,20 @@ impl Renderer {
 		self.cache.resize(columns, rows);
 	}
 
-	/// Turn the damaged area to cell-space.
+	/// Turn the damaged region to cell-space.
 	///
 	/// FIXME(meh): this is kinda approximate, should find a proper algorithm.
-	pub fn damaged(&mut self, area: &Area) -> Area {
+	pub fn damaged(&mut self, region: &Region) -> Region {
 		let (f, h, v, s) = (&self.font, self.margin.horizontal, self.margin.vertical, self.spacing);
 
-		// Check if the area falls exactly within a margin, if so bail out.
+		// Check if the region falls exactly within a margin, if so bail out.
 		if h != 0 && v != 0 &&
-		   ((area.x < h && area.width <= h - area.x) ||
-		    (area.x >= self.width - h) ||
-		    (area.y < v && area.height <= v - area.y) ||
-		    (area.y >= self.height - v))
+		   ((region.x < h && region.width <= h - region.x) ||
+		    (region.x >= self.width - h) ||
+		    (region.y < v && region.height <= v - region.y) ||
+		    (region.y >= self.height - v))
 		{
-			return Area::from(0, 0, 0, 0);
+			return Region::from(0, 0, 0, 0);
 		}
 
 		// Cache font dimensions.
@@ -145,18 +145,18 @@ impl Renderer {
 		let height = (f.height() + s) as f32;
 
 		// Remove the margin from coordinates.
-		let x = area.x.saturating_sub(h) as f32;
-		let y = area.y.saturating_sub(v) as f32;
+		let x = region.x.saturating_sub(h) as f32;
+		let y = region.y.saturating_sub(v) as f32;
 
 		// Remove margins from width.
-		let w = area.width
-			.saturating_sub(h.saturating_sub(area.x))
-			.saturating_sub(h.saturating_sub(self.width - (area.x + area.width))) as f32;
+		let w = region.width
+			.saturating_sub(h.saturating_sub(region.x))
+			.saturating_sub(h.saturating_sub(self.width - (region.x + region.width))) as f32;
 
 		// Remove margins from height.
-		let h = area.height
-			.saturating_sub(v.saturating_sub(area.y))
-			.saturating_sub(v.saturating_sub(self.height - (area.y + area.height))) as f32;
+		let h = region.height
+			.saturating_sub(v.saturating_sub(region.y))
+			.saturating_sub(v.saturating_sub(self.height - (region.y + region.height))) as f32;
 
 		let x = (x / width).floor() as u32;
 		let y = (y / height).floor() as u32;
@@ -165,10 +165,10 @@ impl Renderer {
 
 		// Increment width and height by one if it fits within dimensions.
 		//
-		// This is done because the dirty area is actually bigger than the one
+		// This is done because the dirty region is actually bigger than the one
 		// reported, or because the algorithm is broken. Regardless, this way it
 		// works properly.
-		Area::from(x, y,
+		Region::from(x, y,
 			w + if x + w < self.columns() { 1 } else { 0 },
 			h + if y + h < self.rows() { 1 } else { 0 })
 	}
@@ -183,8 +183,8 @@ impl Renderer {
 		out
 	}
 
-	/// Draw the margins within the given area.
-	pub fn margin(&mut self, area: &Area) {
+	/// Draw the margins within the given region.
+	pub fn margin(&mut self, region: &Region) {
 		let (rows, columns)    = (self.rows(), self.columns());
 		let (c, f, o, s, h, v) = (&self.config, &self.font, &mut self.context, self.spacing, self.margin.horizontal, self.margin.vertical);
 
@@ -199,26 +199,26 @@ impl Renderer {
 			o.rgba(c.style().color().background());
 
 			// Left margin.
-			if area.x < h {
-				o.rectangle(0.0, area.y as f64, h as f64, area.height as f64);
+			if region.x < h {
+				o.rectangle(0.0, region.y as f64, h as f64, region.height as f64);
 				o.fill(false);
 			}
 
 			// Right margin.
-			if area.x + area.width >= self.width - h {
-				o.rectangle((h + (columns * f.width())) as f64, area.y as f64, h as f64 * 2.0, area.height as f64);
+			if region.x + region.width >= self.width - h {
+				o.rectangle((h + (columns * f.width())) as f64, region.y as f64, h as f64 * 2.0, region.height as f64);
 				o.fill(false);
 			}
 
 			// Top margin.
-			if area.y < v {
-				o.rectangle(area.x as f64, 0.0, area.width as f64, v as f64);
+			if region.y < v {
+				o.rectangle(region.x as f64, 0.0, region.width as f64, v as f64);
 				o.fill(false);
 			}
 
 			// Bottom margin.
-			if area.y + area.height >= self.height - v {
-				o.rectangle(area.x as f64, (v + (rows * (f.height() + s))) as f64, area.width as f64, v as f64 * 2.0);
+			if region.y + region.height >= self.height - v {
+				o.rectangle(region.x as f64, (v + (rows * (f.height() + s))) as f64, region.width as f64, v as f64 * 2.0);
 				o.fill(false);
 			}
 		}

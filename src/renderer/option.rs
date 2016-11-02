@@ -21,6 +21,7 @@ bitflags! {
 		const BLINKING = 1 << 1,
 		const FOCUS    = 1 << 2,
 		const REVERSE  = 1 << 3,
+		const CURSOR   = 1 << 4,
 	}
 }
 
@@ -45,5 +46,9 @@ impl Options {
 
 	pub fn reverse(&self) -> bool {
 		self.contains(REVERSE)
+	}
+
+	pub fn cursor(&self) -> bool {
+		self.contains(CURSOR)
 	}
 }
