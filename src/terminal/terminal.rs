@@ -613,7 +613,9 @@ impl Terminal {
 				// This should never happen.
 				control::Result::Error(err) => {
 					error!("cannot parse control code: {:?}", err);
-					break;
+
+					input = &input[1..];
+					Control::None("�")
 				}
 
 				// The given input isn't a complete sequence, cache the current input.
