@@ -612,7 +612,7 @@ impl Terminal {
 			let item = match control::parse(input) {
 				// This should never happen.
 				control::Result::Error(err) => {
-					error!("cannot parse control code: {:?}", err);
+					error!(target: "cancer::terminal::input", "cannot parse control code: {:?}", err);
 
 					input = &input[1..];
 					Control::None("�")
@@ -620,6 +620,8 @@ impl Terminal {
 
 				// The given input isn't a complete sequence, cache the current input.
 				control::Result::Incomplete(_) => {
+					debug!(target: "cancer::terminal::input", "incomplete input: {:?}", input);
+
 					self.cache = Some(input.to_vec());
 					break;
 				}
