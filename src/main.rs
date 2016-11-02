@@ -35,6 +35,9 @@ extern crate schedule_recv as timer;
 #[macro_use]
 extern crate control_code as control;
 
+extern crate unicode_segmentation;
+extern crate unicode_width;
+
 extern crate xdg;
 extern crate toml;
 extern crate clap;
@@ -49,8 +52,8 @@ extern crate xcb_util as xcbu;
 #[cfg(target_os = "linux")]
 extern crate xkbcommon;
 
-extern crate unicode_segmentation;
-extern crate unicode_width;
+#[cfg(target_os = "macos")]
+extern crate cocoa;
 
 #[macro_use]
 mod util;

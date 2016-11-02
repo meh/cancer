@@ -24,6 +24,17 @@ pub struct cairo_t(c_void);
 #[repr(C)]
 pub struct cairo_surface_t(c_void);
 
+#[repr(C)]
+pub enum cairo_format_t {
+	Invalid = -1,
+	Argb32,
+	Rgb24,
+	A8,
+	A1,
+	Rgb16_565,
+	Rgb30,
+}
+
 #[link(name = "cairo")]
 extern "C" {
 	pub fn cairo_create(surface: *mut cairo_surface_t) -> *mut cairo_t;
@@ -52,12 +63,17 @@ extern "C" {
 
 	pub fn cairo_surface_flush(surface: *mut cairo_surface_t);
 	pub fn cairo_surface_destroy(surface: *mut cairo_surface_t);
+}
+
+#[cfg(target_os = "linux")]
+extern "C" {
 	pub fn cairo_xcb_surface_set_size(surface: *mut cairo_surface_t, width: c_int, height: c_int);
-	pub fn cairo_xcb_surface_create(
-		connection: *mut xcb_connection_t,
-		drawable: xcb_drawable_t,
-		visual: *const xcb_visualtype_t,
-		width: c_int,
-		height: c_int)
-	-> *mut cairo_surface_t;
+	pub fn cairo_xcb_surface_create(connection: *mut xcb_connection_t, drawable: xcb_drawable_t, visual: *const xcb_visualtype_t, width: c_int, height: c_int) -> *mut cairo_surface_t;
+}
+
+#[cfg(target_os = "macos")]
+extern "C" {
+	pub fn cairo_quartz_surface_create(format: cairo_format_t, width: c_uint, height: c_uint) -> *mut cairo_surface_t;
+	pub fn cairo_quartz_surface_create_for_cg_context(context: *mut c_void, width: c_uint, height: c_uint) -> *mut cairo_surface_t;
+	pub fn cairo_quartz_surface_get_cg_context(surface: *const cairo_surface_t) -> *mut c_void;
 }
