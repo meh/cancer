@@ -1105,6 +1105,10 @@ impl Terminal {
 
 				Control::C1(C1::String(string)) => {
 					for mut ch in string.graphemes(true) {
+						if ch.width() == 0 {
+							continue;
+						}
+
 						if term!(self; charset) == DEC::Charset::DEC(DEC::charset::DEC::Graphic) {
 							ch = match ch {
 								"A" => "↑",
