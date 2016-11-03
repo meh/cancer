@@ -24,23 +24,24 @@ use libc::c_int;
 pub struct Surface(pub *mut cairo_surface_t);
 
 impl Surface {
-	#[cfg(target_os = "linux")]
+	pub fn flush(&self) {
+		unsafe {
+			cairo_surface_flush(self.0);
+		}
+	}
+}
+
+#[cfg(target_os = "linux")]
+impl Surface {
 	pub fn new(connection: &xcb::Connection, drawable: xcb::Drawable, visual: xcb::Visualtype, width: u32, height: u32) -> Self {
 		unsafe {
 			Surface(cairo_xcb_surface_create(connection.get_raw_conn(), drawable, visual.ptr, width as c_int, height as c_int))
 		}
 	}
 
-	#[cfg(target_os = "linux")]
 	pub fn resize(&mut self, width: u32, height: u32) {
 		unsafe {
 			cairo_xcb_surface_set_size(self.0, width as c_int, height as c_int);
-		}
-	}
-
-	pub fn flush(&self) {
-		unsafe {
-			cairo_surface_flush(self.0);
 		}
 	}
 }
