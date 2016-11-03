@@ -81,8 +81,12 @@ impl Cache {
 		self.width  = width;
 		self.height = height;
 
-		let style  = Rc::new(Style::default());
-		self.inner = vec![Cell::empty(style.clone()); (width * height) as usize];
+		let style = Rc::new(Style::default());
+		self.inner.resize((width * height) as usize, Cell::empty(style.clone()));
+
+		for cell in &mut self.inner {
+			cell.flags.remove(VALID);
+		}
 	}
 
 	/// Invalidate the given cell.
