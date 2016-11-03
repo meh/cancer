@@ -1105,10 +1105,6 @@ impl Terminal {
 
 				Control::C1(C1::String(string)) => {
 					for mut ch in string.graphemes(true) {
-						if ch.width() == 0 {
-							continue;
-						}
-
 						if term!(self; charset) == DEC::Charset::DEC(DEC::charset::DEC::Graphic) {
 							ch = match ch {
 								"A" => "↑",
@@ -1155,6 +1151,11 @@ impl Terminal {
 						}
 
 						let width = ch.width() as u32;
+
+						// Bail out if it cannot be displayed.
+						if width == 0 {
+							continue;
+						}
 
 						if self.mode.contains(mode::WRAP) && self.cursor.wrap() {
 							if term!(self; cursor Down(1)).is_some() {
