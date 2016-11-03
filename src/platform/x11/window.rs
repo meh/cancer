@@ -45,6 +45,7 @@ pub struct Window {
 	focus:  Arc<AtomicBool>,
 }
 
+#[derive(Eq, PartialEq, Clone, Debug)]
 pub enum Request {
 	Title(String),
 	Resize(u32, u32),
@@ -123,9 +124,10 @@ impl Window {
 
 		let (sender, i_receiver) = channel();
 		let (i_sender, receiver) = channel();
-		let width                = Arc::new(AtomicU32::new(width));
-		let height               = Arc::new(AtomicU32::new(height));
-		let focus                = Arc::new(AtomicBool::new(true));
+
+		let width  = Arc::new(AtomicU32::new(width));
+		let height = Arc::new(AtomicU32::new(height));
+		let focus  = Arc::new(AtomicBool::new(true));
 
 		{
 			let connection = connection.clone();
