@@ -22,6 +22,7 @@ use std::ffi;
 
 #[cfg(target_os = "linux")]
 use xcb;
+use app_dirs;
 
 pub type Result<T> = ::std::result::Result<T, Error>;
 
@@ -30,6 +31,7 @@ pub enum Error {
 	Io(io::Error),
 	Message(String),
 	Nul(ffi::NulError),
+	Directory(app_dirs::AppDirsError),
 	Unknown,
 	Config,
 
@@ -61,6 +63,12 @@ impl From<ffi::NulError> for Error {
 impl From<String> for Error {
 	fn from(value: String) -> Self {
 		Error::Message(value)
+	}
+}
+
+impl From<app_dirs::AppDirsError> for Error {
+	fn from(value: app_dirs::AppDirsError) -> Self {
+		Error::Directory(value)
 	}
 }
 
@@ -108,6 +116,9 @@ impl error::Error for Error {
 
 			Error::Message(ref msg) =>
 				msg.as_ref(),
+
+			Error::Directory(ref err) =>
+				err.description(),
 
 			Error::Unknown =>
 				"Unknown error.",

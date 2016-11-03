@@ -20,7 +20,7 @@ use std::io::Read;
 use std::path::Path;
 
 use toml;
-use xdg;
+use app_dirs::{AppInfo, AppDataType, app_root};
 use picto::color::Rgba;
 
 use error;
@@ -47,8 +47,8 @@ impl Config {
 			path.as_ref().into()
 		}
 		else {
-			xdg::BaseDirectories::with_prefix("cancer").unwrap()
-				.place_config_file("config.toml").unwrap()
+			app_root(AppDataType::UserConfig, &AppInfo { name: "cancer", author: "meh." })
+				?.join("config.toml")
 		};
 
 		let table = if let Ok(mut file) = File::open(path) {

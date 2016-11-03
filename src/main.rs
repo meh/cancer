@@ -38,7 +38,7 @@ extern crate control_code as control;
 extern crate unicode_segmentation;
 extern crate unicode_width;
 
-extern crate xdg;
+extern crate app_dirs;
 extern crate toml;
 extern crate clap;
 use clap::{App, Arg};
