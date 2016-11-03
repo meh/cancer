@@ -20,6 +20,7 @@ use std::error;
 use std::io;
 use std::ffi;
 
+#[cfg(target_os = "linux")]
 use xcb;
 
 pub type Result<T> = ::std::result::Result<T, Error>;
@@ -31,9 +32,12 @@ pub enum Error {
 	Nul(ffi::NulError),
 	Unknown,
 	Config,
+
+	#[cfg(target_os = "linux")]
 	X(X),
 }
 
+#[cfg(target_os = "linux")]
 #[derive(Debug)]
 pub enum X {
 	MissingExtension,
@@ -66,18 +70,21 @@ impl From<()> for Error {
 	}
 }
 
+#[cfg(target_os = "linux")]
 impl From<X> for Error {
 	fn from(value: X) -> Error {
 		Error::X(value)
 	}
 }
 
+#[cfg(target_os = "linux")]
 impl From<xcb::ConnError> for Error {
 	fn from(value: xcb::ConnError) -> Error {
 		Error::X(X::Connection(value))
 	}
 }
 
+#[cfg(target_os = "linux")]
 impl<T> From<xcb::Error<T>> for Error {
 	fn from(value: xcb::Error<T>) -> Error {
 		Error::X(X::Request(value.response_type(), value.error_code()))
@@ -108,6 +115,7 @@ impl error::Error for Error {
 			Error::Config =>
 				"Configuration error.",
 
+			#[cfg(target_os = "linux")]
 			Error::X(ref err) => match *err {
 				X::Request(..) =>
 					"An X request failed.",

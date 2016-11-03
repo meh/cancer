@@ -15,8 +15,7 @@
 // You should have received a copy of the GNU General Public License
 // along with cancer.  If not, see <http://www.gnu.org/licenses/>.
 
-use libc::{c_void, c_int, c_double};
-use xcb::ffi::*;
+use libc::{c_void, c_int, c_uint, c_double};
 
 #[repr(C)]
 pub struct cairo_t(c_void);
@@ -64,6 +63,9 @@ extern "C" {
 	pub fn cairo_surface_flush(surface: *mut cairo_surface_t);
 	pub fn cairo_surface_destroy(surface: *mut cairo_surface_t);
 }
+
+#[cfg(target_os = "linux")]
+use xcb::ffi::*;
 
 #[cfg(target_os = "linux")]
 extern "C" {
