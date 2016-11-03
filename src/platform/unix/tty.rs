@@ -41,7 +41,7 @@ pub struct Tty {
 impl Tty {
 	pub fn spawn(width: u32, height: u32, term: Option<&str>, program: Option<&str>) -> error::Result<Self> {
 		unsafe {
-			let size = winsize {
+			let mut size = winsize {
 				ws_row:    height as c_ushort,
 				ws_col:    width as c_ushort,
 				ws_xpixel: 0,
@@ -51,7 +51,7 @@ impl Tty {
 			let mut master = 0;
 			let mut slave  = 0;
 
-			if openpty(&mut master, &mut slave, ptr::null_mut(), ptr::null(), &size) < 0 {
+			if openpty(&mut master, &mut slave, ptr::null_mut(), ptr::null_mut(), &mut size) < 0 {
 				return Err(Error::Message("failed to open pty".into()));
 			}
 
@@ -71,7 +71,7 @@ impl Tty {
 					dup2(slave, 1);
 					dup2(slave, 2);
 
-					if ioctl(slave, TIOCSCTTY, ptr::null::<c_void>()) < 0 {
+					if ioctl(slave, TIOCSCTTY as _, ptr::null::<c_void>()) < 0 {
 						panic!("ioctl TIOCSCTTY failed");
 					}
 
@@ -140,7 +140,7 @@ impl Tty {
 				ws_ypixel: 0,
 			};
 
-			if ioctl(self.fd, TIOCSWINSZ, &size) < 0 {
+			if ioctl(self.fd, TIOCSWINSZ as _, &size) < 0 {
 				return Err(Error::Message("failed to resize tty".into()));
 			}
 		}
