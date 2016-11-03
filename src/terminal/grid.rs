@@ -15,14 +15,15 @@
 // You should have received a copy of the GNU General Public License
 // along with cancer.  If not, see <http://www.gnu.org/licenses/>.
 
+use std::mem;
+use std::ops::{Deref, DerefMut};
 use std::collections::VecDeque;
 use std::rc::Rc;
 
+use itertools::Itertools;
 use util::clamp;
 use style::Style;
 use terminal::Cell;
-
-pub type Row = VecDeque<Cell>;
 
 #[derive(Debug)]
 pub struct Grid {
@@ -64,7 +65,7 @@ impl Free {
 		match self.inner.pop_front() {
 			Some(mut row) => {
 				// Reset the cells.
-				for cell in &mut row {
+				for cell in row.iter_mut() {
 					cell.make_empty(self.empty.clone());
 				}
 
@@ -78,17 +79,39 @@ impl Free {
 					}
 				}
 
+				row.wrap = false;
 				row
 			}
 
 			None =>
-				vec_deque![Cell::empty(self.empty.clone()); cols]
+				Row { inner: vec_deque![Cell::empty(self.empty.clone()); cols], wrap: false }
 		}
 	}
 
 	/// Push a `Row` for reuse.
 	pub fn push(&mut self, row: Row) {
 		self.inner.push_back(row);
+	}
+}
+
+/// A row within the view or scroll back.
+#[derive(PartialEq, Clone, Debug)]
+pub struct Row {
+	inner: VecDeque<Cell>,
+	wrap:  bool,
+}
+
+impl Deref for Row {
+	type Target = VecDeque<Cell>;
+
+	fn deref(&self) -> &Self::Target {
+		&self.inner
+	}
+}
+
+impl DerefMut for Row {
+	fn deref_mut(&mut self) -> &mut Self::Target {
+		&mut self.inner
 	}
 }
 
@@ -135,27 +158,132 @@ impl Grid {
 	}
 
 	/// Resize the grid.
-	pub fn resize(&mut self, cols: u32, rows: u32) -> u32 {
+	pub fn resize(&mut self, cols: u32, rows: u32) -> i32 {
+		// Resize the view taking into consideration lines that were wrapped.
+		fn resize(view: &mut VecDeque<Row>, free: &mut Free, cols: u32) -> i32 {
+			let mut offset  = 0;
+			let mut wrapped = Vec::new();
+
+			for i in (0 .. view.len()).rev() {
+				if view[i].wrap {
+					wrapped.push(view.remove(i).unwrap());
+				}
+				else if !wrapped.is_empty() {
+					wrapped.push(view.remove(i).unwrap());
+
+					let mut unwrapped = Vec::new();
+					let     before    = wrapped.len();
+
+					// Remove any empty leftover before trying to unwrap the row.
+					{
+						let mut row = &mut wrapped[0];
+
+						while row.len() > 0 && row.back().unwrap().is_empty() {
+							row.pop_back();
+						}
+					}
+
+					// Split the cells into appropriately sized chunks, since we pushed
+					// the rows in reverse order we reverse the iterator.
+					let chunks = mem::replace(&mut wrapped, Vec::new()).into_iter().rev().flat_map(|v| v.inner.into_iter()).chunks(cols as usize);
+
+					// Create new rows with the cells and mark as wrapped if they do wrap
+					// again.
+					for (j, cells) in chunks.into_iter().enumerate() {
+						unwrapped.push(Row { inner: cells.collect(), wrap: j != 0 });
+					}
+
+					// Extend any missing cells from the last row.
+					{
+						let mut row    = unwrapped.last_mut().unwrap();
+						let     length = row.len();
+
+						if length < cols as usize {
+							for _ in 0 .. cols as usize - length {
+								row.push_back(free.cell());
+							}
+						}
+					}
+
+					// Update the offset for the cursor.
+					offset += unwrapped.len() as i32 - before as i32;
+
+					// Reinsert the rows in the view.
+					for row in unwrapped.into_iter().rev() {
+						view.insert(i, row);
+					}
+				}
+				else if view[i].len() > cols as usize {
+					let mut row = view.remove(i).unwrap();
+
+					// Remove any empty leftover before trying to split the row.
+					while row.len() > cols as usize && row.back().unwrap().is_empty() {
+						row.pop_back();
+					}
+
+					if row.len() != cols as usize {
+						let mut wrapped = Vec::new();
+						let     chunks  = row.inner.into_iter().chunks(cols as usize);
+
+						// Create new rows with the cells and mark as wrapped if they do
+						// wrap.
+						for (j, cells) in chunks.into_iter().enumerate() {
+							wrapped.push(Row { inner: cells.collect(), wrap: j != 0 });
+						}
+
+						// Extend any missing cells from the last row.
+						{
+							let mut row    = wrapped.last_mut().unwrap();
+							let     length = row.len();
+
+							if length < cols as usize {
+								for _ in 0 .. cols as usize - length {
+									row.push_back(free.cell());
+								}
+							}
+						}
+
+						// Update the offset for the cursor.
+						offset += wrapped.len() as i32 - 1;
+
+						// Reinsert the rows in the view.
+						for row in wrapped.into_iter().rev() {
+							view.insert(i, row);
+						}
+					}
+					else {
+						view.insert(i, row);
+					}
+				}
+				else {
+					view[i].resize(cols as usize, free.cell());
+				}
+			}
+
+			offset
+		}
+
 		self.cols = cols;
 		self.rows = rows;
 
-		let mut down = 0;
-
-		// Resize the rows.
-		for row in self.view.iter_mut().chain(self.back.iter_mut()) {
-			row.resize(cols as usize, self.free.cell());
-		}
+		let mut offset = resize(&mut self.view, &mut self.free, cols);
+		resize(&mut self.back, &mut self.free, cols);
 
 		if self.view.len() > rows as usize {
+			while self.view.len() > rows as usize && self.view.back().unwrap().iter().all(|v| v.is_empty()) {
+				self.view.pop_back();
+			}
+
 			let overflow = self.view.len() - rows as usize;
 			self.back.extend(self.view.drain(.. overflow));
 		}
-		else {
+
+		if self.view.len() < rows as usize {
 			let overflow = rows as usize - self.view.len();
 
 			for _ in 0 .. overflow {
 				if let Some(row) = self.back.pop_back() {
-					down += 1;
+					offset += 1;
 					self.view.push_front(row);
 				}
 				else {
@@ -165,7 +293,7 @@ impl Grid {
 		}
 
 		self.clean_history();
-		down
+		offset
 	}
 
 	/// Move the view `n` cells to the left, dropping cells from the back.
@@ -175,7 +303,7 @@ impl Grid {
 				while row.pop_back().unwrap().is_reference() {
 					row.push_front(self.free.cell());
 				}
-	
+
 				row.push_front(self.free.cell());
 			}
 		}
@@ -227,10 +355,10 @@ impl Grid {
 		if let Some(region) = region {
 			let y = region.0;
 			let n = clamp(n as u32, 0, (region.1 - y + 1));
-	
+
 			// Split the cells at the current line.
 			let mut rest = self.view.split_off(y as usize);
-	
+
 			// Extend with new lines.
 			for _ in 0 .. n {
 				self.view.push_back(self.free.pop(self.cols as usize));
@@ -266,6 +394,11 @@ impl Grid {
 		}
 
 		row.drain(self.cols as usize ..);
+	}
+
+	/// Mark a row as wrapped.
+	pub fn wrap(&mut self, y: u32) {
+		self.view[y as usize].wrap = true;
 	}
 
 	/// Get a cell at the given location.

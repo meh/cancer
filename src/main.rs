@@ -28,6 +28,7 @@ extern crate env_logger;
 extern crate bitflags;
 extern crate bit_vec;
 extern crate fnv;
+extern crate itertools;
 extern crate lru_cache as lru;
 extern crate shlex;
 extern crate picto;

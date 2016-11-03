@@ -22,7 +22,7 @@ use unicode_width::UnicodeWidthStr;
 
 use style::Style;
 
-#[derive(Clone, Debug)]
+#[derive(PartialEq, Clone, Debug)]
 pub enum Cell {
 	Empty {
 		style: Rc<Style>,

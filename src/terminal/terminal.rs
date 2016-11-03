@@ -213,7 +213,18 @@ impl Terminal {
 
 		self.cursor.resize(width, height);
 		self.tabs.resize(width, height);
-		self.cursor.travel(cursor::Down(self.grid.resize(width, height)));
+
+		match self.grid.resize(width, height) {
+			n if n > 0 => {
+				self.cursor.travel(cursor::Down(n as u32));
+			}
+
+			n if n < 0 => {
+				self.cursor.travel(cursor::Up((-n) as u32));
+			}
+
+			_ => ()
+		}
 
 		term!(self; touched all);
 		self.touched.iter(self.region)
@@ -1147,6 +1158,8 @@ impl Terminal {
 							}
 
 							term!(self; cursor Position(Some(0), None));
+							let (_, y) = term!(self; cursor);
+							self.grid.wrap(y);
 						}
 
 						// Change the cells appropriately.

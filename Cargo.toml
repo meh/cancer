@@ -25,6 +25,7 @@ lru-cache     = "0.1"
 shlex         = "0.1"
 schedule_recv = "0.1"
 control-code  = "0.4"
+itertools     = "0.5"
 
 clap     = "2"
 app_dirs = "1.1"
