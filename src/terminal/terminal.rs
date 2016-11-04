@@ -1502,7 +1502,7 @@ fn unicode(i: &[u8]) -> Unicode {
 
 	let mut rest = &i[length..];
 
-	while !rest.is_empty() && !control::parse(rest).is_done() {
+	while !rest.is_empty() && control::parse(rest).is_err() {
 		let w = WIDTH[rest[0] as usize] as usize;
 
 		if w == 0 {
