@@ -1506,7 +1506,7 @@ fn unicode(i: &[u8]) -> Unicode {
 		let w = WIDTH[rest[0] as usize] as usize;
 
 		if w == 0 {
-			return Unicode::Error(0);
+			break;
 		}
 		else if rest.len() < w {
 			return Unicode::Incomplete(Some(w - rest.len()));
