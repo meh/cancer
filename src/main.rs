@@ -257,7 +257,7 @@ fn main() {
 
 						if terminal.columns() != columns || terminal.rows() != rows {
 							try!(break tty.resize(columns, rows));
-							render!(terminal.resize(columns, rows));
+							terminal.resize(columns, rows);
 						}
 					}
 

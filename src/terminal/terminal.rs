@@ -207,7 +207,7 @@ impl Terminal {
 	}
 
 	/// Resize the terminal.
-	pub fn resize(&mut self, width: u32, height: u32) -> touched::Iter {
+	pub fn resize(&mut self, width: u32, height: u32) {
 		self.region.width  = width;
 		self.region.height = height;
 
@@ -225,9 +225,6 @@ impl Terminal {
 
 			_ => ()
 		}
-
-		term!(self; touched all);
-		self.touched.iter(self.region)
 	}
 
 	/// Enable or disable blinking and return the affected cells.
