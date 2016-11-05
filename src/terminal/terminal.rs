@@ -402,7 +402,7 @@ impl Terminal {
 				_                      => b"\x1B[D",
 			},
 
-			key::Value::Button(key::Button::F1) => write! {
+			key::Value::Button(key::Button::F(1)) => write! {
 				CTRL  => b"\x1B[1;5P",
 				ALT   => b"\x1B[1;3P",
 				LOGO  => b"\x1B[1;6P",
@@ -410,7 +410,7 @@ impl Terminal {
 				_     => b"\x1BOP",
 			},
 
-			key::Value::Button(key::Button::F2) => write! {
+			key::Value::Button(key::Button::F(2)) => write! {
 				CTRL  => b"\x1B[1;5Q",
 				ALT   => b"\x1B[1;3Q",
 				LOGO  => b"\x1B[1;6Q",
@@ -418,7 +418,7 @@ impl Terminal {
 				_     => b"\x1BOQ",
 			},
 
-			key::Value::Button(key::Button::F3) => write! {
+			key::Value::Button(key::Button::F(3)) => write! {
 				CTRL  => b"\x1B[1;5R",
 				ALT   => b"\x1B[1;3R",
 				LOGO  => b"\x1B[1;6R",
@@ -426,7 +426,7 @@ impl Terminal {
 				_     => b"\x1BOR",
 			},
 
-			key::Value::Button(key::Button::F4) => write! {
+			key::Value::Button(key::Button::F(4)) => write! {
 				CTRL  => b"\x1B[1;5S",
 				ALT   => b"\x1B[1;3S",
 				LOGO  => b"\x1B[1;6S",
@@ -434,7 +434,7 @@ impl Terminal {
 				_     => b"\x1BOS",
 			},
 
-			key::Value::Button(key::Button::F5) => write! {
+			key::Value::Button(key::Button::F(5)) => write! {
 				CTRL  => b"\x1B[15;5~",
 				ALT   => b"\x1B[15;3~",
 				LOGO  => b"\x1B[15;6~",
@@ -442,7 +442,7 @@ impl Terminal {
 				_     => b"\x1B[15~",
 			},
 
-			key::Value::Button(key::Button::F6) => write! {
+			key::Value::Button(key::Button::F(6)) => write! {
 				CTRL  => b"\x1B[17;5~",
 				ALT   => b"\x1B[17;3~",
 				LOGO  => b"\x1B[17;6~",
@@ -450,7 +450,7 @@ impl Terminal {
 				_     => b"\x1B[17~",
 			},
 
-			key::Value::Button(key::Button::F7) => write! {
+			key::Value::Button(key::Button::F(7)) => write! {
 				CTRL  => b"\x1B[18;5~",
 				ALT   => b"\x1B[18;3~",
 				LOGO  => b"\x1B[18;6~",
@@ -458,7 +458,7 @@ impl Terminal {
 				_     => b"\x1B[18~",
 			},
 
-			key::Value::Button(key::Button::F8) => write! {
+			key::Value::Button(key::Button::F(8)) => write! {
 				CTRL  => b"\x1B[19;5~",
 				ALT   => b"\x1B[19;3~",
 				LOGO  => b"\x1B[19;6~",
@@ -466,7 +466,7 @@ impl Terminal {
 				_     => b"\x1B[19~",
 			},
 
-			key::Value::Button(key::Button::F9) => write! {
+			key::Value::Button(key::Button::F(9)) => write! {
 				CTRL  => b"\x1B[20;5~",
 				ALT   => b"\x1B[20;3~",
 				LOGO  => b"\x1B[20;6~",
@@ -474,7 +474,7 @@ impl Terminal {
 				_     => b"\x1B[20~",
 			},
 
-			key::Value::Button(key::Button::F10) => write! {
+			key::Value::Button(key::Button::F(10)) => write! {
 				CTRL  => b"\x1B[21;5~",
 				ALT   => b"\x1B[21;3~",
 				LOGO  => b"\x1B[21;6~",
@@ -482,7 +482,7 @@ impl Terminal {
 				_     => b"\x1B[21~",
 			},
 
-			key::Value::Button(key::Button::F11) => write! {
+			key::Value::Button(key::Button::F(11)) => write! {
 				CTRL  => b"\x1B[23;5~",
 				ALT   => b"\x1B[23;3~",
 				LOGO  => b"\x1B[23;6~",
@@ -490,7 +490,7 @@ impl Terminal {
 				_     => b"\x1B[23~",
 			},
 
-			key::Value::Button(key::Button::F12) => write! {
+			key::Value::Button(key::Button::F(12)) => write! {
 				CTRL  => b"\x1B[24;5~",
 				ALT   => b"\x1B[24;3~",
 				LOGO  => b"\x1B[24;6~",
@@ -498,97 +498,100 @@ impl Terminal {
 				_     => b"\x1B[24~",
 			},
 
-			key::Value::Button(key::Button::F13) => write! {
+			key::Value::Button(key::Button::F(13)) => write! {
 				_ => b"\x1B[1;2P",
 			},
 
-			key::Value::Button(key::Button::F14) => write! {
+			key::Value::Button(key::Button::F(14)) => write! {
 				_ => b"\x1B[1;2Q",
 			},
 
-			key::Value::Button(key::Button::F15) => write! {
+			key::Value::Button(key::Button::F(15)) => write! {
 				_ => b"\x1B[1;2R",
 			},
 
-			key::Value::Button(key::Button::F16) => write! {
+			key::Value::Button(key::Button::F(16)) => write! {
 				_ => b"\x1B[1;2S",
 			},
 
-			key::Value::Button(key::Button::F17) => write! {
+			key::Value::Button(key::Button::F(17)) => write! {
 				_ => b"\x1B[15;2~",
 			},
 
-			key::Value::Button(key::Button::F18) => write! {
+			key::Value::Button(key::Button::F(18)) => write! {
 				_ => b"\x1B[17;2~",
 			},
 
-			key::Value::Button(key::Button::F19) => write! {
+			key::Value::Button(key::Button::F(19)) => write! {
 				_ => b"\x1B[18;2~",
 			},
 
-			key::Value::Button(key::Button::F20) => write! {
+			key::Value::Button(key::Button::F(20)) => write! {
 				_ => b"\x1B[19;2~",
 			},
 
-			key::Value::Button(key::Button::F21) => write! {
+			key::Value::Button(key::Button::F(21)) => write! {
 				_ => b"\x1B[20;2~",
 			},
 
-			key::Value::Button(key::Button::F22) => write! {
+			key::Value::Button(key::Button::F(22)) => write! {
 				_ => b"\x1B[21;2~",
 			},
 
-			key::Value::Button(key::Button::F23) => write! {
+			key::Value::Button(key::Button::F(23)) => write! {
 				_ => b"\x1B[23;2~",
 			},
 
-			key::Value::Button(key::Button::F24) => write! {
+			key::Value::Button(key::Button::F(24)) => write! {
 				_ => b"\x1B[24;2~",
 			},
 
-			key::Value::Button(key::Button::F25) => write! {
+			key::Value::Button(key::Button::F(25)) => write! {
 				_ => b"\x1B[1;5P",
 			},
 
-			key::Value::Button(key::Button::F26) => write! {
+			key::Value::Button(key::Button::F(26)) => write! {
 				_ => b"\x1B[1;5Q",
 			},
 
-			key::Value::Button(key::Button::F27) => write! {
+			key::Value::Button(key::Button::F(27)) => write! {
 				_ => b"\x1B[1;5R",
 			},
 
-			key::Value::Button(key::Button::F28) => write! {
+			key::Value::Button(key::Button::F(28)) => write! {
 				_ => b"\x1B[1;5S",
 			},
 
-			key::Value::Button(key::Button::F29) => write! {
+			key::Value::Button(key::Button::F(29)) => write! {
 				_ => b"\x1B[15;5~",
 			},
 
-			key::Value::Button(key::Button::F30) => write! {
+			key::Value::Button(key::Button::F(30)) => write! {
 				_ => b"\x1B[17;5~",
 			},
 
-			key::Value::Button(key::Button::F31) => write! {
+			key::Value::Button(key::Button::F(31)) => write! {
 				_ => b"\x1B[18;5~",
 			},
 
-			key::Value::Button(key::Button::F32) => write! {
+			key::Value::Button(key::Button::F(32)) => write! {
 				_ => b"\x1B[19;5~",
 			},
 
-			key::Value::Button(key::Button::F33) => write! {
+			key::Value::Button(key::Button::F(33)) => write! {
 				_ => b"\x1B[20;5~",
 			},
 
-			key::Value::Button(key::Button::F34) => write! {
+			key::Value::Button(key::Button::F(34)) => write! {
 				_ => b"\x1B[21;5~",
 			},
 
-			key::Value::Button(key::Button::F35) => write! {
+			key::Value::Button(key::Button::F(35)) => write! {
 				_ => b"\x1B[23;5~",
 			},
+
+			key::Value::Button(key::Button::F(_)) =>
+				unreachable!(),
 
 			key::Value::Keypad(..) =>
 				unimplemented!(),
