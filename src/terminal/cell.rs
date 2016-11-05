@@ -150,14 +150,23 @@ impl Cell {
 			Cell::Occupied { ref value, .. } =>
 				value,
 
-			_ =>
+			Cell::Reference(..) =>
 				unreachable!()
 		}
 	}
 
 	/// Get the cell width.
 	pub fn width(&self) -> u32 {
-		self.value().width() as u32
+		match *self {
+			Cell::Empty { .. } =>
+				1,
+
+			Cell::Occupied { ref value, .. } =>
+				value.width() as u32,
+
+			Cell::Reference(..) =>
+				unreachable!(),
+		}
 	}
 
 	/// Get the reference offset.
@@ -166,7 +175,8 @@ impl Cell {
 			Cell::Reference(offset) =>
 				offset as u32,
 
-			_ =>
+			Cell::Empty { .. } |
+			Cell::Occupied { .. } =>
 				unreachable!()
 		}
 	}
