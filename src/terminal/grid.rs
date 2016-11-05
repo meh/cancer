@@ -17,7 +17,7 @@
 
 use std::mem;
 use std::ops::{Deref, DerefMut};
-use std::collections::VecDeque;
+use std::collections::{VecDeque, LinkedList};
 use std::rc::Rc;
 
 use itertools::Itertools;
@@ -39,14 +39,14 @@ pub struct Grid {
 #[derive(Debug)]
 pub struct Free {
 	empty: Rc<Style>,
-	inner: VecDeque<Row>
+	inner: LinkedList<Row>
 }
 
 impl Free {
 	pub fn new() -> Self {
 		Free {
 			empty: Rc::new(Style::default()),
-			inner: VecDeque::new(),
+			inner: LinkedList::new(),
 		}
 	}
 
@@ -90,7 +90,7 @@ impl Free {
 
 	/// Push a `Row` for reuse.
 	pub fn push(&mut self, row: Row) {
-		self.inner.push_back(row);
+		self.inner.push_front(row);
 	}
 }
 
