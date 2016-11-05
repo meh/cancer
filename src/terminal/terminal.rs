@@ -1414,7 +1414,7 @@ impl Terminal {
 							let     desc  = parts.next().unwrap_or("-");
 							let mut color = *self.config.style().cursor().foreground();
 
-							if let Some(c) = config::to_color(desc) {
+							if let Some(c) = config::util::to_color(desc) {
 								color = c;
 							}
 
@@ -1425,7 +1425,7 @@ impl Terminal {
 							let     desc  = parts.next().unwrap_or("-");
 							let mut color = *self.config.style().cursor().background();
 
-							if let Some(c) = config::to_color(desc) {
+							if let Some(c) = config::util::to_color(desc) {
 								color = c;
 							}
 

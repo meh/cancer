@@ -7,6 +7,9 @@ cache  = 2048
 scroll = 2048
 batch  = 30
 
+[input]
+prefix = "L-a"
+
 [style]
 font  = "monospace 11px"
 blink = 500
