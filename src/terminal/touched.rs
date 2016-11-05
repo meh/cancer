@@ -87,6 +87,10 @@ enum State {
 }
 
 impl Iter {
+	pub fn empty(region: Region) -> Self {
+		Iter::new(region, false, Default::default(), Default::default())
+	}
+
 	pub fn new(region:   Region,
 	           all:      bool,
 	           line:     HashSet<u32, BuildHasherDefault<FnvHasher>>,

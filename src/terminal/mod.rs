@@ -36,8 +36,14 @@ pub use self::grid::Grid;
 mod tabs;
 pub use self::tabs::Tabs;
 
+mod interface;
+pub use self::interface::Interface;
+
 mod terminal;
 pub use self::terminal::Terminal;
+
+mod overlay;
+pub use self::overlay::Overlay;
 
 mod action;
 pub use self::action::Action;

@@ -37,18 +37,18 @@ use terminal::touched;
 
 #[derive(Debug)]
 pub struct Terminal {
-	config:  Arc<Config>,
-	region:  Region,
-	cache:   Option<Vec<u8>>,
-	touched: Touched,
-	mode:    Mode,
+	pub(super) config:  Arc<Config>,
+	pub(super) region:  Region,
+	pub(super) cache:   Option<Vec<u8>>,
+	pub(super) touched: Touched,
+	pub(super) mode:    Mode,
 
-	scroll: Option<u32>,
-	grid:   Grid,
-	tabs:   Tabs,
+	pub(super) scroll: Option<u32>,
+	pub(super) grid:   Grid,
+	pub(super) tabs:   Tabs,
 
-	cursor: Cursor,
-	saved:  Option<Cursor>,
+	pub(super) cursor: Cursor,
+	pub(super) saved:  Option<Cursor>,
 }
 
 macro_rules! term {

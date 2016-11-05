@@ -69,12 +69,12 @@ mod font;
 use font::Font;
 
 mod terminal;
-use terminal::{Terminal, Action};
+use terminal::{Interface, Terminal, Overlay, Action};
 
 mod style;
 
 mod platform;
-use platform::{Event, Window, Tty};
+use platform::{Event, Window, Tty, key};
 
 mod renderer;
 use renderer::Renderer;
@@ -129,7 +129,7 @@ fn main() {
 	let mut window   = Window::open(matches.value_of("name"), &config, &font).unwrap();
 	let mut surface  = window.surface();
 	let mut renderer = Renderer::new(config.clone(), font.clone(), &surface, window.width(), window.height());
-	let mut terminal = Terminal::open(config.clone(), renderer.columns(), renderer.rows()).unwrap();
+	let mut terminal = Interface::Terminal(Terminal::open(config.clone(), renderer.columns(), renderer.rows()).unwrap());
 	let mut tty      = Tty::spawn(renderer.columns(), renderer.rows(),
 	                              matches.value_of("term").or_else(|| config.environment().term()),
 	                              matches.value_of("execute").or_else(|| config.environment().program())).unwrap();
@@ -249,6 +249,10 @@ fn main() {
 					}
 
 					Event::Resize(width, height) => {
+						if terminal.overlay() {
+							terminal = Interface::Terminal(try!(break terminal.into_inner(&mut tty)));
+						}
+
 						renderer.resize(width, height);
 						surface.resize(width, height);
 
@@ -262,20 +266,29 @@ fn main() {
 					}
 
 					Event::Key(key) => {
-						try!(break terminal.key(key, &mut tty));
+						if key.value() == &key::Value::Button(key::Button::Escape) && terminal.overlay() {
+							terminal = Interface::Terminal(try!(break terminal.into_inner(&mut tty)));
+							render!(terminal.region().absolute());
+						}
+
+						if &key == config.input().prefix() && !terminal.overlay() {
+							terminal = Interface::Overlay(Overlay::new(try!(break terminal.into_inner(&mut tty))));
+						}
+
+						render!(try!(break terminal.key(key, &mut tty)));
 						try!(break tty.flush());
 					}
 				}
 			},
 
 			input = input.recv() => {
-				let input = try!(break input);
+				let input              = try!(break input);
 				let (actions, touched) = try!(continue terminal.handle(&input, tty.by_ref()));
 
 				if touched.all() {
 					batched = true;
 				}
-				else {
+				else if !batched {
 					render!(touched);
 				}
 
