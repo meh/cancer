@@ -170,7 +170,9 @@ impl Cursor {
 	}
 
 	pub fn travel(&mut self, value: Travel) -> Option<i32> {
-		self.state.remove(WRAP);
+		if self.state.contains(WRAP) {
+			self.state.remove(WRAP);
+		}
 
 		let mut overflow = None;
 
