@@ -23,7 +23,7 @@ use std::rc::Rc;
 use itertools::Itertools;
 use util::clamp;
 use style::Style;
-use terminal::Cell;
+use terminal::{Access, Cell};
 
 #[derive(Debug)]
 pub struct Grid {
@@ -130,6 +130,24 @@ impl Grid {
 
 		value.resize(cols, rows);
 		value
+	}
+
+	pub fn get(&self, x: u32, y: u32) -> &Cell {
+		&self.view[y as usize][x as usize]
+	}
+
+	pub fn get_mut(&mut self, x: u32, y: u32) -> &mut Cell {
+		&mut self.view[y as usize][x as usize]
+	}
+
+	/// Get the scroll back.
+	pub fn back(&self) -> &VecDeque<Row> {
+		&self.back
+	}
+
+	/// Get the current view.
+	pub fn view(&self) -> &VecDeque<Row> {
+		&self.view
 	}
 
 	/// Drop rows in the scrollback that go beyond the history limit.
@@ -400,14 +418,10 @@ impl Grid {
 	pub fn wrap(&mut self, y: u32) {
 		self.view[y as usize].wrap = true;
 	}
+}
 
-	/// Get a cell at the given location.
-	pub fn get(&self, x: u32, y: u32) -> &Cell {
-		&self.view[y as usize][x as usize]
-	}
-
-	/// Get a mutable cell at the given location.
-	pub fn get_mut(&mut self, x: u32, y: u32) -> &mut Cell {
-		&mut self.view[y as usize][x as usize]
+impl Access for Grid {
+	fn access(&self, x: u32, y: u32) -> &Cell {
+		self.get(x, y)
 	}
 }

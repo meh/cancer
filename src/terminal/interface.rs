@@ -21,8 +21,9 @@ use std::vec;
 use picto::Region;
 use error;
 use platform::Key;
-use terminal::{Terminal, Overlay, Mode, Action};
-use terminal::{cell, cursor, touched};
+use terminal::{Access, Terminal, Overlay, Mode, Action, Iter};
+use terminal::{cursor, touched};
+use terminal::cell::{self, Cell};
 
 #[derive(Debug)]
 pub enum Interface {
@@ -120,21 +121,15 @@ impl Interface {
 		}
 	}
 
-	pub fn iter<'a, T: Iterator<Item = (u32, u32)>>(&'a self, iter: T) -> impl Iterator<Item = cell::Position<'a>> {
-		match *self {
-			Interface::Terminal(ref terminal) =>
-				terminal.iter(iter),
-
-			Interface::Overlay(ref overlay) =>
-				overlay.iter(iter),
-		}
+	pub fn iter<T: Iterator<Item = (u32, u32)>>(&self, iter: T) -> Iter<Self, T> {
+		Iter::new(self, iter)
 	}
 
-	pub fn key<O: Write>(&mut self, key: Key, output: O) -> error::Result<touched::Iter> {
+	pub fn key<O: Write>(&mut self, key: Key, output: O) -> error::Result<(vec::IntoIter<Action>, touched::Iter)> {
 		match *self {
 			Interface::Terminal(ref mut terminal) => {
 				try!(terminal.key(key, output));
-				Ok(touched::Iter::empty(terminal.region()))
+				Ok((Vec::new().into_iter(), touched::Iter::empty(terminal.region())))
 			}
 
 			Interface::Overlay(ref mut overlay) => {
@@ -153,6 +148,18 @@ impl Interface {
 				overlay.handle(input);
 				Ok((Vec::new().into_iter(), touched::Iter::empty(overlay.region())))
 			}
+		}
+	}
+}
+
+impl Access for Interface {
+	fn access(&self, x: u32, y: u32) -> &Cell {
+		match *self {
+			Interface::Terminal(ref terminal) =>
+				terminal.get(x, y),
+
+			Interface::Overlay(ref overlay) =>
+				overlay.get(x, y),
 		}
 	}
 }

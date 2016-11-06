@@ -120,19 +120,19 @@ fn main() {
 			help("Specify the TERM environment variable to use."))
 		.get_matches();
 
-	let     config   = Arc::new(Config::load(matches.value_of("config")).unwrap());
-	let     font     = Arc::new(Font::load(matches.value_of("font").unwrap_or(config.style().font())).unwrap());
-	let     batch    = timer::periodic_ms(((1.0 / config.environment().batch() as f32) * 1000.0).round() as u32);
-	let     blink    = timer::periodic_ms(config.style().blink());
-	let mut blinking = true;
-	let mut batched  = false;
-	let mut window   = Window::open(matches.value_of("name"), &config, &font).unwrap();
-	let mut surface  = window.surface();
-	let mut renderer = Renderer::new(config.clone(), font.clone(), &surface, window.width(), window.height());
-	let mut terminal = Interface::Terminal(Terminal::open(config.clone(), renderer.columns(), renderer.rows()).unwrap());
-	let mut tty      = Tty::spawn(renderer.columns(), renderer.rows(),
-	                              matches.value_of("term").or_else(|| config.environment().term()),
-	                              matches.value_of("execute").or_else(|| config.environment().program())).unwrap();
+	let     config    = Arc::new(Config::load(matches.value_of("config")).unwrap());
+	let     font      = Arc::new(Font::load(matches.value_of("font").unwrap_or(config.style().font())).unwrap());
+	let     batch     = timer::periodic_ms(((1.0 / config.environment().batch() as f32) * 1000.0).round() as u32);
+	let     blink     = timer::periodic_ms(config.style().blink());
+	let mut blinking  = true;
+	let mut batched   = false;
+	let mut window    = Window::open(matches.value_of("name"), &config, &font).unwrap();
+	let mut surface   = window.surface();
+	let mut renderer  = Renderer::new(config.clone(), font.clone(), &surface, window.width(), window.height());
+	let mut interface = Interface::Terminal(Terminal::open(config.clone(), renderer.columns(), renderer.rows()).unwrap());
+	let mut tty       = Tty::spawn(renderer.columns(), renderer.rows(),
+	                               matches.value_of("term").or_else(|| config.environment().term()),
+	                               matches.value_of("execute").or_else(|| config.environment().program())).unwrap();
 
 	let input  = tty.output();
 	let events = window.events();
@@ -141,7 +141,7 @@ fn main() {
 		(options) => ({
 			let mut options = renderer::Options::empty();
 
-			if terminal.mode().contains(terminal::mode::BLINK) {
+			if interface.mode().contains(terminal::mode::BLINK) {
 				options.insert(renderer::option::BLINKING);
 			}
 
@@ -149,11 +149,11 @@ fn main() {
 				options.insert(renderer::option::FOCUS);
 			}
 
-			if terminal.mode().contains(terminal::mode::REVERSE) {
+			if interface.mode().contains(terminal::mode::REVERSE) {
 				options.insert(renderer::option::REVERSE);
 			}
 
-			if terminal.cursor().is_visible() {
+			if interface.cursor().is_visible() {
 				options.insert(renderer::option::CURSOR);
 			}
 
@@ -173,10 +173,10 @@ fn main() {
 			// Redraw the cursor.
 			renderer.update(|mut o| {
 				if options.cursor() {
-					o.cursor(&terminal.cursor(), options);
+					o.cursor(&interface.cursor(), options);
 				}
 				else {
-					o.cell(&terminal.cursor().cell(), options);
+					o.cell(&interface.cursor().cell(), options);
 				}
 			});
 
@@ -184,17 +184,47 @@ fn main() {
 			window.flush();
 		});
 
+		(handle $what:expr) => ({
+			let (actions, touched) = try!(continue $what);
+
+			if touched.all() {
+				batched = true;
+			}
+			else if !batched {
+				render!(touched);
+			}
+
+			for action in actions {
+				match action {
+					Action::Title(string) => {
+						window.set_title(string);
+					}
+
+					Action::Resize(columns, rows) => {
+						let (width, height) = Renderer::dimensions(columns, rows, &config, &font);
+						window.resize(width, height);
+					}
+
+					Action::Clipboard(name, value) => {
+						window.clipboard(name, value);
+					}
+				}
+			}
+
+			try!(break tty.flush());
+		});
+
 		($iter:expr) => ({
 			let iter    = $iter;
 			let options = render!(options);
 
 			renderer.update(|mut o| {
-				for cell in terminal.iter(iter) {
+				for cell in interface.iter(iter) {
 					o.cell(&cell, options);
 				}
 
 				if options.cursor() {
-					o.cursor(&terminal.cursor(), options);
+					o.cursor(&interface.cursor(), options);
 				}
 			});
 
@@ -207,12 +237,12 @@ fn main() {
 		select! {
 			_ = blink.recv() => {
 				blinking = !blinking;
-				render!(terminal.blinking(blinking));
+				render!(interface.blinking(blinking));
 			},
 
 			_ = batch.recv() => {
 				if batched {
-					render!(terminal.region().absolute());
+					render!(interface.region().absolute());
 					batched = false;
 				}
 			},
@@ -227,16 +257,16 @@ fn main() {
 							o.margin(&region);
 			
 							// Redraw the cells that fall within the damaged region.
-							for cell in terminal.iter(o.damaged(&region).relative()) {
+							for cell in interface.iter(o.damaged(&region).relative()) {
 								o.cell(&cell, options);
 							}
 			
 							// Redraw the cursor.
 							if options.cursor() {
-								o.cursor(&terminal.cursor(), options);
+								o.cursor(&interface.cursor(), options);
 							}
 							else {
-								o.cell(&terminal.cursor().cell(), options);
+								o.cell(&interface.cursor().cell(), options);
 							}
 						});
 			
@@ -249,8 +279,8 @@ fn main() {
 					}
 
 					Event::Resize(width, height) => {
-						if terminal.overlay() {
-							terminal = Interface::Terminal(try!(break terminal.into_inner(&mut tty)));
+						if interface.overlay() {
+							interface = Interface::Terminal(try!(break interface.into_inner(&mut tty)));
 						}
 
 						renderer.resize(width, height);
@@ -259,57 +289,35 @@ fn main() {
 						let rows    = renderer.rows();
 						let columns = renderer.columns();
 
-						if terminal.columns() != columns || terminal.rows() != rows {
+						if interface.columns() != columns || interface.rows() != rows {
 							try!(break tty.resize(columns, rows));
-							terminal.resize(columns, rows);
+							interface.resize(columns, rows);
 						}
 					}
 
 					Event::Key(key) => {
-						if key.value() == &key::Value::Button(key::Button::Escape) && terminal.overlay() {
-							terminal = Interface::Terminal(try!(break terminal.into_inner(&mut tty)));
-							render!(terminal.region().absolute());
+						if interface.overlay() &&
+						   (key.value() == &key::Value::Button(key::Button::Escape) ||
+						   (key.value() == &key::Value::Char("c".into()) && key.modifier().contains(key::CTRL)) ||
+							 (key.value() == &key::Value::Char("i".into())))
+						{
+							interface = Interface::Terminal(try!(break interface.into_inner(&mut tty)));
+							render!(interface.region().absolute());
+							continue;
 						}
 
-						if &key == config.input().prefix() && !terminal.overlay() {
-							terminal = Interface::Overlay(Overlay::new(try!(break terminal.into_inner(&mut tty))));
+						if &key == config.input().prefix() && !interface.overlay() {
+							interface = Interface::Overlay(Overlay::new(try!(break interface.into_inner(&mut tty))));
 						}
 
-						render!(try!(break terminal.key(key, &mut tty)));
-						try!(break tty.flush());
+						render!(handle interface.key(key, tty.by_ref()));
 					}
 				}
 			},
 
 			input = input.recv() => {
-				let input              = try!(break input);
-				let (actions, touched) = try!(continue terminal.handle(&input, tty.by_ref()));
-
-				if touched.all() {
-					batched = true;
-				}
-				else if !batched {
-					render!(touched);
-				}
-
-				for action in actions {
-					match action {
-						Action::Title(string) => {
-							window.set_title(string);
-						}
-
-						Action::Resize(columns, rows) => {
-							let (width, height) = Renderer::dimensions(columns, rows, &config, &font);
-							window.resize(width, height);
-						}
-
-						Action::Clipboard(name, value) => {
-							window.clipboard(name, value);
-						}
-					}
-				}
-
-				try!(break tty.flush());
+				let input = try!(break input);
+				render!(handle interface.handle(&input, tty.by_ref()));
 			}
 		}
 	}

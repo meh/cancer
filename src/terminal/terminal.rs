@@ -30,7 +30,7 @@ use config::{self, Config};
 use config::style::Shape;
 use style::{self, Style};
 use platform::key::{self, Key};
-use terminal::{Iter, Touched, Cell, Tabs, Grid, Action, cell};
+use terminal::{Access, Iter, Touched, Cell, Tabs, Grid, Action, cell};
 use terminal::mode::{self, Mode};
 use terminal::cursor::{self, Cursor};
 use terminal::touched;
@@ -111,9 +111,9 @@ macro_rules! term {
 	});
 
 	($term:ident; cursor $($travel:tt)*) => ({
-		$term.touched.push(term!($term; cursor));
+		$term.touched.push($term.cursor.position());
 		let r = $term.cursor.travel(cursor::$($travel)*);
-		$term.touched.push(term!($term; cursor));
+		$term.touched.push($term.cursor.position());
 		r
 	});
 
@@ -185,15 +185,14 @@ impl Terminal {
 		self.mode
 	}
 
+	pub fn get(&self, x: u32, y: u32) -> &Cell {
+		term!(self; cell (x, y))
+	}
+
 	/// Get the cursor.
 	pub fn cursor(&self) -> cursor::Cell {
 		let (x, y) = term!(self; cursor);
-		cursor::Cell::new(&self.cursor, self.get(x, y))
-	}
-
-	/// Get the cell at the given position.
-	pub fn get(&self, x: u32, y: u32) -> cell::Position {
-		cell::Position::new(x, y, term!(self; cell (x, y)))
+		cursor::Cell::new(&self.cursor, cell::Position::new(x, y, self.get(x, y)))
 	}
 
 	/// Get the region of the terminal.
@@ -202,7 +201,7 @@ impl Terminal {
 	}
 
 	/// Get an iterator over positioned cells.
-	pub fn iter<'a, T: Iterator<Item = (u32, u32)>>(&'a self, iter: T) -> impl Iterator<Item = cell::Position<'a>> {
+	pub fn iter<'a, T: Iterator<Item = (u32, u32)>>(&'a self, iter: T) -> Iter<Self, T> {
 		Iter::new(self, iter)
 	}
 
@@ -252,6 +251,8 @@ impl Terminal {
 
 	/// Handle a key.
 	pub fn key<O: Write>(&mut self, key: Key, mut output: O) -> io::Result<()> {
+		use platform::key::{Value, Button};
+
 		macro_rules! write {
 			() => ();
 
@@ -289,7 +290,7 @@ impl Terminal {
 		}
 
 		match *key.value() {
-			key::Value::Char(ref string) => {
+			Value::Char(ref string) => {
 				if key.modifier().contains(key::ALT) {
 					try!(output.write_all(b"\x1B"));
 				}
@@ -297,16 +298,16 @@ impl Terminal {
 				output.write_all(string.as_bytes())
 			}
 
-			key::Value::Button(key::Button::Escape) => write! {
+			Value::Button(Button::Escape) => write! {
 				_ => b"\x1B",
 			},
 
-			key::Value::Button(key::Button::Backspace) => write! {
+			Value::Button(Button::Backspace) => write! {
 				ALT => b"\x1B\x7F",
 				_   => b"\x7F",
 			},
 
-			key::Value::Button(key::Button::Enter) => write! {
+			Value::Button(Button::Enter) => write! {
 				ALT # CRLF => b"\x1B\r\n",
 				ALT        => b"\x1B\r",
 
@@ -314,7 +315,7 @@ impl Terminal {
 				_        => b"\r",
 			},
 
-			key::Value::Button(key::Button::Delete) => write! {
+			Value::Button(Button::Delete) => write! {
 				CTRL # APPLICATION_KEYPAD => b"\x1B[3;5~",
 				CTRL                      => b"\x1B[M",
 
@@ -325,7 +326,7 @@ impl Terminal {
 				_                      => b"\x1B[P",
 			},
 
-			key::Value::Button(key::Button::Insert) => write! {
+			Value::Button(Button::Insert) => write! {
 				CTRL # APPLICATION_KEYPAD => b"\x1B[2;5~",
 				CTRL                      => b"\x1B[L",
 
@@ -336,7 +337,7 @@ impl Terminal {
 				_                      => b"\x1B[M",
 			},
 
-			key::Value::Button(key::Button::Home) => write! {
+			Value::Button(Button::Home) => write! {
 				SHIFT # APPLICATION_CURSOR => b"\x1B[1;2H",
 				SHIFT                      => b"\x1B[2J",
 
@@ -344,7 +345,7 @@ impl Terminal {
 				_                      => b"\x1B[7~",
 			},
 
-			key::Value::Button(key::Button::End) => write! {
+			Value::Button(Button::End) => write! {
 				CTRL # APPLICATION_KEYPAD => b"\x1B[1;5F",
 				CTRL                      => b"\x1B[J",
 
@@ -354,19 +355,19 @@ impl Terminal {
 				_ => b"\x1B[8~",
 			},
 
-			key::Value::Button(key::Button::PageUp) => write! {
+			Value::Button(Button::PageUp) => write! {
 				CTRL  => b"\x1B[5;5~",
 				SHIFT => b"\x1B[5;2~",
 				_     => b"\x1B[5~",
 			},
 
-			key::Value::Button(key::Button::PageDown) => write! {
+			Value::Button(Button::PageDown) => write! {
 				CTRL  => b"\x1B[6;5~",
 				SHIFT => b"\x1B[6;2~",
 				_     => b"\x1B[6~",
 			},
 
-			key::Value::Button(key::Button::Up) => write! {
+			Value::Button(Button::Up) => write! {
 				CTRL  => b"\x1B[1;5A",
 				ALT   => b"\x1B[1;3A",
 				SHIFT => b"\x1B[1;2A",
@@ -375,7 +376,7 @@ impl Terminal {
 				_                      => b"\x1B[A",
 			},
 
-			key::Value::Button(key::Button::Down) => write! {
+			Value::Button(Button::Down) => write! {
 				CTRL  => b"\x1B[1;5B",
 				ALT   => b"\x1B[1;3B",
 				SHIFT => b"\x1B[1;2B",
@@ -384,7 +385,7 @@ impl Terminal {
 				_                      => b"\x1B[B",
 			},
 
-			key::Value::Button(key::Button::Right) => write! {
+			Value::Button(Button::Right) => write! {
 				CTRL  => b"\x1B[1;5C",
 				ALT   => b"\x1B[1;3C",
 				SHIFT => b"\x1B[1;2C",
@@ -393,7 +394,7 @@ impl Terminal {
 				_                      => b"\x1B[C",
 			},
 
-			key::Value::Button(key::Button::Left) => write! {
+			Value::Button(Button::Left) => write! {
 				CTRL  => b"\x1B[1;5D",
 				ALT   => b"\x1B[1;3D",
 				SHIFT => b"\x1B[1;2D",
@@ -402,7 +403,7 @@ impl Terminal {
 				_                      => b"\x1B[D",
 			},
 
-			key::Value::Button(key::Button::F(1)) => write! {
+			Value::Button(Button::F(1)) => write! {
 				CTRL  => b"\x1B[1;5P",
 				ALT   => b"\x1B[1;3P",
 				LOGO  => b"\x1B[1;6P",
@@ -410,7 +411,7 @@ impl Terminal {
 				_     => b"\x1BOP",
 			},
 
-			key::Value::Button(key::Button::F(2)) => write! {
+			Value::Button(Button::F(2)) => write! {
 				CTRL  => b"\x1B[1;5Q",
 				ALT   => b"\x1B[1;3Q",
 				LOGO  => b"\x1B[1;6Q",
@@ -418,7 +419,7 @@ impl Terminal {
 				_     => b"\x1BOQ",
 			},
 
-			key::Value::Button(key::Button::F(3)) => write! {
+			Value::Button(Button::F(3)) => write! {
 				CTRL  => b"\x1B[1;5R",
 				ALT   => b"\x1B[1;3R",
 				LOGO  => b"\x1B[1;6R",
@@ -426,7 +427,7 @@ impl Terminal {
 				_     => b"\x1BOR",
 			},
 
-			key::Value::Button(key::Button::F(4)) => write! {
+			Value::Button(Button::F(4)) => write! {
 				CTRL  => b"\x1B[1;5S",
 				ALT   => b"\x1B[1;3S",
 				LOGO  => b"\x1B[1;6S",
@@ -434,7 +435,7 @@ impl Terminal {
 				_     => b"\x1BOS",
 			},
 
-			key::Value::Button(key::Button::F(5)) => write! {
+			Value::Button(Button::F(5)) => write! {
 				CTRL  => b"\x1B[15;5~",
 				ALT   => b"\x1B[15;3~",
 				LOGO  => b"\x1B[15;6~",
@@ -442,7 +443,7 @@ impl Terminal {
 				_     => b"\x1B[15~",
 			},
 
-			key::Value::Button(key::Button::F(6)) => write! {
+			Value::Button(Button::F(6)) => write! {
 				CTRL  => b"\x1B[17;5~",
 				ALT   => b"\x1B[17;3~",
 				LOGO  => b"\x1B[17;6~",
@@ -450,7 +451,7 @@ impl Terminal {
 				_     => b"\x1B[17~",
 			},
 
-			key::Value::Button(key::Button::F(7)) => write! {
+			Value::Button(Button::F(7)) => write! {
 				CTRL  => b"\x1B[18;5~",
 				ALT   => b"\x1B[18;3~",
 				LOGO  => b"\x1B[18;6~",
@@ -458,7 +459,7 @@ impl Terminal {
 				_     => b"\x1B[18~",
 			},
 
-			key::Value::Button(key::Button::F(8)) => write! {
+			Value::Button(Button::F(8)) => write! {
 				CTRL  => b"\x1B[19;5~",
 				ALT   => b"\x1B[19;3~",
 				LOGO  => b"\x1B[19;6~",
@@ -466,7 +467,7 @@ impl Terminal {
 				_     => b"\x1B[19~",
 			},
 
-			key::Value::Button(key::Button::F(9)) => write! {
+			Value::Button(Button::F(9)) => write! {
 				CTRL  => b"\x1B[20;5~",
 				ALT   => b"\x1B[20;3~",
 				LOGO  => b"\x1B[20;6~",
@@ -474,7 +475,7 @@ impl Terminal {
 				_     => b"\x1B[20~",
 			},
 
-			key::Value::Button(key::Button::F(10)) => write! {
+			Value::Button(Button::F(10)) => write! {
 				CTRL  => b"\x1B[21;5~",
 				ALT   => b"\x1B[21;3~",
 				LOGO  => b"\x1B[21;6~",
@@ -482,7 +483,7 @@ impl Terminal {
 				_     => b"\x1B[21~",
 			},
 
-			key::Value::Button(key::Button::F(11)) => write! {
+			Value::Button(Button::F(11)) => write! {
 				CTRL  => b"\x1B[23;5~",
 				ALT   => b"\x1B[23;3~",
 				LOGO  => b"\x1B[23;6~",
@@ -490,7 +491,7 @@ impl Terminal {
 				_     => b"\x1B[23~",
 			},
 
-			key::Value::Button(key::Button::F(12)) => write! {
+			Value::Button(Button::F(12)) => write! {
 				CTRL  => b"\x1B[24;5~",
 				ALT   => b"\x1B[24;3~",
 				LOGO  => b"\x1B[24;6~",
@@ -498,102 +499,102 @@ impl Terminal {
 				_     => b"\x1B[24~",
 			},
 
-			key::Value::Button(key::Button::F(13)) => write! {
+			Value::Button(Button::F(13)) => write! {
 				_ => b"\x1B[1;2P",
 			},
 
-			key::Value::Button(key::Button::F(14)) => write! {
+			Value::Button(Button::F(14)) => write! {
 				_ => b"\x1B[1;2Q",
 			},
 
-			key::Value::Button(key::Button::F(15)) => write! {
+			Value::Button(Button::F(15)) => write! {
 				_ => b"\x1B[1;2R",
 			},
 
-			key::Value::Button(key::Button::F(16)) => write! {
+			Value::Button(Button::F(16)) => write! {
 				_ => b"\x1B[1;2S",
 			},
 
-			key::Value::Button(key::Button::F(17)) => write! {
+			Value::Button(Button::F(17)) => write! {
 				_ => b"\x1B[15;2~",
 			},
 
-			key::Value::Button(key::Button::F(18)) => write! {
+			Value::Button(Button::F(18)) => write! {
 				_ => b"\x1B[17;2~",
 			},
 
-			key::Value::Button(key::Button::F(19)) => write! {
+			Value::Button(Button::F(19)) => write! {
 				_ => b"\x1B[18;2~",
 			},
 
-			key::Value::Button(key::Button::F(20)) => write! {
+			Value::Button(Button::F(20)) => write! {
 				_ => b"\x1B[19;2~",
 			},
 
-			key::Value::Button(key::Button::F(21)) => write! {
+			Value::Button(Button::F(21)) => write! {
 				_ => b"\x1B[20;2~",
 			},
 
-			key::Value::Button(key::Button::F(22)) => write! {
+			Value::Button(Button::F(22)) => write! {
 				_ => b"\x1B[21;2~",
 			},
 
-			key::Value::Button(key::Button::F(23)) => write! {
+			Value::Button(Button::F(23)) => write! {
 				_ => b"\x1B[23;2~",
 			},
 
-			key::Value::Button(key::Button::F(24)) => write! {
+			Value::Button(Button::F(24)) => write! {
 				_ => b"\x1B[24;2~",
 			},
 
-			key::Value::Button(key::Button::F(25)) => write! {
+			Value::Button(Button::F(25)) => write! {
 				_ => b"\x1B[1;5P",
 			},
 
-			key::Value::Button(key::Button::F(26)) => write! {
+			Value::Button(Button::F(26)) => write! {
 				_ => b"\x1B[1;5Q",
 			},
 
-			key::Value::Button(key::Button::F(27)) => write! {
+			Value::Button(Button::F(27)) => write! {
 				_ => b"\x1B[1;5R",
 			},
 
-			key::Value::Button(key::Button::F(28)) => write! {
+			Value::Button(Button::F(28)) => write! {
 				_ => b"\x1B[1;5S",
 			},
 
-			key::Value::Button(key::Button::F(29)) => write! {
+			Value::Button(Button::F(29)) => write! {
 				_ => b"\x1B[15;5~",
 			},
 
-			key::Value::Button(key::Button::F(30)) => write! {
+			Value::Button(Button::F(30)) => write! {
 				_ => b"\x1B[17;5~",
 			},
 
-			key::Value::Button(key::Button::F(31)) => write! {
+			Value::Button(Button::F(31)) => write! {
 				_ => b"\x1B[18;5~",
 			},
 
-			key::Value::Button(key::Button::F(32)) => write! {
+			Value::Button(Button::F(32)) => write! {
 				_ => b"\x1B[19;5~",
 			},
 
-			key::Value::Button(key::Button::F(33)) => write! {
+			Value::Button(Button::F(33)) => write! {
 				_ => b"\x1B[20;5~",
 			},
 
-			key::Value::Button(key::Button::F(34)) => write! {
+			Value::Button(Button::F(34)) => write! {
 				_ => b"\x1B[21;5~",
 			},
 
-			key::Value::Button(key::Button::F(35)) => write! {
+			Value::Button(Button::F(35)) => write! {
 				_ => b"\x1B[23;5~",
 			},
 
-			key::Value::Button(key::Button::F(_)) =>
+			Value::Button(Button::F(_)) =>
 				unreachable!(),
 
-			key::Value::Keypad(..) =>
+			Value::Keypad(..) =>
 				unimplemented!(),
 		}
 	}
@@ -1460,6 +1461,12 @@ impl Terminal {
 		}
 
 		Ok((actions.into_iter(), self.touched.iter(self.region)))
+	}
+}
+
+impl Access for Terminal {
+	fn access(&self, x: u32, y: u32) -> &Cell {
+		self.get(x, y)
 	}
 }
 
