@@ -297,17 +297,19 @@ fn main() {
 
 					Event::Key(key) => {
 						if interface.overlay() &&
-						   (key.value() == &key::Value::Button(key::Button::Escape) ||
-						   (key.value() == &key::Value::Char("c".into()) && key.modifier().contains(key::CTRL)) ||
-							 (key.value() == &key::Value::Char("i".into())))
+						   ((key.value() == &key::Value::Button(key::Button::Escape) && key.modifier().is_empty()) ||
+						    (key.value() == &key::Value::Char("c".into()) && key.modifier() == key::CTRL) ||
+							  (key.value() == &key::Value::Char("i".into()) && key.modifier().is_empty()))
 						{
 							interface = Interface::Terminal(try!(break interface.into_inner(&mut tty)));
 							render!(interface.region().absolute());
 							continue;
 						}
 
-						if &key == config.input().prefix() && !interface.overlay() {
+						if !interface.overlay() && &key == config.input().prefix() {
 							interface = Interface::Overlay(Overlay::new(try!(break interface.into_inner(&mut tty))));
+							render!(interface.region().absolute());
+							continue;
 						}
 
 						render!(handle interface.key(key, tty.by_ref()));

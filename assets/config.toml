@@ -31,6 +31,11 @@ blink = false
 foreground = "#fff"
 background = "#b21818"
 
+[style.status]
+background = "#b21818"
+foreground = "#fff"
+attributes = "bold"
+
 [color]
 0  = "#000000"
 1  = "#B21818"

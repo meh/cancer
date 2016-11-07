@@ -16,6 +16,7 @@
 // along with cancer.  If not, see <http://www.gnu.org/licenses/>.
 
 use picto::color::Rgba;
+use style;
 
 pub fn is_color(arg: &str) -> bool {
 	arg.starts_with('#') &&
@@ -57,4 +58,24 @@ pub fn to_color(arg: &str) -> Option<Rgba<f64>> {
 	};
 
 	Some(Rgba::new_u8(r, g, b, a))
+}
+
+pub fn to_attributes(arg: &str) -> style::Attributes {
+	let mut attributes = style::NONE;
+
+	for attr in arg.split(' ') {
+		attributes |= match &*attr.to_lowercase() {
+			"bold"      => style::BOLD,
+			"faint"     => style::FAINT,
+			"italic"    => style::ITALIC,
+			"underline" => style::UNDERLINE,
+			"blink"     => style::BLINK,
+			"reverse"   => style::REVERSE,
+			"invisible" => style::INVISIBLE,
+			"struck"    => style::STRUCK,
+			_           => style::NONE,
+		}
+	}
+
+	attributes
 }

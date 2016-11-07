@@ -17,7 +17,8 @@
 
 use toml::{self, Value};
 use picto::color::Rgba;
-use config::util::to_color;
+use config::util::{to_color, to_attributes};
+use style;
 
 #[derive(PartialEq, Clone, Debug)]
 pub struct Style {
@@ -30,6 +31,7 @@ pub struct Style {
 
 	color:  Color,
 	cursor: Cursor,
+	status: Option<Status>,
 }
 
 impl Default for Style {
@@ -44,6 +46,7 @@ impl Default for Style {
 
 			color:  Default::default(),
 			cursor: Default::default(),
+			status: Some(Default::default()),
 		}
 	}
 }
@@ -116,6 +119,23 @@ impl Default for Cursor {
 
 			foreground: to_color("#000").unwrap(),
 			background: to_color("#fff").unwrap(),
+		}
+	}
+}
+
+#[derive(PartialEq, Clone, Debug)]
+pub struct Status {
+	foreground: Rgba<f64>,
+	background: Rgba<f64>,
+	attributes: style::Attributes,
+}
+
+impl Default for Status {
+	fn default() -> Self {
+		Status {
+			foreground: to_color("#000").unwrap(),
+			background: to_color("#c0c0c0").unwrap(),
+			attributes: style::NONE,
 		}
 	}
 }
@@ -204,6 +224,29 @@ impl Style {
 				self.cursor.background = value;
 			}
 		}
+
+		if let Some(value) = table.get("status") {
+			if let Some(table) = value.as_table() {
+				let mut status = Status::default();
+
+				if let Some(value) = table.get("foreground").and_then(|v| v.as_str()).and_then(|v| to_color(v)) {
+					status.foreground = value;
+				}
+
+				if let Some(value) = table.get("background").and_then(|v| v.as_str()).and_then(|v| to_color(v)) {
+					status.background = value;
+				}
+
+				if let Some(value) = table.get("attributes").and_then(|v| v.as_str()) {
+					status.attributes = to_attributes(value);
+				}
+
+				self.status = Some(status);
+			}
+			else {
+				self.status = None;
+			}
+		}
 	}
 
 	pub fn font(&self) -> &str {
@@ -232,6 +275,10 @@ impl Style {
 
 	pub fn cursor(&self) -> &Cursor {
 		&self.cursor
+	}
+
+	pub fn status(&self) -> Option<&Status> {
+		self.status.as_ref()
 	}
 }
 
@@ -268,5 +315,19 @@ impl Cursor {
 
 	pub fn background(&self) -> &Rgba<f64> {
 		&self.background
+	}
+}
+
+impl Status {
+	pub fn foreground(&self) -> &Rgba<f64> {
+		&self.foreground
+	}
+
+	pub fn background(&self) -> &Rgba<f64> {
+		&self.background
+	}
+
+	pub fn attributes(&self) -> style::Attributes {
+		self.attributes
 	}
 }

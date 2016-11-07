@@ -26,6 +26,7 @@ pub struct Style {
 
 bitflags! {
 	pub flags Attributes: u8 {
+		const NONE      = 0,
 		const BOLD      = 1 << 0,
 		const FAINT     = 1 << 1,
 		const ITALIC    = 1 << 2,
