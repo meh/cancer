@@ -15,6 +15,7 @@
 // You should have received a copy of the GNU General Public License
 // along with cancer.  If not, see <http://www.gnu.org/licenses/>.
 
+use std::collections::HashMap;
 use std::thread;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, AtomicU32, Ordering};
@@ -148,11 +149,21 @@ impl Window {
 				receiver
 			}
 
+			#[allow(non_snake_case)]
 			thread::spawn(move || {
-				let     sender   = i_sender;
-				let     receiver = i_receiver;
-				let     events   = sink(connection.clone());
-				let mut keyboard = keyboard;
+				let     sender     = i_sender;
+				let     receiver   = i_receiver;
+				let     connection = connection.clone();
+				let     events     = sink(connection.clone());
+				let mut keyboard   = keyboard;
+				let mut clipboard  = HashMap::new();
+
+				let PRIMARY     = xcb::ATOM_PRIMARY;
+				let SECONDARY   = xcb::ATOM_SECONDARY;
+				let CLIPBOARD   = xcb::intern_atom(&connection, false, "CLIPBOARD").get_reply().unwrap().atom();
+				let UTF8_STRING = xcb::intern_atom(&connection, false, "UTF8_STRING").get_reply().unwrap().atom();
+				let STRING      = xcb::ATOM_STRING;
+				let TARGETS     = xcb::intern_atom(&connection, false, "TARGETS").get_reply().unwrap().atom();
 
 				loop {
 					select! {
@@ -169,8 +180,21 @@ impl Window {
 										(xcb::CONFIG_WINDOW_HEIGHT as u16, h)]);
 								}
 
-								Request::Clipboard(_name, _value) => {
-									// TODO: handle clipboard
+								Request::Clipboard(name, value) => {
+									let atom = match &*name.to_uppercase() {
+										"PRIMARY"   => Some(PRIMARY),
+										"SECONDARY" => Some(SECONDARY),
+										"CLIPBOARD" => Some(CLIPBOARD),
+										_           => None,
+									};
+
+									debug!(target: "cancer::platform::clipboard", "set clipboard: {:?}({:?}) = {:?}", name, atom, value);
+
+									if let Some(atom) = atom {
+										clipboard.insert(atom, value);
+										xcb::set_selection_owner(&connection, window, atom, xcb::CURRENT_TIME);
+										connection.flush();
+									}
 								}
 							}
 						},
@@ -207,6 +231,53 @@ impl Window {
 
 										try!(return sender.send(Event::Resize(w, h)));
 									}
+								}
+
+								xcb::SELECTION_CLEAR => {
+									let event = xcb::cast_event::<xcb::SelectionClearEvent>(&event);
+									clipboard.remove(&event.selection());
+								}
+
+								xcb::SELECTION_REQUEST => {
+									let event = xcb::cast_event::<xcb::SelectionRequestEvent>(&event);
+									let reply = try!(continue xcb::get_atom_name(&connection, event.target()).get_reply());
+
+									debug!(target: "cancer::platform::clipboard", "request clipboard: {:?}", reply.name());
+
+									match reply.name() {
+										"TARGETS" => {
+											xcb::change_property(&connection, xcb::PROP_MODE_REPLACE as u8,
+												event.requestor(), event.property(), xcb::ATOM_ATOM, 32, &[
+													TARGETS, STRING, UTF8_STRING]);
+
+											xcb::send_event(&connection, false, event.requestor(), 0, &xcb::SelectionNotifyEvent::new(
+												event.time(), event.requestor(), event.selection(), event.target(), event.property()));
+										}
+
+										"UTF8_STRING" => {
+											if let Some(value) = clipboard.get(&event.selection()) {
+												xcb::change_property(&connection, xcb::PROP_MODE_REPLACE as u8,
+													event.requestor(), event.property(), UTF8_STRING, 8, value.as_bytes());
+
+												xcb::send_event(&connection, false, event.requestor(), 0, &xcb::SelectionNotifyEvent::new(
+													event.time(), event.requestor(), event.selection(), event.target(), event.property()));
+											}
+										}
+
+										"STRING" => {
+											if let Some(value) = clipboard.get(&event.selection()) {
+												xcb::change_property(&connection, xcb::PROP_MODE_REPLACE as u8,
+													event.requestor(), event.property(), STRING, 8, value.as_bytes());
+
+												xcb::send_event(&connection, false, event.requestor(), 0, &xcb::SelectionNotifyEvent::new(
+													event.time(), event.requestor(), event.selection(), event.target(), event.property()));
+											}
+										}
+
+										_ => ()
+									}
+
+									connection.flush();
 								}
 
 								e if keyboard.owns_event(e) => {
