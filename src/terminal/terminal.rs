@@ -210,7 +210,6 @@ impl Terminal {
 		self.region.width  = width;
 		self.region.height = height;
 
-		self.cursor.resize(width, height);
 		self.tabs.resize(width, height);
 
 		match self.grid.resize(width, height) {
@@ -224,6 +223,9 @@ impl Terminal {
 
 			_ => ()
 		}
+
+		self.cursor.resize(width, height);
+		self.saved = None;
 	}
 
 	/// Enable or disable blinking and return the affected cells.
@@ -848,8 +850,8 @@ impl Terminal {
 
 				Control::C1(C1::ControlSequence(CSI::RestoreCursor)) |
 				Control::DEC(DEC::RestoreCursor) => {
-					if let Some(cursor) = self.saved.take() {
-						self.cursor = cursor;
+					if let Some(saved) = self.saved.clone() {
+						self.cursor = saved;
 					}
 				}
 
