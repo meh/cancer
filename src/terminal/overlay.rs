@@ -94,21 +94,29 @@ macro_rules! overlay {
 	});
 
 	($term:ident; cursor $($travel:tt)*) => ({
-		let (before, before_abs) = (overlay!($term; cursor), overlay!($term; cursor absolute));
+		let before = overlay!($term; cursor absolute);
 		$term.touched.push($term.cursor.position());
 
 		let r = $term.cursor.travel(cursor::$($travel)*);
 
-		let (after, after_abs) = (overlay!($term; cursor), overlay!($term; cursor absolute));
+		let after = overlay!($term; cursor absolute);
 		$term.touched.push($term.cursor.position());
 
-		if let Some(select) = $term.select.as_mut() {
-			Overlay::select(&mut $term.touched, select, &mut $term.changed,
-				(before.0, (before.1, before_abs.1)),
-				(after.0, (after.1, after_abs.1)));
-		}
+		overlay!($term; select before, after);
 
 		r
+	});
+
+	($term:ident; select $before:expr, $after:expr) => ({
+		if let Some(select) = $term.select.as_mut() {
+			Overlay::select(select, &mut $term.changed, $before, $after);
+			overlay!($term; touched all);
+		}
+	});
+
+	($term:ident; unselect) => ({
+		Overlay::unselect($term.select.take().unwrap(), &mut $term.changed);
+		overlay!($term; touched all);
 	});
 
 	($term:ident; move end) => ({
@@ -500,9 +508,8 @@ impl Overlay {
 				"y" if key.modifier().is_empty() => {
 					if let Some(selection) = self.selection() {
 						overlay!(self; status mode "NORMAL");
-
 						actions.push(Action::Clipboard("CLIPBOARD".into(), selection));
-						Overlay::unselect(&mut self.touched, self.select.take().unwrap(), &mut self.changed);
+						overlay!(self; unselect);
 					}
 				}
 
@@ -679,7 +686,7 @@ impl Overlay {
 		}
 	}
 
-	fn select(touched: &mut Touched, selection: &mut Selection, changed: &mut Changed, before: (u32, (u32, u32)), after: (u32, (u32, u32))) {
+	fn select(selection: &mut Selection, changed: &mut Changed, before: (u32, u32), after: (u32, u32)) {
 		match *selection {
 			Selection::Normal { ref mut start, ref mut end } => {
 				// TODO: it
@@ -691,7 +698,7 @@ impl Overlay {
 		}
 	}
 
-	fn unselect(touched: &mut Touched, selection: Selection, changed: &mut Changed) {
+	fn unselect(selection: Selection, changed: &mut Changed) {
 		match selection {
 			Selection::Normal { start, end } => {
 				// TODO: it
