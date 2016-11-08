@@ -206,6 +206,23 @@ macro_rules! overlay {
 		}
 	});
 
+	($term:ident; scroll page up) => ({
+		$term.scroll += $term.inner.rows().saturating_sub(3);
+
+		if $term.scroll > $term.inner.grid.back().len() as u32 {
+			$term.scroll = $term.inner.grid.back().len().saturating_sub(1) as u32;
+		}
+
+		overlay!($term; status position!);
+		overlay!($term; touched all);
+	});
+
+	($term:ident; scroll page down) => ({
+		$term.scroll = $term.scroll.saturating_sub($term.inner.rows() - 3);
+		overlay!($term; status position!);
+		overlay!($term; touched all);
+	});
+
 	($term:ident; touched all) => (
 		$term.touched.all();
 	);
@@ -367,6 +384,16 @@ impl Overlay {
 					overlay!(self; scroll down);
 				}),
 
+				// Scroll page up.
+				"\x15" | "u" if key.modifier() == key::CTRL => overlay!(self; times {
+					overlay!(self; scroll page up);
+				}),
+
+				// Scroll page down.
+				"\x04" | "d" if key.modifier() == key::CTRL => overlay!(self; times {
+					overlay!(self; scroll page down);
+				}),
+
 				// Move cursor to the end.
 				"$" => {
 					overlay!(self; move end);
@@ -485,6 +512,14 @@ impl Overlay {
 			},
 
 			Value::Button(ref button) => match button {
+				&Button::PageUp => overlay!(self; times {
+					overlay!(self; scroll page up);
+				}),
+
+				&Button::PageDown => overlay!(self; times {
+					overlay!(self; scroll page down);
+				}),
+
 				&Button::Left => overlay!(self; times {
 					overlay!(self; move left);
 				}),
