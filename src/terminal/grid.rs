@@ -101,6 +101,12 @@ pub struct Row {
 	wrap:  bool,
 }
 
+impl Row {
+	pub fn wrap(&self) -> bool {
+		self.wrap
+	}
+}
+
 impl Deref for Row {
 	type Target = VecDeque<Cell>;
 
@@ -183,7 +189,7 @@ impl Grid {
 			let mut wrapped = Vec::new();
 
 			for i in (0 .. view.len()).rev() {
-				if view[i].wrap {
+				if view[i].wrap() {
 					wrapped.push(view.remove(i).unwrap());
 				}
 				else if !wrapped.is_empty() {

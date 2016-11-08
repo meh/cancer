@@ -94,16 +94,18 @@ macro_rules! overlay {
 	});
 
 	($term:ident; cursor $($travel:tt)*) => ({
-		let before = overlay!($term; cursor absolute);
+		let (before, before_abs) = (overlay!($term; cursor), overlay!($term; cursor absolute));
 		$term.touched.push($term.cursor.position());
 
 		let r = $term.cursor.travel(cursor::$($travel)*);
 
-		let after = overlay!($term; cursor absolute);
+		let (after, after_abs) = (overlay!($term; cursor), overlay!($term; cursor absolute));
 		$term.touched.push($term.cursor.position());
 
 		if let Some(select) = $term.select.as_mut() {
-			Overlay::select(&mut $term.touched, select, &mut $term.changed, before, after);
+			Overlay::select(&mut $term.touched, select, &mut $term.changed,
+				(before.0, (before.1, before_abs.1)),
+				(after.0, (after.1, after_abs.1)));
 		}
 
 		r
@@ -440,8 +442,8 @@ impl Overlay {
 						None => {
 							overlay!(self; status mode "VISUAL");
 
-							let (x, y) = overlay!(self; cursor);
-							self.select = Some(Selection::Normal { start: (x, y), end: (x, y) });
+							let (x, y) = overlay!(self; cursor absolute);
+							self.select = Some(Selection::Normal { start: (x, y), end: (x + 1, y) });
 						}
 					}
 				}
@@ -545,46 +547,93 @@ impl Overlay {
 	}
 
 	fn selection(&self) -> Option<String> {
-		match self.select {
-			Some(Selection::Normal { start, end }) => {
-				// TODO: it
+		/// Find the index of the first non-empty cell followed by only empty
+		/// cells.
+		fn edge(row: &grid::Row, start: u32, end: u32) -> u32 {
+			let mut found = None;
 
-				Some(String::new())
+			for x in start .. end {
+				let cell = &row[x as usize];
+
+				if cell.is_empty() && found.is_none() {
+					found = Some(x)
+				}
+				else if cell.is_occupied() && found.is_some() {
+					found = None;
+				}
 			}
 
-			Some(Selection::Block(region)) => {
-				let mut result = String::new();
+			found.unwrap_or(end)
+		}
 
-				for y in region.y .. region.y + region.height {
-					let mut end = None;
+		match self.select {
+			Some(Selection::Normal { start, end }) => {
+				let mut lines  = vec![];
+				let mut unwrap = None::<Vec<String>>;
 
-					for x in region.x .. region.x + region.width {
-						let cell = &self.row(y)[x as usize];
+				for y in (start.1 ... end.1).rev() {
+					let (start, end) = if start.1 == end.1 {
+						(start.0, end.0)
+					}
+					else if y == start.1 {
+						(start.0, self.inner.columns())
+					}
+					else if y == end.1 {
+						(0, end.0)
+					}
+					else {
+						(0, self.inner.columns())
+					};
 
-						if cell.is_empty() && end.is_none() {
-							end = Some(x)
-						}
-						else if cell.is_occupied() && end.is_some() {
-							end = None;
-						}
+					let     row  = self.row(y);
+					let mut line = String::new();
+
+					for x in start .. edge(row, start, end) {
+						line.push_str(row[x as usize].value());
 					}
 
-					for x in region.x .. end.unwrap_or(region.x + region.width) {
-						match &self.row(y)[x as usize] {
-							&Cell::Empty { .. } =>
-								result.push(' '),
-
-							&Cell::Occupied { ref value, .. } =>
-								result.push_str(value),
-
-							&Cell::Reference(_) =>
-								(),
+					if row.wrap() {
+						if let Some(mut unwrapped) = unwrap.take() {
+							unwrapped.push(line);
+							unwrap = Some(unwrapped);
 						}
+						else {
+							unwrap = Some(vec![line]);
+						}
+					}
+					else if let Some(mut unwrapped) = unwrap.take() {
+						unwrapped.push(line);
+						lines.push(unwrapped);
+					}
+					else {
+						lines.push(vec![line]);
+					}
+				}
+
+				let mut result = String::new();
+				for lines in lines {
+					for line in lines.into_iter().rev() {
+						result.push_str(&line);
 					}
 
 					result.push('\n');
 				}
+				result.pop();
 
+				Some(result)
+			}
+
+			Some(Selection::Block(region)) => {
+				let mut result = String::new();
+				for y in region.y .. region.y + region.height {
+					let row = self.row(y);
+
+					for x in region.x .. edge(row, region.x, region.x + region.width) {
+						result.push_str(row[x as usize].value());
+					}
+
+					result.push('\n');
+				}
 				result.pop();
 
 				Some(result)
@@ -595,7 +644,7 @@ impl Overlay {
 		}
 	}
 
-	fn select(touched: &mut Touched, selection: &mut Selection, changed: &mut Changed, before: (u32, u32), after: (u32, u32)) {
+	fn select(touched: &mut Touched, selection: &mut Selection, changed: &mut Changed, before: (u32, (u32, u32)), after: (u32, (u32, u32))) {
 		match *selection {
 			Selection::Normal { ref mut start, ref mut end } => {
 				// TODO: it

@@ -151,7 +151,7 @@ impl Cell {
 				value,
 
 			Cell::Reference(..) =>
-				unreachable!()
+				"",
 		}
 	}
 
