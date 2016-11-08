@@ -35,6 +35,34 @@ use terminal::cell::{self, Cell};
 use terminal::cursor;
 use terminal::grid;
 
+pub type Changed = HashMap<(u32, u32), Cell, BuildHasherDefault<FnvHasher>>;
+
+#[derive(Debug)]
+pub struct Overlay {
+	inner:   Terminal,
+	cache:   Vec<u8>,
+	touched: Touched,
+
+	scroll:  u32,
+	cursor:  Cursor,
+	changed: Changed,
+	status:  Option<Status>,
+
+	prefix: Option<u8>,
+	times:  Option<u32>,
+	select: Option<Selection>,
+}
+
+#[derive(Debug)]
+pub enum Selection {
+	Normal {
+		start: (u32, u32),
+		end:   (u32, u32)
+	},
+
+	Block(Region),
+}
+
 macro_rules! overlay {
 	($term:ident; times $block:block) => ({
 		for _ in 0 .. $term.times.unwrap_or(1) {
@@ -209,34 +237,6 @@ macro_rules! overlay {
 	});
 }
 
-pub type Changed = HashMap<(u32, u32), Cell, BuildHasherDefault<FnvHasher>>;
-
-#[derive(Debug)]
-pub struct Overlay {
-	inner:   Terminal,
-	cache:   Vec<u8>,
-	touched: Touched,
-
-	scroll:  u32,
-	cursor:  Cursor,
-	changed: Changed,
-	status:  Option<Status>,
-
-	prefix: Option<u8>,
-	times:  Option<u32>,
-	select: Option<Selection>,
-}
-
-#[derive(Debug)]
-pub enum Selection {
-	Normal {
-		start: (u32, u32),
-		end:   (u32, u32)
-	},
-
-	Block(Region),
-}
-
 impl Overlay {
 	pub fn new(inner: Terminal) -> Self {
 		let mut cursor = inner.cursor.clone();
@@ -365,10 +365,12 @@ impl Overlay {
 					overlay!(self; scroll down);
 				}),
 
+				// Move cursor to the end.
 				"$" => {
 					overlay!(self; move end);
 				}
 
+				// Move cursor to the beginnin.
 				"^" | "0" => {
 					overlay!(self; move start);
 				}
@@ -430,7 +432,9 @@ impl Overlay {
 						}
 
 						Some(Selection::Block(region)) => {
-							unimplemented!();
+							overlay!(self; status mode "VISUAL BLOCK");
+
+							// TODO: convert from `Block` to `Normal`.
 						}
 
 						None => {
@@ -450,7 +454,9 @@ impl Overlay {
 						}
 
 						Some(Selection::Normal { start, end }) => {
-							unimplemented!();
+							overlay!(self; status mode "VISUAL");
+
+							// TODO: convert from `Normal` to `Block`.
 						}
 
 						None => {
@@ -459,6 +465,15 @@ impl Overlay {
 							let (x, y) = overlay!(self; cursor absolute);
 							self.select = Some(Selection::Block(Region::from(x, y, 1, 1)));
 						}
+					}
+				}
+
+				"y" if key.modifier().is_empty() => {
+					if let Some(selection) = self.selection() {
+						overlay!(self; status mode "NORMAL");
+
+						actions.push(Action::Clipboard("CLIPBOARD".into(), selection));
+						Overlay::unselect(&mut self.touched, self.select.take().unwrap(), &mut self.changed);
 					}
 				}
 
@@ -517,19 +532,8 @@ impl Overlay {
 			self.prefix = None;
 		}
 
-		// Send the current selection to be set on the clipboard.
-		match self.select {
-			Some(Selection::Normal { start, end }) => {
-				for y in end.1 .. start.1 {
-					println!("{:?}", y);
-				}
-			}
-
-			Some(Selection::Block(region)) => {
-
-			}
-
-			None => ()
+		if let Some(selection) = self.selection() {
+			actions.push(Action::Clipboard("PRIMARY".into(), selection));
 		}
 
 		self.times = None;
@@ -540,16 +544,77 @@ impl Overlay {
 		self.cache.extend(input.as_ref());
 	}
 
-	fn select(touched: &mut Touched, selection: &mut Selection, changed: &mut Changed, before: (u32, u32), after: (u32, u32)) {
-		println!("{:?} {:?}", before, after);
+	fn selection(&self) -> Option<String> {
+		match self.select {
+			Some(Selection::Normal { start, end }) => {
+				// TODO: it
 
+				Some(String::new())
+			}
+
+			Some(Selection::Block(region)) => {
+				let mut result = String::new();
+
+				for y in region.y .. region.y + region.height {
+					let mut end = None;
+
+					for x in region.x .. region.x + region.width {
+						let cell = &self.row(y)[x as usize];
+
+						if cell.is_empty() && end.is_none() {
+							end = Some(x)
+						}
+						else if cell.is_occupied() && end.is_some() {
+							end = None;
+						}
+					}
+
+					for x in region.x .. end.unwrap_or(region.x + region.width) {
+						match &self.row(y)[x as usize] {
+							&Cell::Empty { .. } =>
+								result.push(' '),
+
+							&Cell::Occupied { ref value, .. } =>
+								result.push_str(value),
+
+							&Cell::Reference(_) =>
+								(),
+						}
+					}
+
+					result.push('\n');
+				}
+
+				result.pop();
+
+				Some(result)
+			}
+
+			None =>
+				None
+		}
+	}
+
+	fn select(touched: &mut Touched, selection: &mut Selection, changed: &mut Changed, before: (u32, u32), after: (u32, u32)) {
 		match *selection {
 			Selection::Normal { ref mut start, ref mut end } => {
-				println!("NORMAL: {:?} .. {:?}", start, end);
+				// TODO: it
 			}
 
 			Selection::Block(ref mut region) => {
-				println!("BLOCK: {:?}", region);
+				// TODO: it
+			}
+		}
+	}
+
+	fn unselect(touched: &mut Touched, selection: Selection, changed: &mut Changed) {
+		match selection {
+			Selection::Normal { start, end } => {
+				// TODO: it
+			}
+
+			Selection::Block(region) => {
+				// TODO: it
 			}
 		}
 	}
