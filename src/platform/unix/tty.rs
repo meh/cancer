@@ -18,13 +18,14 @@
 use std::ptr;
 use std::fs::File;
 use std::os::unix::io::{RawFd, FromRawFd};
-use std::io::{self, Write, BufRead, BufReader};
+use std::io::{self, Write};
 use std::thread;
 use std::sync::mpsc::{SyncSender, Receiver, sync_channel};
 
 use libc::{c_void, c_char, c_ushort, c_int, winsize};
 use libc::{SIGCHLD, SIGHUP, SIGINT, SIGQUIT, SIGTERM, SIGALRM, SIG_DFL, TIOCSCTTY, TIOCSWINSZ};
-use libc::{close, openpty, fork, setsid, dup2, signal, ioctl, getpwuid, getuid, execvp};
+use libc::{close, read, openpty, fork, setsid, dup2, signal, ioctl, getpwuid, getuid, execvp};
+use libc::{fcntl, F_GETFL, F_SETFL, O_NONBLOCK};
 
 use error::{self, Error};
 
@@ -92,16 +93,43 @@ impl Tty {
 
 					// Spawn the reader.
 					thread::spawn(move || {
-						let mut stream = BufReader::new(File::from_raw_fd(master));
+						let mut buffer = [0u8; 64 * 1024];
+						let     flags  = fcntl(master, F_GETFL, 0);
 
 						loop {
-							let consumed = {
-								let buffer = try!(return stream.fill_buf());
-								try!(return o_sender.send(buffer.to_vec()));
-								buffer.len()
-							};
+							let mut consumed = 0usize;
 
-							stream.consume(consumed);
+							// First do a blocking read.
+							match read(master, buffer.as_mut_ptr() as _, buffer.len()) {
+								// Error or EOF.
+								-1 | 0 =>
+									return,
+
+								n =>
+									consumed += n as usize
+							}
+
+							// Set as non-blocking and try to read until the buffer is full.
+							{
+								fcntl(master, F_SETFL, flags | O_NONBLOCK);
+
+								loop {
+									let mut offset = &mut buffer[consumed ..];
+
+									match read(master, offset.as_mut_ptr() as _, offset.len()) {
+										// Error or EOF.
+										-1 | 0 =>
+											break,
+
+										n =>
+											consumed += n as usize
+									}
+								}
+
+								fcntl(master, F_SETFL, flags);
+							}
+
+							try!(return o_sender.send((&buffer[.. consumed]).to_vec()));
 						}
 					});
 
