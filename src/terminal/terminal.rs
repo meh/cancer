@@ -126,7 +126,9 @@ macro_rules! term {
 	});
 
 	($term:ident; clean references ($x:expr, $y:expr)) => ({
-		$term.grid.clean_references($x, $y);
+		if $x < $term.region.width {
+			$term.grid.clean_references($x, $y);
+		}
 	});
 
 	($term:ident; touched all) => (

@@ -169,6 +169,10 @@ impl Grid {
 
 	/// Clean left-over references from changes.
 	pub fn clean_references(&mut self, x: u32, y: u32) {
+		if !self.view[y as usize][x as usize].is_reference() {
+			return;
+		}
+
 		for x in x .. self.cols {
 			let cell = &mut self.view[y as usize][x as usize];
 
