@@ -1461,45 +1461,24 @@ impl Terminal {
 			self.grid.wrap(y);
 		}
 
-		// Change the cells appropriately.
-		{
-			let (x, y) = term!(self; cursor);
-
-			// If it's all white-space, make the cells empty, otherwise make
-			// them occupied.
-			if ch.chars().all(char::is_whitespace) {
-				if !term!(self; cell (x, y)).is_empty() || term!(self; cell (x, y)).style() != term!(self; style!) {
-					for x in x .. x + width {
-						term!(self; mut cell (x, y)).make_empty(term!(self; style));
-						term!(self; touched (x, y));
-					}
-
-					term!(self; clean references (x + width, y));
-				}
+		let (x, y) = term!(self; cursor);
+		if ch.chars().all(char::is_whitespace) {
+			for x in x .. x + width {
+				term!(self; mut cell (x, y)).make_empty(term!(self; style));
+				term!(self; touched (x, y));
 			}
-			else {
-				let changed = match *term!(self; cell (x, y)) {
-					Cell::Empty { .. } =>
-						true,
 
-					Cell::Occupied { ref style, ref value, .. } =>
-						value != ch || style != term!(self; style!),
+			term!(self; clean references (x + width, y));
+		}
+		else {
+			term!(self; mut cell (x, y)).make_occupied(ch, term!(self; style));
+			term!(self; touched (x, y));
 
-					Cell::Reference(..) =>
-						unreachable!()
-				};
-
-				if changed {
-					term!(self; mut cell (x, y)).make_occupied(ch, term!(self; style));
-					term!(self; touched (x, y));
-
-					for (i, x) in (x + 1 .. x + width).enumerate() {
-						term!(self; mut cell (x, y)).make_reference(i as u8 + 1);
-					}
-
-					term!(self; clean references (x + width, y));
-				}
+			for (i, x) in (x + 1 .. x + width).enumerate() {
+				term!(self; mut cell (x, y)).make_reference(i as u8 + 1);
 			}
+
+			term!(self; clean references (x + width, y));
 		}
 
 		// If the character overflows the region, mark it for wrapping.
