@@ -1418,7 +1418,10 @@ impl Terminal {
 				}
 
 				// Secret control codes.
-				Control::C1(C1::OperatingSystemCommand(cmd)) if cmd.starts_with("0;") || cmd.starts_with("k;") => {
+				Control::C1(C1::OperatingSystemCommand(cmd)) if cmd.starts_with("0;") ||
+				                                                cmd.starts_with("1;") ||
+				                                                cmd.starts_with("2;") ||
+				                                                cmd.starts_with("k;") => {
 					actions.push(Action::Title(String::from(&cmd[2..])));
 				}
 
