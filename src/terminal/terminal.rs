@@ -25,6 +25,7 @@ use unicode_width::UnicodeWidthStr;
 use picto::Region;
 use picto::color::Rgba;
 use control::{self, Control, C0, C1, DEC, CSI, SGR};
+use util;
 use error;
 use config::{self, Config};
 use config::style::Shape;
@@ -689,7 +690,8 @@ impl Terminal {
 
 				Control::DEC(DEC::ScrollRegion { top, bottom }) => {
 					let mut top    = top;
-					let mut bottom = bottom.unwrap_or(self.region.height - 1);
+					let mut bottom = util::clamp(bottom.unwrap_or(self.region.height),
+						0, self.region.height - 1);
 
 					if top > bottom {
 						mem::swap(&mut top, &mut bottom);
