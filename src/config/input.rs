@@ -15,7 +15,7 @@
 // You should have received a copy of the GNU General Public License
 // along with cancer.  If not, see <http://www.gnu.org/licenses/>.
 
-use toml::{self, Value};
+use toml;
 use platform::{Key, key};
 
 #[derive(PartialEq, Clone, Debug)]
