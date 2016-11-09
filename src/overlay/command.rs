@@ -15,33 +15,38 @@
 // You should have received a copy of the GNU General Public License
 // along with cancer.  If not, see <http://www.gnu.org/licenses/>.
 
-pub trait Access {
-	fn access(&self, x: u32, y: u32) -> &Cell;
+#[derive(Eq, PartialEq, Clone, Debug)]
+pub enum Command {
+	None,
+	Move(Move),
+	Scroll(Scroll),
+	Select(Select),
+	Copy,
 }
 
-mod iter;
-pub use self::iter::Iter;
+#[derive(Eq, PartialEq, Copy, Clone, Debug)]
+pub enum Scroll {
+	Up(u32),
+	Down(u32),
+	PageUp(u32),
+	PageDown(u32),
+	Begin,
+	End,
+	To(u32),
+}
 
-pub mod touched;
-pub use self::touched::Touched;
+#[derive(Eq, PartialEq, Copy, Clone, Debug)]
+pub enum Move {
+	Left(u32),
+	Right(u32),
+	Up(u32),
+	Down(u32),
+	Start,
+	End,
+}
 
-pub mod mode;
-pub use self::mode::Mode;
-
-pub mod cursor;
-pub use self::cursor::Cursor;
-
-pub mod cell;
-pub use self::cell::Cell;
-
-pub mod grid;
-pub use self::grid::Grid;
-
-mod tabs;
-pub use self::tabs::Tabs;
-
-mod terminal;
-pub use self::terminal::Terminal;
-
-mod action;
-pub use self::action::Action;
+#[derive(Eq, PartialEq, Copy, Clone, Debug)]
+pub enum Select {
+	Normal,
+	Block,
+}

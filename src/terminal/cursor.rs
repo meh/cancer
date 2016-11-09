@@ -34,17 +34,17 @@ pub struct Cursor {
 	width:  u32,
 	height: u32,
 
-	pub(super) state:  State,
-	pub(super) scroll: (u32, u32),
-	pub(super) style:  Rc<Style>,
-	pub(super) bright: Option<u8>,
+	pub state:  State,
+	pub scroll: (u32, u32),
+	pub style:  Rc<Style>,
+	pub bright: Option<u8>,
 
-	pub(super) charsets: [DEC::Charset; 4],
-	pub(super) charset:  u8,
+	pub charsets: [DEC::Charset; 4],
+	pub charset:  u8,
 
-	pub(super) foreground: Rgba<f64>,
-	pub(super) background: Rgba<f64>,
-	pub(super) shape:      Shape,
+	pub foreground: Rgba<f64>,
+	pub background: Rgba<f64>,
+	pub shape:      Shape,
 }
 
 #[derive(Eq, PartialEq, Copy, Clone, Debug)]
@@ -255,6 +255,7 @@ impl Cursor {
 }
 
 /// A wrapper for a cursor and the cell it's on.
+#[derive(Debug)]
 pub struct Cell<'a> {
 	cursor: &'a Cursor,
 	cell:   cell::Position<'a>,

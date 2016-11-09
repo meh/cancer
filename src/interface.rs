@@ -21,9 +21,9 @@ use std::vec;
 use picto::Region;
 use error;
 use platform::Key;
-use terminal::{Access, Terminal, Overlay, Mode, Action, Iter};
+use terminal::{Access, Terminal, Mode, Action, Iter, Cell};
 use terminal::{cursor, touched};
-use terminal::cell::{self, Cell};
+use overlay::Overlay;
 
 #[derive(Debug)]
 pub enum Interface {
@@ -161,5 +161,17 @@ impl Access for Interface {
 			Interface::Overlay(ref overlay) =>
 				overlay.get(x, y),
 		}
+	}
+}
+
+impl From<Terminal> for Interface {
+	fn from(value: Terminal) -> Self {
+		Interface::Terminal(value)
+	}
+}
+
+impl From<Overlay> for Interface {
+	fn from(value: Overlay) -> Self {
+		Interface::Overlay(value)
 	}
 }

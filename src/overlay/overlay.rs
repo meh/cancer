@@ -15,25 +15,23 @@
 // You should have received a copy of the GNU General Public License
 // along with cancer.  If not, see <http://www.gnu.org/licenses/>.
 
-use std::rc::Rc;
 use std::io::Write;
 use std::ops::{Deref, DerefMut};
 use std::collections::HashMap;
 use std::vec;
 use std::hash::BuildHasherDefault;
 use fnv::FnvHasher;
-use unicode_segmentation::UnicodeSegmentation;
-
 use picto::Region;
+
 use error;
-use config;
 use platform::{Key, key};
-use style::{self, Style};
 use terminal::{Access, Action, Terminal, Cursor, Iter};
 use terminal::touched::{self, Touched};
 use terminal::cell::{self, Cell};
 use terminal::cursor;
 use terminal::grid;
+use overlay::{Status, Selection};
+use overlay::command::{self, Command};
 
 pub type Changed = HashMap<(u32, u32), Cell, BuildHasherDefault<FnvHasher>>;
 
@@ -53,23 +51,7 @@ pub struct Overlay {
 	select: Option<Selection>,
 }
 
-#[derive(Debug)]
-pub enum Selection {
-	Normal {
-		start: (u32, u32),
-		end:   (u32, u32)
-	},
-
-	Block(Region),
-}
-
 macro_rules! overlay {
-	($term:ident; times $block:block) => ({
-		for _ in 0 .. $term.times.unwrap_or(1) {
-			$block
-		}
-	});
-
 	($term:ident; cursor) => ({
 		let x = $term.cursor.x();
 		let y = $term.cursor.y();
@@ -84,7 +66,7 @@ macro_rules! overlay {
 
 	($term:ident; cursor absolute) => ({
 		let     (x, y) = overlay!($term; cursor);
-		let mut offset = ($term.inner.region.height as u32 - 1 - y) + $term.scroll;
+		let mut offset = ($term.inner.rows() as u32 - 1 - y) + $term.scroll;
 
 		if $term.status.is_some() {
 			offset -= 1;
@@ -119,63 +101,9 @@ macro_rules! overlay {
 		overlay!($term; touched all);
 	});
 
-	($term:ident; move end) => ({
-		overlay!($term; cursor Position(Some($term.inner.columns() - 1), None));
-		overlay!($term; status position!);
-	});
-
-	($term:ident; move start) => ({
-		overlay!($term; cursor Position(Some(0), None));
-		overlay!($term; status position!);
-	});
-
-	($term:ident; move left) => ({
-		if overlay!($term; cursor Left(1)).is_some() {
-			if let Some(&Selection::Normal { .. }) = $term.select.as_ref() {
-				if overlay!($term; cursor Up(1)).is_some() {
-					overlay!($term; scroll up);
-				}
-
-				overlay!($term; cursor Position(Some($term.inner.region.width - 1), None));
-			}
-		}
-
-		overlay!($term; status position!);
-	});
-
-	($term:ident; move right) => ({
-		if overlay!($term; cursor Right(1)).is_some() {
-			if let Some(&Selection::Normal { .. }) = $term.select.as_ref() {
-				if overlay!($term; cursor Down(1)).is_some() {
-					overlay!($term; scroll down);
-				}
-
-				overlay!($term; cursor Position(Some(0), None));
-			}
-		}
-
-		overlay!($term; status position!);
-	});
-
-	($term:ident; move down) => ({
-		if overlay!($term; cursor Down(1)).is_some() {
-			overlay!($term; scroll down);
-		}
-
-		overlay!($term; status position!);
-	});
-
-	($term:ident; move up) => ({
-		if overlay!($term; cursor Up(1)).is_some() {
-			overlay!($term; scroll up);
-		}
-
-		overlay!($term; status position!);
-	});
-
 	($term:ident; status mode $name:expr) => ({
 		if let Some(status) = $term.status.as_mut() {
-			overlay!($term; touched line ($term.inner.region.height) - 1);
+			overlay!($term; touched line ($term.inner.rows()) - 1);
 			status.mode($name);
 		}
 	});
@@ -184,51 +112,16 @@ macro_rules! overlay {
 		if $term.status.is_some() {
 			let (x, y) = overlay!($term; cursor absolute);
 			let x      = x + 1;
-			let y      = $term.inner.grid.back().len() as u32 + $term.inner.grid.view().len() as u32 - y;
+			let y      = $term.inner.grid().back().len() as u32 + $term.inner.grid().view().len() as u32 - y;
 			overlay!($term; status position (x, y));
 		}
 	});
 
 	($term:ident; status position $pair:expr) => ({
 		if let Some(status) = $term.status.as_mut() {
-			overlay!($term; touched line ($term.inner.region.height) - 1);
+			overlay!($term; touched line ($term.inner.rows()) - 1);
 			status.position($pair);
 		}
-	});
-
-	($term:ident; scroll up) => ({
-		if $term.scroll < $term.inner.grid.back().len() as u32 + if $term.status.is_some() { 1 } else { 0 } {
-			$term.touched.all();
-			$term.scroll += 1;
-
-			overlay!($term; status position!);
-		}
-	});
-
-	($term:ident; scroll down) => ({
-		if $term.scroll > 0 {
-			$term.touched.all();
-			$term.scroll -= 1;
-
-			overlay!($term; status position!);
-		}
-	});
-
-	($term:ident; scroll page up) => ({
-		$term.scroll += $term.inner.rows().saturating_sub(3);
-
-		if $term.scroll > $term.inner.grid.back().len() as u32 {
-			$term.scroll = $term.inner.grid.back().len().saturating_sub(1) as u32;
-		}
-
-		overlay!($term; status position!);
-		overlay!($term; touched all);
-	});
-
-	($term:ident; scroll page down) => ({
-		$term.scroll = $term.scroll.saturating_sub($term.inner.rows() - 3);
-		overlay!($term; status position!);
-		overlay!($term; touched all);
 	});
 
 	($term:ident; touched all) => (
@@ -252,7 +145,7 @@ macro_rules! overlay {
 	});
 
 	($term:ident; mut cell ($x:expr, $y:expr)) => ({
-		let view   = $term.inner.grid.view();
+		let view   = $term.inner.grid().view();
 		let offset = (view.len() as u32 - 1 - y) + $term.scroll;
 
 		if !$term.changed.contains_key(&(x, offset)) {
@@ -266,14 +159,14 @@ macro_rules! overlay {
 
 impl Overlay {
 	pub fn new(inner: Terminal) -> Self {
-		let mut cursor = inner.cursor.clone();
+		let mut cursor = inner.cursor().clone();
 		{
 			let tmp = cursor.foreground;
 			cursor.foreground = cursor.background;
 			cursor.background = tmp;
 		}
 
-		let status = inner.config.style().status().map(|c| {
+		let status = inner.config().style().status().map(|c| {
 			cursor.travel(cursor::Up(1));
 			cursor.scroll = (0, inner.rows() - 2);
 
@@ -281,7 +174,7 @@ impl Overlay {
 			status.mode("NORMAL");
 
 			let (x, y) = cursor.position();
-			let y      = inner.grid.back().len() as u32 + y + 2;
+			let y      = inner.grid().back().len() as u32 + y + 2;
 			status.position((x, y));
 
 			status
@@ -315,8 +208,8 @@ impl Overlay {
 			}
 		}
 
-		let     back   = self.inner.grid.back();
-		let     view   = self.inner.grid.view();
+		let     back   = self.inner.grid().back();
+		let     view   = self.inner.grid().view();
 		let mut offset = (view.len() as u32 - 1 - y) + self.scroll;
 
 		if self.status.is_some() {
@@ -336,8 +229,8 @@ impl Overlay {
 	}
 
 	pub fn row(&self, y: u32) -> &grid::Row {
-		let back = self.inner.grid.back();
-		let view = self.inner.grid.view();
+		let back = self.inner.grid().back();
+		let view = self.inner.grid().view();
 
 		if y as usize >= view.len() {
 			&back[back.len() - 1 - (y as usize - view.len())]
@@ -358,10 +251,215 @@ impl Overlay {
 	}
 
 	pub fn key(&mut self, key: Key) -> (vec::IntoIter<Action>, touched::Iter) {
-		use platform::key::{Value, Button, Keypad};
+		let command = self.command(key);
+		let actions = self.process(command);
 
+		(actions.into_iter(), self.touched.iter(self.inner.region()))
+	}
+
+	pub fn handle<I: AsRef<[u8]>>(&mut self, input: I) {
+		self.cache.extend(input.as_ref());
+	}
+
+	fn process(&mut self, command: Command) -> Vec<Action> {
 		let mut actions = Vec::new();
-		let     new     = self.prefix.is_none();
+
+		match command {
+			Command::None => (),
+
+			Command::Scroll(command::Scroll::Up(times)) => {
+				for _ in 0 .. times {
+					let offset = if self.status.is_some() { 1 } else { 0 };
+
+					if self.scroll < self.inner.grid().back().len() as u32 + offset {
+						self.scroll += 1;
+					}
+				}
+
+				overlay!(self; touched all);
+				overlay!(self; status position!);
+			}
+
+			Command::Scroll(command::Scroll::Down(times)) => {
+				for _ in 0 .. times {
+					if self.scroll > 0 {
+						self.scroll -= 1;
+					}
+				}
+
+				overlay!(self; touched all);
+				overlay!(self; status position!);
+			}
+
+			Command::Scroll(command::Scroll::PageUp(times)) => {
+				for _ in 0 .. times {
+					self.scroll += self.inner.rows().saturating_sub(3);
+			
+					if self.scroll > self.inner.grid().back().len() as u32 {
+						self.scroll = self.inner.grid().back().len().saturating_sub(1) as u32;
+					}
+				}
+
+				overlay!(self; touched all);
+				overlay!(self; status position!);
+			}
+
+			Command::Scroll(command::Scroll::PageDown(times)) => {
+				for _ in 0 .. times {
+					self.scroll = self.scroll.saturating_sub(self.inner.rows() - 3);
+				}
+	
+				overlay!(self; touched all);
+				overlay!(self; status position!);
+			}
+
+			Command::Move(command::Move::End) => {
+				overlay!(self; cursor Position(Some(self.inner.columns() - 1), None));
+				overlay!(self; status position!);
+			}
+
+			Command::Move(command::Move::Start) => {
+				overlay!(self; cursor Position(Some(0), None));
+				overlay!(self; status position!);
+			}
+
+			Command::Move(command::Move::Left(times)) => {
+				for _ in 0 ..times {
+					if overlay!(self; cursor Left(1)).is_some() {
+						if let Some(&Selection::Normal { .. }) = self.select.as_ref() {
+							if overlay!(self; cursor Up(1)).is_some() {
+								self.process(Command::Scroll(command::Scroll::Up(1)));
+							}
+
+							overlay!(self; cursor Position(Some(self.inner.columns() - 1), None));
+						}
+					}
+				}
+
+				overlay!(self; status position!);
+			}
+
+			Command::Move(command::Move::Down(times)) => {
+				for _ in 0 .. times {
+					if overlay!(self; cursor Down(1)).is_some() {
+						self.process(Command::Scroll(command::Scroll::Down(1)));
+					}
+				}
+
+				overlay!(self; status position!);
+			}
+
+			Command::Move(command::Move::Up(times)) => {
+				for _ in 0 .. times {
+					if overlay!(self; cursor Up(1)).is_some() {
+						self.process(Command::Scroll(command::Scroll::Up(1)));
+					}
+				}
+
+				overlay!(self; status position!);
+			}
+
+			Command::Move(command::Move::Right(times)) => {
+				for _ in 0 .. times {
+					if overlay!(self; cursor Right(1)).is_some() {
+						if let Some(&Selection::Normal { .. }) = self.select.as_ref() {
+							if overlay!(self; cursor Down(1)).is_some() {
+								self.process(Command::Scroll(command::Scroll::Down(1)));
+							}
+
+							overlay!(self; cursor Position(Some(0), None));
+						}
+					}
+				}
+
+				overlay!(self; status position!);
+			}
+
+			Command::Scroll(command::Scroll::Begin) => {
+				self.scroll = self.inner.grid().back().len() as u32;
+
+				overlay!(self; touched all);
+				overlay!(self; status position!);
+			}
+
+			Command::Scroll(command::Scroll::End) => {
+				self.scroll = 0;
+
+				overlay!(self; touched all);
+				overlay!(self; status position!);
+			}
+
+			Command::Scroll(command::Scroll::To(n)) => {
+				self.scroll = (self.inner.grid().back().len() as u32).saturating_sub(n - 1);
+
+				if self.status.is_some() {
+					self.scroll += 1;
+				}
+
+				overlay!(self; touched all);
+				overlay!(self; status position!);
+			}
+
+			Command::Select(command::Select::Normal) => {
+				match self.select.take() {
+					Some(Selection::Normal { .. }) => {
+						overlay!(self; status mode "NORMAL");
+					}
+
+					Some(Selection::Block(region)) => {
+						overlay!(self; status mode "VISUAL BLOCK");
+
+						// TODO: convert from `Block` to `Normal`.
+					}
+
+					None => {
+						overlay!(self; status mode "VISUAL");
+
+						let (x, y) = overlay!(self; cursor absolute);
+						self.select = Some(Selection::Normal { start: (x, y), end: (x + 1, y) });
+					}
+				}
+			}
+
+			Command::Select(command::Select::Block) => {
+				match self.select.take() {
+					Some(Selection::Block(..)) => {
+						overlay!(self; status mode "NORMAL");
+					}
+
+					Some(Selection::Normal { start, end }) => {
+						overlay!(self; status mode "VISUAL");
+
+						// TODO: convert from `Normal` to `Block`.
+					}
+
+					None => {
+						overlay!(self; status mode "VISUAL BLOCK");
+
+						let (x, y) = overlay!(self; cursor absolute);
+						self.select = Some(Selection::Block(Region::from(x, y, 1, 1)));
+					}
+				}
+			}
+
+			Command::Copy => {
+				if let Some(selection) = self.selection() {
+					overlay!(self; status mode "NORMAL");
+					actions.push(Action::Clipboard("CLIPBOARD".into(), selection));
+					overlay!(self; unselect);
+				}
+			}
+		}
+
+		if let Some(selection) = self.selection() {
+			actions.push(Action::Clipboard("PRIMARY".into(), selection));
+		}
+
+		actions
+	}
+
+	fn command(&mut self, key: Key) -> Command {
+		use platform::key::{Value, Button, Keypad};
 
 		// Check if the key is a number that makes operations run N times, if so
 		// bail out early.
@@ -375,217 +473,138 @@ impl Overlay {
 						self.times = Some(number);
 					}
 
-					return (actions.into_iter(), self.touched.iter(self.inner.region));
+					return Command::None;
 				}
 			}
 		}
 
-		match *key.value() {
+		let new    = self.prefix.is_none();
+		let times  = self.times.take();
+		let prefix = self.prefix.take();
+
+		let command = match *key.value() {
 			Value::Char(ref ch) => match &**ch {
-				// Scroll up.
-				"\x19" | "e" if key.modifier() == key::CTRL => overlay!(self; times {
-					overlay!(self; scroll up);
-				}),
+				"\x19" | "e" if key.modifier() == key::CTRL =>
+					Command::Scroll(command::Scroll::Up(times.unwrap_or(1))),
 
-				// Scroll down.
-				"\x05" | "e" if key.modifier() == key::CTRL => overlay!(self; times {
-					overlay!(self; scroll down);
-				}),
+				"\x05" | "e" if key.modifier() == key::CTRL =>
+					Command::Scroll(command::Scroll::Down(times.unwrap_or(1))),
 
-				// Scroll page up.
-				"\x15" | "u" if key.modifier() == key::CTRL => overlay!(self; times {
-					overlay!(self; scroll page up);
-				}),
+				"\x15" | "u" if key.modifier() == key::CTRL =>
+					Command::Scroll(command::Scroll::PageUp(times.unwrap_or(1))),
 
-				// Scroll page down.
-				"\x04" | "d" if key.modifier() == key::CTRL => overlay!(self; times {
-					overlay!(self; scroll page down);
-				}),
+				"\x04" | "d" if key.modifier() == key::CTRL =>
+					Command::Scroll(command::Scroll::PageDown(times.unwrap_or(1))),
 
-				// Move cursor to the end.
-				"$" => {
-					overlay!(self; move end);
-				}
+				"$" =>
+					Command::Move(command::Move::End),
 
-				// Move cursor to the beginnin.
-				"^" | "0" => {
-					overlay!(self; move start);
-				}
+				"^" | "0" =>
+					Command::Move(command::Move::Start),
 
-				// Move cursor left, wrapping and scrolling.
-				"h" if key.modifier().is_empty() => overlay!(self; times {
-					overlay!(self; move left);
-				}),
+				"h" if key.modifier().is_empty() =>
+					Command::Move(command::Move::Left(times.unwrap_or(1))),
 
-				// Move cursor down, scrolling.
-				"j" if key.modifier().is_empty() => overlay!(self; times {
-					overlay!(self; move down);
-				}),
+				"j" if key.modifier().is_empty() =>
+					Command::Move(command::Move::Down(times.unwrap_or(1))),
 
-				// Move cursor up, scrolling.
-				"k" if key.modifier().is_empty() => overlay!(self; times {
-					overlay!(self; move up);
-				}),
+				"k" if key.modifier().is_empty() =>
+					Command::Move(command::Move::Up(times.unwrap_or(1))),
 
-				// Move cursor right, wrapping and scrolling.
-				"l" if key.modifier().is_empty() => overlay!(self; times {
-					overlay!(self; move right);
-				}),
+				"l" if key.modifier().is_empty() =>
+					Command::Move(command::Move::Right(times.unwrap_or(1))),
 
 				// Scroll to the top.
-				"g" if key.modifier().is_empty() && self.prefix.is_none() => {
+				"g" if key.modifier().is_empty() && prefix.is_none() => {
 					self.prefix = Some(b'g');
+					Command::None
 				}
 
-				"g" if key.modifier().is_empty() && self.prefix == Some(b'g') => {
-					self.scroll = self.inner.grid.back().len() as u32;
-					overlay!(self; status position!);
-					overlay!(self; touched all);
+				"g" if key.modifier().is_empty() && prefix == Some(b'g') => {
+					Command::Scroll(command::Scroll::Begin)
 				}
 
 				// Scroll to the end.
 				"G" if key.modifier() == key::SHIFT => {
-					if let Some(times) = self.times {
-						self.scroll = (self.inner.grid.back().len() as u32).saturating_sub(
-							times - 1);
-
-						if self.status.is_some() {
-							self.scroll += 1;
-						}
+					if let Some(times) = times {
+						Command::Scroll(command::Scroll::To(times))
 					}
 					else {
-						self.scroll = 0;
+						Command::Scroll(command::Scroll::End)
 					}
-
-					overlay!(self; status position!);
-					overlay!(self; touched all);
 				}
 
 				// Region selection.
 				"v" if key.modifier().is_empty() => {
-					match self.select.take() {
-						Some(Selection::Normal { .. }) => {
-							overlay!(self; status mode "NORMAL");
-						}
-
-						Some(Selection::Block(region)) => {
-							overlay!(self; status mode "VISUAL BLOCK");
-
-							// TODO: convert from `Block` to `Normal`.
-						}
-
-						None => {
-							overlay!(self; status mode "VISUAL");
-
-							let (x, y) = overlay!(self; cursor absolute);
-							self.select = Some(Selection::Normal { start: (x, y), end: (x + 1, y) });
-						}
-					}
+					Command::Select(command::Select::Normal)
 				}
 
 				// Block selection.
 				"\x16" | "v" if key.modifier() == key::CTRL => {
-					match self.select.take() {
-						Some(Selection::Block(..)) => {
-							overlay!(self; status mode "NORMAL");
-						}
-
-						Some(Selection::Normal { start, end }) => {
-							overlay!(self; status mode "VISUAL");
-
-							// TODO: convert from `Normal` to `Block`.
-						}
-
-						None => {
-							overlay!(self; status mode "VISUAL BLOCK");
-
-							let (x, y) = overlay!(self; cursor absolute);
-							self.select = Some(Selection::Block(Region::from(x, y, 1, 1)));
-						}
-					}
+					Command::Select(command::Select::Block)
 				}
 
 				"y" if key.modifier().is_empty() => {
-					if let Some(selection) = self.selection() {
-						overlay!(self; status mode "NORMAL");
-						actions.push(Action::Clipboard("CLIPBOARD".into(), selection));
-						overlay!(self; unselect);
-					}
+					Command::Copy
 				}
 
 				_ => {
 					debug!(target: "cancer::terminal::overlay::unhandled", "key {:?}", key);
+					Command::None
 				}
 			},
 
 			Value::Button(ref button) => match button {
-				&Button::PageUp => overlay!(self; times {
-					overlay!(self; scroll page up);
-				}),
+				&Button::PageUp => 
+					Command::Scroll(command::Scroll::PageUp(times.unwrap_or(1))),
 
-				&Button::PageDown => overlay!(self; times {
-					overlay!(self; scroll page down);
-				}),
+				&Button::PageDown =>
+					Command::Scroll(command::Scroll::PageDown(times.unwrap_or(1))),
 
-				&Button::Left => overlay!(self; times {
-					overlay!(self; move left);
-				}),
+				&Button::Left =>
+					Command::Move(command::Move::Left(times.unwrap_or(1))),
 
-				&Button::Down => overlay!(self; times {
-					overlay!(self; move down);
-				}),
+				&Button::Down =>
+					Command::Move(command::Move::Down(times.unwrap_or(1))),
 
-				&Button::Up => overlay!(self; times {
-					overlay!(self; move up);
-				}),
+				&Button::Up =>
+					Command::Move(command::Move::Up(times.unwrap_or(1))),
 
-				&Button::Right => overlay!(self; times {
-					overlay!(self; move right);
-				}),
+				&Button::Right =>
+					Command::Move(command::Move::Right(times.unwrap_or(1))),
 
 				_ => {
 					debug!(target: "cancer::terminal::overlay::unhandled", "key {:?}", key);
+					Command::None
 				}
 			},
 
 			Value::Keypad(ref button) => match button {
-				&Keypad::Left => overlay!(self; times {
-					overlay!(self; move left);
-				}),
+				&Keypad::Left =>
+					Command::Move(command::Move::Left(times.unwrap_or(1))),
 
-				&Keypad::Down => overlay!(self; times {
-					overlay!(self; move down);
-				}),
+				&Keypad::Down =>
+					Command::Move(command::Move::Down(times.unwrap_or(1))),
 
-				&Keypad::Up => overlay!(self; times {
-					overlay!(self; move up);
-				}),
+				&Keypad::Up =>
+					Command::Move(command::Move::Up(times.unwrap_or(1))),
 
-				&Keypad::Right => overlay!(self; times {
-					overlay!(self; move right);
-				}),
+				&Keypad::Right =>
+					Command::Move(command::Move::Right(times.unwrap_or(1))),
 
 				_ => {
 					debug!(target: "cancer::terminal::overlay::unhandled", "key {:?}", key);
+					Command::None
 				}
 			},
-		}
+		};
 
 		// Only remove the prefix if it hadn't just been set.
 		if self.prefix.is_some() && !new {
 			self.prefix = None;
 		}
 
-		if let Some(selection) = self.selection() {
-			actions.push(Action::Clipboard("PRIMARY".into(), selection));
-		}
-
-		self.times = None;
-		(actions.into_iter(), self.touched.iter(self.inner.region()))
-	}
-
-	pub fn handle<I: AsRef<[u8]>>(&mut self, input: I) {
-		self.cache.extend(input.as_ref());
+		command
 	}
 
 	fn selection(&self) -> Option<String> {
@@ -728,70 +747,5 @@ impl Deref for Overlay {
 impl DerefMut for Overlay {
 	fn deref_mut(&mut self) -> &mut Self::Target {
 		&mut self.inner
-	}
-}
-
-#[derive(Debug)]
-pub struct Status {
-	cols:  u32,
-	style: Rc<Style>,
-
-	inner:    Vec<Cell>,
-	mode:     String,
-	position: String,
-}
-
-impl Status {
-	pub fn new(config: &config::style::Status, cols: u32) -> Self {
-		let style = Rc::new(Style {
-			foreground: Some(*config.foreground()),
-			background: Some(*config.background()),
-			attributes: config.attributes(),
-		});
-
-		Status {
-			cols:  cols,
-			style: style.clone(),
-
-			inner:    vec![Cell::empty(style.clone()); cols as usize],
-			mode:     "".into(),
-			position: "".into(),
-		}
-	}
-
-	pub fn mode<T: Into<String>>(&mut self, string: T) {
-		let string = string.into();
-
-		for (_, cell) in self.mode.graphemes(true).zip(self.inner.iter_mut()) {
-			cell.make_empty(self.style.clone());
-		}
-
-		for (ch, cell) in string.graphemes(true).zip(self.inner.iter_mut()) {
-			cell.make_occupied(ch, self.style.clone());
-		}
-
-		self.mode = string;
-	}
-
-	pub fn position(&mut self, (x, y): (u32, u32)) {
-		let format = format!("{}:{}", y, x);
-
-		for (_, cell) in self.position.graphemes(true).rev().zip(self.inner.iter_mut().rev()) {
-			cell.make_empty(self.style.clone());
-		}
-
-		for (ch, cell) in format.graphemes(true).rev().zip(self.inner.iter_mut().rev()) {
-			cell.make_occupied(ch, self.style.clone());
-		}
-
-		self.position = format;
-	}
-}
-
-impl Deref for Status {
-	type Target = Vec<Cell>;
-
-	fn deref(&self) -> &Self::Target {
-		&self.inner
 	}
 }

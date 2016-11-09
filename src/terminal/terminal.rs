@@ -37,18 +37,18 @@ use terminal::touched;
 
 #[derive(Debug)]
 pub struct Terminal {
-	pub(super) config:  Arc<Config>,
-	pub(super) region:  Region,
-	pub(super) cache:   Option<Vec<u8>>,
-	pub(super) touched: Touched,
-	pub(super) mode:    Mode,
+	config:  Arc<Config>,
+	region:  Region,
+	cache:   Option<Vec<u8>>,
+	touched: Touched,
+	mode:    Mode,
 
-	pub(super) scroll: Option<u32>,
-	pub(super) grid:   Grid,
-	pub(super) tabs:   Tabs,
+	scroll: Option<u32>,
+	grid:   Grid,
+	tabs:   Tabs,
 
-	pub(super) cursor: Cursor,
-	pub(super) saved:  Option<Cursor>,
+	cursor: Cursor,
+	saved:  Option<Cursor>,
 }
 
 macro_rules! term {
@@ -173,6 +173,10 @@ impl Terminal {
 		})
 	}
 
+	pub fn config(&self) -> &Config {
+		&self.config
+	}
+
 	pub fn columns(&self) -> u32 {
 		self.region.width
 	}
@@ -183,6 +187,10 @@ impl Terminal {
 
 	pub fn mode(&self) -> Mode {
 		self.mode
+	}
+
+	pub fn grid(&self) -> &Grid {
+		&self.grid
 	}
 
 	pub fn get(&self, x: u32, y: u32) -> &Cell {

@@ -15,33 +15,14 @@
 // You should have received a copy of the GNU General Public License
 // along with cancer.  If not, see <http://www.gnu.org/licenses/>.
 
-pub trait Access {
-	fn access(&self, x: u32, y: u32) -> &Cell;
-}
+mod selection;
+pub use self::selection::Selection;
 
-mod iter;
-pub use self::iter::Iter;
+mod command;
+pub use self::command::Command;
 
-pub mod touched;
-pub use self::touched::Touched;
+mod status;
+pub use self::status::Status;
 
-pub mod mode;
-pub use self::mode::Mode;
-
-pub mod cursor;
-pub use self::cursor::Cursor;
-
-pub mod cell;
-pub use self::cell::Cell;
-
-pub mod grid;
-pub use self::grid::Grid;
-
-mod tabs;
-pub use self::tabs::Tabs;
-
-mod terminal;
-pub use self::terminal::Terminal;
-
-mod action;
-pub use self::action::Action;
+mod overlay;
+pub use self::overlay::Overlay;

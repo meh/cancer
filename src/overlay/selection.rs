@@ -15,33 +15,14 @@
 // You should have received a copy of the GNU General Public License
 // along with cancer.  If not, see <http://www.gnu.org/licenses/>.
 
-pub trait Access {
-	fn access(&self, x: u32, y: u32) -> &Cell;
+use picto::Region;
+
+#[derive(Debug)]
+pub enum Selection {
+	Normal {
+		start: (u32, u32),
+		end:   (u32, u32)
+	},
+
+	Block(Region),
 }
-
-mod iter;
-pub use self::iter::Iter;
-
-pub mod touched;
-pub use self::touched::Touched;
-
-pub mod mode;
-pub use self::mode::Mode;
-
-pub mod cursor;
-pub use self::cursor::Cursor;
-
-pub mod cell;
-pub use self::cell::Cell;
-
-pub mod grid;
-pub use self::grid::Grid;
-
-mod tabs;
-pub use self::tabs::Tabs;
-
-mod terminal;
-pub use self::terminal::Terminal;
-
-mod action;
-pub use self::action::Action;

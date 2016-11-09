@@ -69,7 +69,13 @@ mod font;
 use font::Font;
 
 mod terminal;
-use terminal::{Interface, Terminal, Overlay, Action};
+use terminal::{Terminal, Action};
+
+mod interface;
+pub use interface::Interface;
+
+mod overlay;
+pub use overlay::Overlay;
 
 mod style;
 
@@ -129,7 +135,7 @@ fn main() {
 	let mut window    = Window::open(matches.value_of("name"), &config, &font).unwrap();
 	let mut surface   = window.surface();
 	let mut renderer  = Renderer::new(config.clone(), font.clone(), &surface, window.width(), window.height());
-	let mut interface = Interface::Terminal(Terminal::open(config.clone(), renderer.columns(), renderer.rows()).unwrap());
+	let mut interface = Interface::from(Terminal::open(config.clone(), renderer.columns(), renderer.rows()).unwrap());
 	let mut tty       = Tty::spawn(renderer.columns(), renderer.rows(),
 	                               matches.value_of("term").or_else(|| config.environment().term()),
 	                               matches.value_of("execute").or_else(|| config.environment().program())).unwrap();
@@ -280,7 +286,7 @@ fn main() {
 
 					Event::Resize(width, height) => {
 						if interface.overlay() {
-							interface = Interface::Terminal(try!(break interface.into_inner(&mut tty)));
+							interface = try!(break interface.into_inner(&mut tty)).into();
 						}
 
 						renderer.resize(width, height);
@@ -301,13 +307,13 @@ fn main() {
 						    (key.value() == &key::Value::Char("c".into()) && key.modifier() == key::CTRL) ||
 							  (key.value() == &key::Value::Char("i".into()) && key.modifier().is_empty()))
 						{
-							interface = Interface::Terminal(try!(break interface.into_inner(&mut tty)));
+							interface = try!(break interface.into_inner(&mut tty)).into();
 							render!(interface.region().absolute());
 							continue;
 						}
 
 						if !interface.overlay() && &key == config.input().prefix() {
-							interface = Interface::Overlay(Overlay::new(try!(break interface.into_inner(&mut tty))));
+							interface = Overlay::new(try!(break interface.into_inner(&mut tty))).into();
 							render!(interface.region().absolute());
 							continue;
 						}
