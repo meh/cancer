@@ -300,6 +300,8 @@ impl Terminal {
 			return Ok(());
 		}
 
+		debug!(target: "cancer::terminal::key", "key {:?}", key);
+
 		match *key.value() {
 			Value::Char(ref string) => {
 				if key.modifier().contains(key::ALT) {
@@ -308,6 +310,11 @@ impl Terminal {
 
 				output.write_all(string.as_bytes())
 			}
+
+			Value::Button(Button::Tab) => write! {
+				SHIFT => b"\x1B[Z",
+				_     => b"\t",
+			},
 
 			Value::Button(Button::Escape) => write! {
 				_ => b"\x1B",

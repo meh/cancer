@@ -153,6 +153,12 @@ impl Keyboard {
 		let symbol = self.symbol(code);
 
 		Some(Key::new(match symbol {
+			keysyms::KEY_Tab =>
+				Button::Tab.into(),
+
+			keysyms::KEY_ISO_Left_Tab =>
+				Button::Tab.into(),
+
 			keysyms::KEY_Escape =>
 				Button::Escape.into(),
 

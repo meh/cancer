@@ -48,6 +48,7 @@ pub enum Value {
 
 #[derive(Eq, PartialEq, Clone, Debug)]
 pub enum Button {
+	Tab,
 	Escape,
 	Backspace,
 	Enter,
