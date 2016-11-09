@@ -280,13 +280,14 @@ fn main() {
 						window.flush();
 					}
 
-					Event::Focus(_) => {
+					Event::Focus(focus) => {
+						try!(break interface.focus(focus, tty.by_ref()));
 						render!(cursor);
 					}
 
 					Event::Resize(width, height) => {
 						if interface.overlay() {
-							interface = try!(break interface.into_inner(&mut tty)).into();
+							interface = try!(break interface.into_inner(tty.by_ref())).into();
 						}
 
 						renderer.resize(width, height);
@@ -307,13 +308,13 @@ fn main() {
 						    (key.value() == &key::Value::Char("c".into()) && key.modifier() == key::CTRL) ||
 							  (key.value() == &key::Value::Char("i".into()) && key.modifier().is_empty()))
 						{
-							interface = try!(break interface.into_inner(&mut tty)).into();
+							interface = try!(break interface.into_inner(tty.by_ref())).into();
 							render!(interface.region().absolute());
 							continue;
 						}
 
 						if !interface.overlay() && &key == config.input().prefix() {
-							interface = Overlay::new(try!(break interface.into_inner(&mut tty))).into();
+							interface = Overlay::new(try!(break interface.into_inner(tty.by_ref()))).into();
 							render!(interface.region().absolute());
 							continue;
 						}

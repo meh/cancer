@@ -125,6 +125,14 @@ impl Interface {
 		Iter::new(self, iter)
 	}
 
+	pub fn focus<O: Write>(&mut self, value: bool, output: O) -> error::Result<()> {
+		if let Interface::Terminal(ref mut terminal) = *self {
+			try!(terminal.focus(value, output));
+		}
+
+		Ok(())
+	}
+
 	pub fn key<O: Write>(&mut self, key: Key, output: O) -> error::Result<(vec::IntoIter<Action>, touched::Iter)> {
 		match *self {
 			Interface::Terminal(ref mut terminal) => {

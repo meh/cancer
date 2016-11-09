@@ -228,6 +228,20 @@ impl Terminal {
 		self.touched.iter(self.region)
 	}
 
+	/// Send focus events.
+	pub fn focus<O: Write>(&mut self, value: bool, mut output: O) -> io::Result<()> {
+		if self.mode.contains(mode::FOCUS) {
+			try!(output.write_all(if value {
+				b"\x1B[I"
+			}
+			else {
+				b"\x1B[O"
+			}));
+		}
+
+		Ok(())
+	}
+
 	/// Handle a key.
 	pub fn key<O: Write>(&mut self, key: Key, mut output: O) -> io::Result<()> {
 		use platform::key::{Value, Button};
