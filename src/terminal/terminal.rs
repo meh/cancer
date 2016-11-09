@@ -1464,6 +1464,9 @@ impl Terminal {
 		}
 
 		let (x, y) = term!(self; cursor);
+
+		// If the inserted character is all whitespace, make the cell empty,
+		// otherwise make it occupied.
 		if ch.chars().all(char::is_whitespace) {
 			for x in x .. x + width {
 				term!(self; mut cell (x, y)).make_empty(term!(self; style));
