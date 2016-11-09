@@ -156,10 +156,10 @@ impl Access for Interface {
 	fn access(&self, x: u32, y: u32) -> &Cell {
 		match *self {
 			Interface::Terminal(ref terminal) =>
-				terminal.get(x, y),
+				terminal.access(x, y),
 
 			Interface::Overlay(ref overlay) =>
-				overlay.get(x, y),
+				overlay.access(x, y),
 		}
 	}
 }
