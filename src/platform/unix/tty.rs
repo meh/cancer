@@ -101,7 +101,7 @@ impl Tty {
 
 							// First do a blocking read.
 							match read(master, buffer.as_mut_ptr() as _, buffer.len()) {
-								// Error or EOF.
+								// Stop the thread on failure or EOF.
 								-1 | 0 =>
 									return,
 
@@ -117,7 +117,8 @@ impl Tty {
 									let mut offset = &mut buffer[consumed ..];
 
 									match read(master, offset.as_mut_ptr() as _, offset.len()) {
-										// Error or EOF.
+										// Break out of the non-blocking loop, any errors or EOF
+										// will be handled by the next loop.
 										-1 | 0 =>
 											break,
 
