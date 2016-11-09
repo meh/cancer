@@ -622,7 +622,7 @@ impl Terminal {
 	}
 
 	/// Handle output from the tty.
-	pub fn handle<I: AsRef<[u8]>, O: Write>(&mut self, input: I, mut output: O) -> error::Result<(vec::IntoIter<Action>, touched::Iter)> {
+	pub fn input<I: AsRef<[u8]>, O: Write>(&mut self, input: I, mut output: O) -> error::Result<(vec::IntoIter<Action>, touched::Iter)> {
 		// Juggle the incomplete buffer cache and the real input.
 		let     input  = input.as_ref();
 		let mut buffer = self.cache.take();

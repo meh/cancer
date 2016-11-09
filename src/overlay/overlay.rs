@@ -197,7 +197,7 @@ impl Overlay {
 	}
 
 	pub fn into_inner<W: Write>(mut self, output: W) -> error::Result<Terminal> {
-		try!(self.inner.handle(self.cache, output));
+		try!(self.inner.input(self.cache, output));
 		Ok(self.inner)
 	}
 
@@ -252,16 +252,16 @@ impl Overlay {
 
 	pub fn key(&mut self, key: Key) -> (vec::IntoIter<Action>, touched::Iter) {
 		let command = self.command(key);
-		let actions = self.process(command);
+		let actions = self.handle(command);
 
 		(actions.into_iter(), self.touched.iter(self.inner.region()))
 	}
 
-	pub fn handle<I: AsRef<[u8]>>(&mut self, input: I) {
+	pub fn input<I: AsRef<[u8]>>(&mut self, input: I) {
 		self.cache.extend(input.as_ref());
 	}
 
-	fn process(&mut self, command: Command) -> Vec<Action> {
+	fn handle(&mut self, command: Command) -> Vec<Action> {
 		let mut actions = Vec::new();
 
 		match command {
@@ -328,7 +328,7 @@ impl Overlay {
 					if overlay!(self; cursor Left(1)).is_some() {
 						if let Some(&Selection::Normal { .. }) = self.select.as_ref() {
 							if overlay!(self; cursor Up(1)).is_some() {
-								self.process(Command::Scroll(command::Scroll::Up(1)));
+								self.handle(Command::Scroll(command::Scroll::Up(1)));
 							}
 
 							overlay!(self; cursor Position(Some(self.inner.columns() - 1), None));
@@ -342,7 +342,7 @@ impl Overlay {
 			Command::Move(command::Move::Down(times)) => {
 				for _ in 0 .. times {
 					if overlay!(self; cursor Down(1)).is_some() {
-						self.process(Command::Scroll(command::Scroll::Down(1)));
+						self.handle(Command::Scroll(command::Scroll::Down(1)));
 					}
 				}
 
@@ -352,7 +352,7 @@ impl Overlay {
 			Command::Move(command::Move::Up(times)) => {
 				for _ in 0 .. times {
 					if overlay!(self; cursor Up(1)).is_some() {
-						self.process(Command::Scroll(command::Scroll::Up(1)));
+						self.handle(Command::Scroll(command::Scroll::Up(1)));
 					}
 				}
 
@@ -364,7 +364,7 @@ impl Overlay {
 					if overlay!(self; cursor Right(1)).is_some() {
 						if let Some(&Selection::Normal { .. }) = self.select.as_ref() {
 							if overlay!(self; cursor Down(1)).is_some() {
-								self.process(Command::Scroll(command::Scroll::Down(1)));
+								self.handle(Command::Scroll(command::Scroll::Down(1)));
 							}
 
 							overlay!(self; cursor Position(Some(0), None));

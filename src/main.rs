@@ -325,7 +325,7 @@ fn main() {
 
 			input = input.recv() => {
 				let input = try!(break input);
-				render!(handle interface.handle(&input, tty.by_ref()));
+				render!(handle interface.input(&input, tty.by_ref()));
 			}
 		}
 	}

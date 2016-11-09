@@ -138,14 +138,14 @@ impl Interface {
 		}
 	}
 
-	pub fn handle<I: AsRef<[u8]>, O: Write>(&mut self, input: I, output: O) -> error::Result<(vec::IntoIter<Action>, touched::Iter)> {
+	pub fn input<I: AsRef<[u8]>, O: Write>(&mut self, input: I, output: O) -> error::Result<(vec::IntoIter<Action>, touched::Iter)> {
 		match *self {
 			Interface::Terminal(ref mut terminal) => {
-				terminal.handle(input, output)
+				terminal.input(input, output)
 			}
 
 			Interface::Overlay(ref mut overlay) => {
-				overlay.handle(input);
+				overlay.input(input);
 				Ok((Vec::new().into_iter(), touched::Iter::empty(overlay.region())))
 			}
 		}
