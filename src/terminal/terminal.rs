@@ -19,6 +19,7 @@ use std::sync::Arc;
 use std::io::{self, Write};
 use std::mem;
 use std::vec;
+use std::str;
 
 use unicode_segmentation::UnicodeSegmentation;
 use unicode_width::UnicodeWidthStr;
@@ -35,6 +36,7 @@ use terminal::{Access, Iter, Touched, Cell, Tabs, Grid, Action, cell};
 use terminal::mode::{self, Mode};
 use terminal::cursor::{self, Cursor};
 use terminal::touched;
+use terminal::input::{self, Input};
 
 #[derive(Debug)]
 pub struct Terminal {
@@ -629,7 +631,7 @@ impl Terminal {
 
 		let     buffer  = buffer.as_ref();
 		let mut input   = buffer.as_ref().map(AsRef::as_ref).unwrap_or(input);
-		let mut actions = Vec::new(): Vec<Action>;
+		let mut actions = Vec::new();
 
 		debug!(target: "cancer::terminal::input::raw", "input: {:?}", input);
 
@@ -642,29 +644,45 @@ impl Terminal {
 			let item = match control::parse(input) {
 				// No control code.
 				control::Result::Error(_) => {
-					match unicode(input) {
-						Unicode::Error(0) => {
+					let kind = match input::parse(input) {
+						Input::Error(0) => {
 							input = &input[1..];
-							Control::C1(C1::String("�"))
+							input::Kind::Unicode("�")
 						}
 
-						Unicode::Error(length) => {
+						Input::Error(length) => {
 							input = &input[length..];
-							Control::C1(C1::String("�"))
+							input::Kind::Unicode("�")
 						}
 
-						Unicode::Incomplete(_) => {
+						Input::Incomplete(_) => {
 							debug!(target: "cancer::terminal::input", "incomplete input: {:?}", input);
 
 							self.cache = Some(input.to_vec());
 							break;
 						}
 
-						Unicode::Done(rest, value) => {
+						Input::Done(rest, value) => {
 							input = rest;
-							Control::C1(C1::String(value))
+							value
+						}
+					};
+
+					match kind {
+						input::Kind::Unicode(string) => {
+							for ch in string.graphemes(true) {
+								self.insert(ch);
+							}
+						}
+
+						input::Kind::Ascii(string) => {
+							for i in 0 .. string.len() {
+								self.insert(unsafe { str::from_utf8_unchecked(&string[i .. i + 1]) });
+							}
 						}
 					}
+
+					continue;
 				}
 
 				// The given input isn't a complete sequence, cache the current input.
@@ -684,805 +702,813 @@ impl Terminal {
 
 			debug!(target: "cancer::terminal::input::parsed", "item: {:?}", item);
 
-			match item {
-				// Attributes.
-				Control::C1(C1::ControlSequence(CSI::DeviceAttributes(0))) => {
-					try!(output.write_all(b"\033[?64;6;21c"));
+			actions.extend(self.control(item, output.by_ref())?);
+		}
+
+		Ok((actions.into_iter(), self.touched.iter(self.region)))
+	}
+
+	fn control<O: Write>(&mut self, control: Control, mut output: O) -> error::Result<Vec<Action>> {
+		let mut actions = Vec::new();
+
+		match control {
+			// Attributes.
+			Control::C1(C1::ControlSequence(CSI::DeviceAttributes(0))) => {
+				try!(output.write_all(b"\033[?64;6;21c"));
+			}
+
+			Control::C1(C1::ControlSequence(CSI::DeviceStatusReport(CSI::Report::CursorPosition))) => {
+				try!(control::format_to(output.by_ref(),
+					&CSI::CursorPositionReport { x: self.cursor.x(), y: self.cursor.y() }, true));
+			}
+
+			Control::DEC(DEC::ScrollRegion { top, bottom }) => {
+				let mut top    = top;
+				let mut bottom = util::clamp(bottom.unwrap_or(self.region.height),
+					0, self.region.height - 1);
+
+				if top > bottom {
+					mem::swap(&mut top, &mut bottom);
 				}
 
-				Control::C1(C1::ControlSequence(CSI::DeviceStatusReport(CSI::Report::CursorPosition))) => {
-					try!(control::format_to(output.by_ref(),
-						&CSI::CursorPositionReport { x: self.cursor.x(), y: self.cursor.y() }, true));
-				}
+				self.cursor.scroll = (top, bottom);
+				term!(self; cursor Position(Some(0), Some(0)));
+			}
 
-				Control::DEC(DEC::ScrollRegion { top, bottom }) => {
-					let mut top    = top;
-					let mut bottom = util::clamp(bottom.unwrap_or(self.region.height),
-						0, self.region.height - 1);
+			Control::C1(C1::ControlSequence(CSI::Set(modes))) => {
+				debug!(target: "cancer::terminal::mode::set", "set ECMA modes: {:?}", modes);
 
-					if top > bottom {
-						mem::swap(&mut top, &mut bottom);
+				for mode in modes {
+					match mode {
+						CSI::Mode::KeyboardLock =>
+							self.mode.insert(mode::KEYBOARD_LOCK),
+
+						CSI::Mode::InsertionReplacement =>
+							self.mode.insert(mode::INSERT),
+
+						CSI::Mode::SendReceive =>
+							self.mode.insert(mode::ECHO),
+
+						CSI::Mode::LineFeed =>
+							self.mode.insert(mode::CRLF),
+
+						mode =>
+							debug!(target: "cancer::terminal::unhandled", "unhandled set: {:?}", mode)
 					}
-
-					self.cursor.scroll = (top, bottom);
-					term!(self; cursor Position(Some(0), Some(0)));
 				}
+			}
 
-				Control::C1(C1::ControlSequence(CSI::Set(modes))) => {
-					debug!(target: "cancer::terminal::mode::set", "set ECMA modes: {:?}", modes);
+			Control::DEC(DEC::Set(modes)) => {
+				debug!(target: "cancer::terminal::mode::set", "set DEC modes: {:?}", modes);
 
-					for mode in modes {
-						match mode {
-							CSI::Mode::KeyboardLock =>
-								self.mode.insert(mode::KEYBOARD_LOCK),
+				for mode in modes {
+					match mode {
+						DEC::Mode::ApplicationCursor =>
+							self.mode.insert(mode::APPLICATION_CURSOR),
 
-							CSI::Mode::InsertionReplacement =>
-								self.mode.insert(mode::INSERT),
-
-							CSI::Mode::SendReceive =>
-								self.mode.insert(mode::ECHO),
-
-							CSI::Mode::LineFeed =>
-								self.mode.insert(mode::CRLF),
-
-							mode =>
-								debug!(target: "cancer::terminal::unhandled", "unhandled set: {:?}", mode)
+						DEC::Mode::ReverseVideo => {
+							self.mode.insert(mode::REVERSE);
+							term!(self; touched all);
 						}
-					}
-				}
 
-				Control::DEC(DEC::Set(modes)) => {
-					debug!(target: "cancer::terminal::mode::set", "set DEC modes: {:?}", modes);
-
-					for mode in modes {
-						match mode {
-							DEC::Mode::ApplicationCursor =>
-								self.mode.insert(mode::APPLICATION_CURSOR),
-
-							DEC::Mode::ReverseVideo => {
-								self.mode.insert(mode::REVERSE);
-								term!(self; touched all);
-							}
-
-							DEC::Mode::Origin => {
-								self.cursor.state.insert(cursor::ORIGIN);
-								term!(self; cursor Position(Some(0), Some(0)));
-							}
-
-							DEC::Mode::AutoWrap =>
-								self.mode.insert(mode::WRAP),
-
-							DEC::Mode::CursorVisible =>
-								self.cursor.state.insert(cursor::VISIBLE),
-
-							DEC::Mode::SmallFont =>
-								actions.push(Action::Resize(132, 24)),
-
-							mode =>
-								debug!(target: "cancer::terminal::unhandled", "unhandled set: {:?}", mode)
+						DEC::Mode::Origin => {
+							self.cursor.state.insert(cursor::ORIGIN);
+							term!(self; cursor Position(Some(0), Some(0)));
 						}
+
+						DEC::Mode::AutoWrap =>
+							self.mode.insert(mode::WRAP),
+
+						DEC::Mode::CursorVisible =>
+							self.cursor.state.insert(cursor::VISIBLE),
+
+						DEC::Mode::SmallFont =>
+							actions.push(Action::Resize(132, 24)),
+
+						mode =>
+							debug!(target: "cancer::terminal::unhandled", "unhandled set: {:?}", mode)
 					}
 				}
+			}
 
-				Control::C1(C1::ControlSequence(CSI::Private(b'h', None, args))) => {
-					debug!(target: "cancer::terminal::mode::set", "set private modes: {:?}", args);
+			Control::C1(C1::ControlSequence(CSI::Private(b'h', None, args))) => {
+				debug!(target: "cancer::terminal::mode::set", "set private modes: {:?}", args);
 
-					for arg in args.into_iter().flat_map(Option::into_iter) {
-						match arg {
-							1004 =>
-								self.mode.insert(mode::FOCUS),
+				for arg in args.into_iter().flat_map(Option::into_iter) {
+					match arg {
+						1004 =>
+							self.mode.insert(mode::FOCUS),
 
-							2004 =>
-								self.mode.insert(mode::BRACKETED_PASTE),
+						2004 =>
+							self.mode.insert(mode::BRACKETED_PASTE),
 
-							n =>
-								debug!(target: "cancer::terminal::unhandled", "unhandled set: {}", n)
+						n =>
+							debug!(target: "cancer::terminal::unhandled", "unhandled set: {}", n)
+					}
+				}
+			}
+
+			Control::C1(C1::ControlSequence(CSI::Reset(modes))) => {
+				debug!(target: "cancer::terminal::mode::reset", "reset ECMA modes: {:?}", modes);
+
+				for mode in modes {
+					match mode {
+						CSI::Mode::KeyboardLock =>
+							self.mode.remove(mode::KEYBOARD_LOCK),
+
+						CSI::Mode::InsertionReplacement =>
+							self.mode.remove(mode::INSERT),
+
+						CSI::Mode::SendReceive =>
+							self.mode.remove(mode::ECHO),
+
+						CSI::Mode::LineFeed =>
+							self.mode.remove(mode::CRLF),
+
+						mode =>
+							debug!(target: "cancer::terminal::unhandled", "unhandled reset: {:?}", mode)
+					}
+				}
+			}
+
+			Control::DEC(DEC::Reset(modes)) => {
+				debug!(target: "cancer::terminal::mode::reset", "reset DEC modes: {:?}", modes);
+
+				for mode in modes {
+					match mode {
+						DEC::Mode::ApplicationCursor =>
+							self.mode.remove(mode::APPLICATION_CURSOR),
+
+						DEC::Mode::ReverseVideo => {
+							self.mode.remove(mode::REVERSE);
+							term!(self; touched all);
 						}
+
+						DEC::Mode::Origin =>
+							self.cursor.state.remove(cursor::ORIGIN),
+
+						DEC::Mode::AutoWrap =>
+							self.mode.remove(mode::WRAP),
+
+						DEC::Mode::CursorVisible =>
+							self.cursor.state.remove(cursor::VISIBLE),
+
+						DEC::Mode::SmallFont =>
+							actions.push(Action::Resize(80, 24)),
+
+						mode =>
+							debug!(target: "cancer::terminal::unhandled", "unhandled reset: {:?}", mode)
 					}
 				}
+			}
 
-				Control::C1(C1::ControlSequence(CSI::Reset(modes))) => {
-					debug!(target: "cancer::terminal::mode::reset", "reset ECMA modes: {:?}", modes);
+			Control::C1(C1::ControlSequence(CSI::Private(b'l', None, args))) => {
+				debug!(target: "cancer::terminal::mode::reset", "reset private modes: {:?}", args);
 
-					for mode in modes {
-						match mode {
-							CSI::Mode::KeyboardLock =>
-								self.mode.remove(mode::KEYBOARD_LOCK),
+				for arg in args.into_iter().flat_map(Option::into_iter) {
+					match arg {
+						1004 =>
+							self.mode.remove(mode::FOCUS),
 
-							CSI::Mode::InsertionReplacement =>
-								self.mode.remove(mode::INSERT),
+						2004 =>
+							self.mode.remove(mode::BRACKETED_PASTE),
 
-							CSI::Mode::SendReceive =>
-								self.mode.remove(mode::ECHO),
-
-							CSI::Mode::LineFeed =>
-								self.mode.remove(mode::CRLF),
-
-							mode =>
-								debug!(target: "cancer::terminal::unhandled", "unhandled reset: {:?}", mode)
-						}
+						n =>
+							debug!(target: "cancer::terminal::unhandled", "unhandled reset: {:?}", n)
 					}
 				}
+			}
 
-				Control::DEC(DEC::Reset(modes)) => {
-					debug!(target: "cancer::terminal::mode::reset", "reset DEC modes: {:?}", modes);
+			Control::DEC(DEC::ApplicationKeypad(true)) => {
+				self.mode.insert(mode::APPLICATION_KEYPAD);
+			}
 
-					for mode in modes {
-						match mode {
-							DEC::Mode::ApplicationCursor =>
-								self.mode.remove(mode::APPLICATION_CURSOR),
+			Control::DEC(DEC::ApplicationKeypad(false)) => {
+				self.mode.remove(mode::APPLICATION_KEYPAD);
+			}
 
-							DEC::Mode::ReverseVideo => {
-								self.mode.remove(mode::REVERSE);
-								term!(self; touched all);
-							}
+			Control::C1(C1::ControlSequence(CSI::SaveCursor)) |
+			Control::DEC(DEC::SaveCursor) => {
+				self.saved = Some(self.cursor.clone());
+			}
 
-							DEC::Mode::Origin =>
-								self.cursor.state.remove(cursor::ORIGIN),
-
-							DEC::Mode::AutoWrap =>
-								self.mode.remove(mode::WRAP),
-
-							DEC::Mode::CursorVisible =>
-								self.cursor.state.remove(cursor::VISIBLE),
-
-							DEC::Mode::SmallFont =>
-								actions.push(Action::Resize(80, 24)),
-
-							mode =>
-								debug!(target: "cancer::terminal::unhandled", "unhandled reset: {:?}", mode)
-						}
-					}
+			Control::C1(C1::ControlSequence(CSI::RestoreCursor)) |
+			Control::DEC(DEC::RestoreCursor) => {
+				if let Some(saved) = self.saved.clone() {
+					self.cursor = saved;
 				}
+			}
 
-				Control::C1(C1::ControlSequence(CSI::Private(b'l', None, args))) => {
-					debug!(target: "cancer::terminal::mode::reset", "reset private modes: {:?}", args);
-
-					for arg in args.into_iter().flat_map(Option::into_iter) {
-						match arg {
-							1004 =>
-								self.mode.remove(mode::FOCUS),
-
-							2004 =>
-								self.mode.remove(mode::BRACKETED_PASTE),
-
-							n =>
-								debug!(target: "cancer::terminal::unhandled", "unhandled reset: {:?}", n)
-						}
-					}
+			// Charset.
+			Control::DEC(DEC::SelectCharset(i, charset)) => {
+				if self.cursor.charsets.len() >= i as usize {
+					self.cursor.charsets[i as usize] = charset;
 				}
+			}
 
-				Control::DEC(DEC::ApplicationKeypad(true)) => {
-					self.mode.insert(mode::APPLICATION_KEYPAD);
+			Control::C0(C0::ShiftIn) => {
+				self.cursor.charset = 0;
+			}
+
+			Control::C0(C0::ShiftOut) => {
+				self.cursor.charset = 1;
+			}
+
+			// Movement functions.
+			Control::C0(C0::CarriageReturn) => {
+				term!(self; cursor Position(Some(0), None));
+			}
+
+			Control::C0(C0::LineFeed) => {
+				if term!(self; cursor Down(1)).is_some() {
+					term!(self; scroll! up 1);
 				}
+			}
 
-				Control::DEC(DEC::ApplicationKeypad(false)) => {
-					self.mode.remove(mode::APPLICATION_KEYPAD);
+			Control::C0(C0::Backspace) => {
+				term!(self; cursor Left(1));
+			}
+
+			Control::C1(C1::ControlSequence(CSI::CursorPosition { x, y })) => {
+				term!(self; cursor Position(Some(x), Some(y)));
+			}
+
+			Control::C1(C1::ControlSequence(CSI::CursorVerticalPosition(n))) => {
+				term!(self; cursor Position(None, Some(n)));
+			}
+
+			Control::C1(C1::ControlSequence(CSI::CursorHorizontalPosition(n))) => {
+				term!(self; cursor Position(Some(n), None));
+			}
+
+			Control::C1(C1::ControlSequence(CSI::CursorUp(n))) => {
+				term!(self; cursor Up(n));
+			}
+
+			Control::C1(C1::ControlSequence(CSI::CursorDown(n))) => {
+				term!(self; cursor Down(n));
+			}
+
+			Control::C1(C1::ControlSequence(CSI::CursorBack(n))) => {
+				term!(self; cursor Left(n));
+			}
+
+			Control::C1(C1::ControlSequence(CSI::CursorForward(n))) => {
+				term!(self; cursor Right(n));
+			}
+
+			Control::C1(C1::Index) => {
+				if term!(self; cursor Down(1)).is_some() {
+					term!(self; scroll up 1);
 				}
+			}
 
-				Control::C1(C1::ControlSequence(CSI::SaveCursor)) |
-				Control::DEC(DEC::SaveCursor) => {
-					self.saved = Some(self.cursor.clone());
+			Control::C1(C1::ReverseIndex) => {
+				if term!(self; cursor Up(1)).is_some() {
+					term!(self; scroll down 1);
 				}
+			}
 
-				Control::C1(C1::ControlSequence(CSI::RestoreCursor)) |
-				Control::DEC(DEC::RestoreCursor) => {
-					if let Some(saved) = self.saved.clone() {
-						self.cursor = saved;
-					}
+			Control::C1(C1::ControlSequence(CSI::ScrollUp(n))) => {
+				term!(self; scroll up n);
+			}
+
+			Control::C1(C1::ControlSequence(CSI::ScrollDown(n))) => {
+				term!(self; scroll down n);
+			}
+
+			Control::DEC(DEC::BackIndex) => {
+				if self.cursor.x() == 0 {
+					self.grid.left(1);
+					term!(self; touched all);
 				}
-
-				// Charset.
-				Control::DEC(DEC::SelectCharset(i, charset)) => {
-					if self.cursor.charsets.len() >= i as usize {
-						self.cursor.charsets[i as usize] = charset;
-					}
-				}
-
-				Control::C0(C0::ShiftIn) => {
-					self.cursor.charset = 0;
-				}
-
-				Control::C0(C0::ShiftOut) => {
-					self.cursor.charset = 1;
-				}
-
-				// Movement functions.
-				Control::C0(C0::CarriageReturn) => {
-					term!(self; cursor Position(Some(0), None));
-				}
-
-				Control::C0(C0::LineFeed) => {
-					if term!(self; cursor Down(1)).is_some() {
-						term!(self; scroll! up 1);
-					}
-				}
-
-				Control::C0(C0::Backspace) => {
+				else {
 					term!(self; cursor Left(1));
 				}
+			}
 
-				Control::C1(C1::ControlSequence(CSI::CursorPosition { x, y })) => {
-					term!(self; cursor Position(Some(x), Some(y)));
-				}
-
-				Control::C1(C1::ControlSequence(CSI::CursorVerticalPosition(n))) => {
-					term!(self; cursor Position(None, Some(n)));
-				}
-
-				Control::C1(C1::ControlSequence(CSI::CursorHorizontalPosition(n))) => {
-					term!(self; cursor Position(Some(n), None));
-				}
-
-				Control::C1(C1::ControlSequence(CSI::CursorUp(n))) => {
-					term!(self; cursor Up(n));
-				}
-
-				Control::C1(C1::ControlSequence(CSI::CursorDown(n))) => {
-					term!(self; cursor Down(n));
-				}
-
-				Control::C1(C1::ControlSequence(CSI::CursorBack(n))) => {
-					term!(self; cursor Left(n));
-				}
-
-				Control::C1(C1::ControlSequence(CSI::CursorForward(n))) => {
-					term!(self; cursor Right(n));
-				}
-
-				Control::C1(C1::Index) => {
-					if term!(self; cursor Down(1)).is_some() {
-						term!(self; scroll up 1);
-					}
-				}
-
-				Control::C1(C1::ReverseIndex) => {
-					if term!(self; cursor Up(1)).is_some() {
-						term!(self; scroll down 1);
-					}
-				}
-
-				Control::C1(C1::ControlSequence(CSI::ScrollUp(n))) => {
-					term!(self; scroll up n);
-				}
-
-				Control::C1(C1::ControlSequence(CSI::ScrollDown(n))) => {
-					term!(self; scroll down n);
-				}
-
-				Control::DEC(DEC::BackIndex) => {
-					if self.cursor.x() == 0 {
-						self.grid.left(1);
-						term!(self; touched all);
-					}
-					else {
-						term!(self; cursor Left(1));
-					}
-				}
-
-				Control::DEC(DEC::ForwardIndex) => {
-					if self.cursor.x() == self.region.width - 1 {
-						self.grid.right(1);
-						term!(self; touched all);
-					}
-					else {
-						term!(self; cursor Right(1));
-					}
-				}
-
-				Control::C1(C1::NextLine) => {
-					if term!(self; cursor Down(1)).is_some() {
-						term!(self; scroll up 1);
-					}
-
-					term!(self; cursor Position(Some(0), None));
-				}
-
-				// Erase functions.
-				Control::C1(C1::ControlSequence(CSI::EraseDisplay(CSI::Erase::ToEnd))) => {
-					let (x, y) = term!(self; cursor);
-
-					for x in x .. self.region.width {
-						term!(self; touched (x, y));
-						term!(self; mut cell (x, y)).make_empty(term!(self; style));
-					}
-
-					for y in y + 1 .. self.region.height {
-						term!(self; touched line y);
-
-						for x in 0 .. self.region.width {
-							term!(self; mut cell (x, y)).make_empty(term!(self; style));
-						}
-					}
-				}
-
-				Control::C1(C1::ControlSequence(CSI::EraseDisplay(CSI::Erase::ToStart))) => {
-					let (x, y) = term!(self; cursor);
-
-					for x in 0 ... x {
-						term!(self; touched (x, y));
-						term!(self; mut cell (x, y)).make_empty(term!(self; style));
-					}
-
-					for y in 0 .. y {
-						term!(self; touched line y);
-
-						for x in 0 .. self.region.width {
-							term!(self; mut cell (x, y)).make_empty(term!(self; style));
-						}
-					}
-				}
-
-				Control::C1(C1::ControlSequence(CSI::EraseDisplay(CSI::Erase::All))) => {
+			Control::DEC(DEC::ForwardIndex) => {
+				if self.cursor.x() == self.region.width - 1 {
+					self.grid.right(1);
 					term!(self; touched all);
+				}
+				else {
+					term!(self; cursor Right(1));
+				}
+			}
 
-					for y in 0 .. self.region.height {
-						for x in 0 .. self.region.width {
-							term!(self; mut cell (x, y)).make_empty(term!(self; style));
-						}
-					}
+			Control::C1(C1::NextLine) => {
+				if term!(self; cursor Down(1)).is_some() {
+					term!(self; scroll up 1);
 				}
 
-				Control::C1(C1::ControlSequence(CSI::EraseLine(CSI::Erase::ToEnd))) => {
-					let (x, y) = term!(self; cursor);
+				term!(self; cursor Position(Some(0), None));
+			}
 
-					for x in x .. self.region.width {
-						term!(self; touched (x, y));
-						term!(self; mut cell (x, y)).make_empty(term!(self; style));
-					}
+			// Erase functions.
+			Control::C1(C1::ControlSequence(CSI::EraseDisplay(CSI::Erase::ToEnd))) => {
+				let (x, y) = term!(self; cursor);
+
+				for x in x .. self.region.width {
+					term!(self; touched (x, y));
+					term!(self; mut cell (x, y)).make_empty(term!(self; style));
 				}
 
-				Control::C1(C1::ControlSequence(CSI::EraseLine(CSI::Erase::ToStart))) => {
-					let (x, y) = term!(self; cursor);
-
-					for x in 0 ... x {
-						term!(self; touched (x, y));
-						term!(self; mut cell (x, y)).make_empty(term!(self; style));
-					}
-				}
-
-				Control::C1(C1::ControlSequence(CSI::EraseLine(CSI::Erase::All))) => {
-					let y = self.cursor.y();
-
+				for y in y + 1 .. self.region.height {
 					term!(self; touched line y);
 
 					for x in 0 .. self.region.width {
 						term!(self; mut cell (x, y)).make_empty(term!(self; style));
 					}
 				}
+			}
 
-				Control::C1(C1::ControlSequence(CSI::EraseCharacter(n))) => {
-					let (x, y) = term!(self; cursor);
+			Control::C1(C1::ControlSequence(CSI::EraseDisplay(CSI::Erase::ToStart))) => {
+				let (x, y) = term!(self; cursor);
 
-					for x in x .. x + n {
+				for x in 0 ... x {
+					term!(self; touched (x, y));
+					term!(self; mut cell (x, y)).make_empty(term!(self; style));
+				}
+
+				for y in 0 .. y {
+					term!(self; touched line y);
+
+					for x in 0 .. self.region.width {
+						term!(self; mut cell (x, y)).make_empty(term!(self; style));
+					}
+				}
+			}
+
+			Control::C1(C1::ControlSequence(CSI::EraseDisplay(CSI::Erase::All))) => {
+				term!(self; touched all);
+
+				for y in 0 .. self.region.height {
+					for x in 0 .. self.region.width {
+						term!(self; mut cell (x, y)).make_empty(term!(self; style));
+					}
+				}
+			}
+
+			Control::C1(C1::ControlSequence(CSI::EraseLine(CSI::Erase::ToEnd))) => {
+				let (x, y) = term!(self; cursor);
+
+				for x in x .. self.region.width {
+					term!(self; touched (x, y));
+					term!(self; mut cell (x, y)).make_empty(term!(self; style));
+				}
+			}
+
+			Control::C1(C1::ControlSequence(CSI::EraseLine(CSI::Erase::ToStart))) => {
+				let (x, y) = term!(self; cursor);
+
+				for x in 0 ... x {
+					term!(self; touched (x, y));
+					term!(self; mut cell (x, y)).make_empty(term!(self; style));
+				}
+			}
+
+			Control::C1(C1::ControlSequence(CSI::EraseLine(CSI::Erase::All))) => {
+				let y = self.cursor.y();
+
+				term!(self; touched line y);
+
+				for x in 0 .. self.region.width {
+					term!(self; mut cell (x, y)).make_empty(term!(self; style));
+				}
+			}
+
+			Control::C1(C1::ControlSequence(CSI::EraseCharacter(n))) => {
+				let (x, y) = term!(self; cursor);
+
+				for x in x .. x + n {
+					term!(self; mut cell (x, y)).make_empty(term!(self; style));
+					term!(self; touched (x, y));
+				}
+
+				term!(self; clean references (x + n, y));
+			}
+
+			Control::C1(C1::ControlSequence(CSI::DeleteLine(n))) => {
+				term!(self; scroll up n from self.cursor.y());
+			}
+
+			Control::C1(C1::ControlSequence(CSI::DeleteCharacter(n))) => {
+				let (x, y) = term!(self; cursor);
+				self.grid.delete(x, y, n);
+
+				for x in x .. self.region.width {
+					term!(self; touched (x, y));
+				}
+			}
+
+			// Insertion functions.
+			Control::DEC(DEC::AlignmentTest) => {
+				for (x, y) in self.region.absolute() {
+					term!(self; mut cell (x, y)).make_occupied("E", term!(self; style));
+				}
+
+				term!(self; touched all);
+			}
+
+			Control::C1(C1::ControlSequence(CSI::InsertLine(n))) => {
+				term!(self; scroll down n from self.cursor.y());
+			}
+
+			Control::C1(C1::ControlSequence(CSI::InsertCharacter(n))) => {
+				let (x, y) = term!(self; cursor);
+				self.grid.insert(x, y, n);
+
+				for x in x .. self.region.width {
+					term!(self; touched (x, y));
+				}
+			}
+
+			Control::C0(C0::HorizontalTabulation) => {
+				term!(self; tab 1);
+			}
+
+			Control::C1(C1::ControlSequence(CSI::CursorForwardTabulation(n))) => {
+				term!(self; tab n as i32);
+			}
+
+			Control::C1(C1::ControlSequence(CSI::CursorBackTabulation(n))) => {
+				term!(self; tab -(n as i32));
+			}
+
+			Control::C1(C1::HorizontalTabulationSet) => {
+				let (x, _) = term!(self; cursor);
+				self.tabs.set(x, true);
+			}
+
+			Control::C1(C1::ControlSequence(CSI::TabulationClear(CSI::Tabulation::AllCharacters))) => {
+				self.tabs.clear();
+			}
+
+			Control::C1(C1::ControlSequence(CSI::TabulationClear(CSI::Tabulation::Character))) => {
+				let (x, _) = term!(self; cursor);
+				self.tabs.set(x, false);
+			}
+
+			// Style functions.
+			Control::C1(C1::ControlSequence(CSI::SelectGraphicalRendition(attrs))) => {
+				fn to_rgba(color: &SGR::Color) -> Rgba<f64> {
+					match *color {
+						SGR::Color::Transparent =>
+							Rgba::new(0.0, 0.0, 0.0, 0.0),
+
+						SGR::Color::Rgb(r, g, b) =>
+							Rgba::new_u8(r, g, b, 255),
+
+						SGR::Color::Cmy(c, m, y) => {
+							let c = c as f64 / 255.0;
+							let m = m as f64 / 255.0;
+							let y = y as f64 / 255.0;
+
+							Rgba::new(
+								1.0 - c,
+								1.0 - m,
+								1.0 - y,
+								1.0)
+						}
+
+						SGR::Color::Cmyk(c, m, y, k) => {
+							let c = c as f64 / 255.0;
+							let m = m as f64 / 255.0;
+							let y = y as f64 / 255.0;
+							let k = k as f64 / 255.0;
+
+							Rgba::new(
+								1.0 - (c * (1.0 - k) + k),
+								1.0 - (m * (1.0 - k) + k),
+								1.0 - (y * (1.0 - k) + k),
+								1.0)
+						}
+
+						_ => unreachable!()
+					}
+				}
+
+				let mut style = **term!(self; style!);
+
+				for mut attr in attrs {
+					if self.config.style().bold().is_bright() {
+						match attr {
+							SGR::Foreground(SGR::Color::Index(ref mut n)) if *n < 8 => {
+								self.cursor.bright = Some(*n);
+
+								if style.attributes.contains(style::BOLD) {
+									*n += 8;
+								}
+							}
+
+							SGR::Reset | SGR::Foreground(_) => {
+								self.cursor.bright = None
+							}
+
+							SGR::Font(SGR::Weight::Normal) | SGR::Font(SGR::Weight::Faint) => {
+								if let Some(n) = self.cursor.bright {
+									style.foreground = Some(*self.config.color().get(n));
+								}
+							}
+
+							SGR::Font(SGR::Weight::Bold) => {
+								if let Some(n) = self.cursor.bright {
+									style.foreground = Some(*self.config.color().get(n + 8));
+								}
+							}
+
+							_ => ()
+						}
+					}
+
+					match attr {
+						SGR::Reset =>
+							style = Style::default(),
+
+						SGR::Italic(true) =>
+							style.attributes.insert(style::ITALIC),
+						SGR::Italic(false) =>
+							style.attributes.remove(style::ITALIC),
+
+						SGR::Underline(true) =>
+							style.attributes.insert(style::UNDERLINE),
+						SGR::Underline(false) =>
+							style.attributes.remove(style::UNDERLINE),
+
+						SGR::Blink(true) =>
+							style.attributes.insert(style::BLINK),
+						SGR::Blink(false) =>
+							style.attributes.remove(style::BLINK),
+
+						SGR::Reverse(true) =>
+							style.attributes.insert(style::REVERSE),
+						SGR::Reverse(false) =>
+							style.attributes.remove(style::REVERSE),
+
+						SGR::Invisible(true) =>
+							style.attributes.insert(style::INVISIBLE),
+						SGR::Invisible(false) =>
+							style.attributes.remove(style::INVISIBLE),
+
+						SGR::Struck(true) =>
+							style.attributes.insert(style::STRUCK),
+						SGR::Struck(false) =>
+							style.attributes.remove(style::STRUCK),
+
+						SGR::Font(SGR::Weight::Normal) =>
+							style.attributes.remove(style::BOLD | style::FAINT),
+
+						SGR::Font(SGR::Weight::Bold) => {
+							style.attributes.remove(style::FAINT);
+							style.attributes.insert(style::BOLD);
+						}
+
+						SGR::Font(SGR::Weight::Faint) => {
+							style.attributes.remove(style::BOLD);
+							style.attributes.insert(style::FAINT);
+						}
+
+						SGR::Foreground(SGR::Color::Default) =>
+							style.foreground = Some(*self.config.style().color().foreground()),
+
+						SGR::Foreground(SGR::Color::Index(n)) =>
+							style.foreground = Some(*self.config.color().get(n)),
+
+						SGR::Foreground(ref color) =>
+							style.foreground = Some(to_rgba(color)),
+
+						SGR::Background(SGR::Color::Default) =>
+							style.background = Some(*self.config.style().color().background()),
+
+						SGR::Background(SGR::Color::Index(n)) =>
+							style.background = Some(*self.config.color().get(n)),
+
+						SGR::Background(ref color) =>
+							style.background = Some(to_rgba(color)),
+					}
+				}
+
+				self.cursor.update(style);
+			}
+
+			Control::DEC(DEC::CursorStyle(n)) => {
+				match n {
+					0 => {
+						if self.config.style().cursor().blink() {
+							self.cursor.state.insert(cursor::BLINK);
+						}
+
+						self.cursor.shape = self.config.style().cursor().shape();
+					}
+
+					1 => {
+						self.cursor.state.insert(cursor::BLINK);
+						self.cursor.shape = Shape::Block;
+					}
+
+					2 => {
+						self.cursor.state.remove(cursor::BLINK);
+						self.cursor.shape = Shape::Block;
+					}
+
+					3 => {
+						self.cursor.state.insert(cursor::BLINK);
+						self.cursor.shape = Shape::Line;
+					}
+
+					4 => {
+						self.cursor.state.remove(cursor::BLINK);
+						self.cursor.shape = Shape::Line;
+					}
+
+					5 => {
+						self.cursor.state.insert(cursor::BLINK);
+						self.cursor.shape = Shape::Beam;
+					}
+
+					6 => {
+						self.cursor.state.remove(cursor::BLINK);
+						self.cursor.shape = Shape::Beam;
+					}
+
+					_ => ()
+				}
+			}
+
+			// Secret control codes.
+			Control::C1(C1::OperatingSystemCommand(cmd)) if cmd.starts_with("0;") ||
+				                                              cmd.starts_with("1;") ||
+				                                              cmd.starts_with("2;") ||
+				                                              cmd.starts_with("k;") => {
+				actions.push(Action::Title(String::from(&cmd[2..])));
+			}
+
+			Control::C1(C1::OperatingSystemCommand(cmd)) if cmd.starts_with("cursor:") => {
+				let mut parts = cmd.split(':').skip(1);
+
+				match parts.next() {
+					Some("fg") => {
+						let     desc  = parts.next().unwrap_or("-");
+						let mut color = *self.config.style().cursor().foreground();
+
+						if let Some(c) = config::util::to_color(desc) {
+							color = c;
+						}
+
+						self.cursor.foreground = color;
+					}
+
+					Some("bg") => {
+						let     desc  = parts.next().unwrap_or("-");
+						let mut color = *self.config.style().cursor().background();
+
+						if let Some(c) = config::util::to_color(desc) {
+							color = c;
+						}
+
+						self.cursor.background = color;
+					}
+
+					_ => ()
+				}
+			}
+
+			Control::C1(C1::OperatingSystemCommand(cmd)) if cmd.starts_with("clipboard:") => {
+				let mut parts = cmd.split(':').skip(1);
+
+				match parts.next() {
+					Some("set") => {
+						if let (Some(name), Some(string)) = (parts.next(), parts.next()) {
+							actions.push(Action::Clipboard(name.into(), string.into()));
+						}
+					}
+
+					_ => ()
+				}
+			}
+
+			code => {
+				debug!(target: "cancer::terminal::unhandled", "unhandled control code: {:?}", code);
+			}
+		}
+
+		Ok(actions)
+	}
+
+	fn insert(&mut self, ch: &str) {
+		let mut ch = ch;
+
+		if term!(self; charset) == DEC::Charset::DEC(DEC::charset::DEC::Graphic) {
+			ch = match ch {
+				"A" => "↑",
+				"B" => "↓",
+				"C" => "→",
+				"D" => "←",
+				"E" => "█",
+				"F" => "▚",
+				"G" => "☃",
+				"_" => " ",
+				"`" => "◆",
+				"a" => "▒",
+				"b" => "␉",
+				"c" => "␌",
+				"d" => "␍",
+				"e" => "␊",
+				"f" => "°",
+				"g" => "±",
+				"h" => "␤",
+				"i" => "␋",
+				"j" => "┘",
+				"k" => "┐",
+				"l" => "┌",
+				"m" => "└",
+				"n" => "┼",
+				"o" => "⎺",
+				"p" => "⎻",
+				"q" => "─",
+				"r" => "⎼",
+				"s" => "⎽",
+				"t" => "├",
+				"u" => "┤",
+				"v" => "┴",
+				"w" => "┬",
+				"x" => "│",
+				"y" => "≤",
+				"z" => "≥",
+				"{" => "π",
+				"|" => "≠",
+				"}" => "£",
+				"~" => "·",
+				_   => ch,
+			};
+		}
+
+		let width = ch.width() as u32;
+
+		// Bail out if it cannot be displayed.
+		if width == 0 {
+			return;
+		}
+
+		if self.mode.contains(mode::WRAP) && self.cursor.wrap() {
+			if term!(self; cursor Down(1)).is_some() {
+				term!(self; scroll! up 1);
+			}
+
+			term!(self; cursor Position(Some(0), None));
+			let (_, y) = term!(self; cursor);
+			self.grid.wrap(y);
+		}
+
+		// Change the cells appropriately.
+		{
+			let (x, y) = term!(self; cursor);
+
+			// If it's all white-space, make the cells empty, otherwise make
+			// them occupied.
+			if ch.chars().all(char::is_whitespace) {
+				if !term!(self; cell (x, y)).is_empty() || term!(self; cell (x, y)).style() != term!(self; style!) {
+					for x in x .. x + width {
 						term!(self; mut cell (x, y)).make_empty(term!(self; style));
 						term!(self; touched (x, y));
 					}
 
-					term!(self; clean references (x + n, y));
+					term!(self; clean references (x + width, y));
 				}
+			}
+			else {
+				let changed = match *term!(self; cell (x, y)) {
+					Cell::Empty { .. } =>
+						true,
 
-				Control::C1(C1::ControlSequence(CSI::DeleteLine(n))) => {
-					term!(self; scroll up n from self.cursor.y());
-				}
+					Cell::Occupied { ref style, ref value, .. } =>
+						value != ch || style != term!(self; style!),
 
-				Control::C1(C1::ControlSequence(CSI::DeleteCharacter(n))) => {
-					let (x, y) = term!(self; cursor);
-					self.grid.delete(x, y, n);
+					Cell::Reference(..) =>
+						unreachable!()
+				};
 
-					for x in x .. self.region.width {
-						term!(self; touched (x, y));
-					}
-				}
+				if changed {
+					term!(self; mut cell (x, y)).make_occupied(ch, term!(self; style));
+					term!(self; touched (x, y));
 
-				// Insertion functions.
-				Control::DEC(DEC::AlignmentTest) => {
-					for (x, y) in self.region.absolute() {
-						term!(self; mut cell (x, y)).make_occupied("E", term!(self; style));
-					}
-
-					term!(self; touched all);
-				}
-
-				Control::C1(C1::ControlSequence(CSI::InsertLine(n))) => {
-					term!(self; scroll down n from self.cursor.y());
-				}
-
-				Control::C1(C1::ControlSequence(CSI::InsertCharacter(n))) => {
-					let (x, y) = term!(self; cursor);
-					self.grid.insert(x, y, n);
-
-					for x in x .. self.region.width {
-						term!(self; touched (x, y));
-					}
-				}
-
-				Control::C0(C0::HorizontalTabulation) => {
-					term!(self; tab 1);
-				}
-
-				Control::C1(C1::ControlSequence(CSI::CursorForwardTabulation(n))) => {
-					term!(self; tab n as i32);
-				}
-
-				Control::C1(C1::ControlSequence(CSI::CursorBackTabulation(n))) => {
-					term!(self; tab -(n as i32));
-				}
-
-				Control::C1(C1::HorizontalTabulationSet) => {
-					let (x, _) = term!(self; cursor);
-					self.tabs.set(x, true);
-				}
-
-				Control::C1(C1::ControlSequence(CSI::TabulationClear(CSI::Tabulation::AllCharacters))) => {
-					self.tabs.clear();
-				}
-
-				Control::C1(C1::ControlSequence(CSI::TabulationClear(CSI::Tabulation::Character))) => {
-					let (x, _) = term!(self; cursor);
-					self.tabs.set(x, false);
-				}
-
-				Control::C1(C1::String(string)) => {
-					for mut ch in string.graphemes(true) {
-						if term!(self; charset) == DEC::Charset::DEC(DEC::charset::DEC::Graphic) {
-							ch = match ch {
-								"A" => "↑",
-								"B" => "↓",
-								"C" => "→",
-								"D" => "←",
-								"E" => "█",
-								"F" => "▚",
-								"G" => "☃",
-								"_" => " ",
-								"`" => "◆",
-								"a" => "▒",
-								"b" => "␉",
-								"c" => "␌",
-								"d" => "␍",
-								"e" => "␊",
-								"f" => "°",
-								"g" => "±",
-								"h" => "␤",
-								"i" => "␋",
-								"j" => "┘",
-								"k" => "┐",
-								"l" => "┌",
-								"m" => "└",
-								"n" => "┼",
-								"o" => "⎺",
-								"p" => "⎻",
-								"q" => "─",
-								"r" => "⎼",
-								"s" => "⎽",
-								"t" => "├",
-								"u" => "┤",
-								"v" => "┴",
-								"w" => "┬",
-								"x" => "│",
-								"y" => "≤",
-								"z" => "≥",
-								"{" => "π",
-								"|" => "≠",
-								"}" => "£",
-								"~" => "·",
-								_   => ch,
-							};
-						}
-
-						let width = ch.width() as u32;
-
-						// Bail out if it cannot be displayed.
-						if width == 0 {
-							continue;
-						}
-
-						if self.mode.contains(mode::WRAP) && self.cursor.wrap() {
-							if term!(self; cursor Down(1)).is_some() {
-								term!(self; scroll! up 1);
-							}
-
-							term!(self; cursor Position(Some(0), None));
-							let (_, y) = term!(self; cursor);
-							self.grid.wrap(y);
-						}
-
-						// Change the cells appropriately.
-						{
-							let (x, y) = term!(self; cursor);
-
-							// If it's all white-space, make the cells empty, otherwise make
-							// them occupied.
-							if ch.chars().all(char::is_whitespace) {
-								if !term!(self; cell (x, y)).is_empty() || term!(self; cell (x, y)).style() != term!(self; style!) {
-									for x in x .. x + width {
-										term!(self; mut cell (x, y)).make_empty(term!(self; style));
-										term!(self; touched (x, y));
-									}
-
-									term!(self; clean references (x + width, y));
-								}
-							}
-							else {
-								let changed = match *term!(self; cell (x, y)) {
-									Cell::Empty { .. } =>
-										true,
-
-									Cell::Occupied { ref style, ref value, .. } =>
-										value != ch || style != term!(self; style!),
-
-									Cell::Reference(..) =>
-										unreachable!()
-								};
-
-								if changed {
-									term!(self; mut cell (x, y)).make_occupied(ch, term!(self; style));
-									term!(self; touched (x, y));
-
-									for (i, x) in (x + 1 .. x + width).enumerate() {
-										term!(self; mut cell (x, y)).make_reference(i as u8 + 1);
-									}
-
-									term!(self; clean references (x + width, y));
-								}
-							}
-						}
-
-						// If the character overflows the region, mark it for wrapping.
-						if self.cursor.x() + width >= self.region.width {
-							self.cursor.state.insert(cursor::WRAP);
-						}
-						else {
-							term!(self; cursor Right(width));
-						}
-					}
-				}
-
-				// Style functions.
-				Control::C1(C1::ControlSequence(CSI::SelectGraphicalRendition(attrs))) => {
-					fn to_rgba(color: &SGR::Color) -> Rgba<f64> {
-						match *color {
-							SGR::Color::Transparent =>
-								Rgba::new(0.0, 0.0, 0.0, 0.0),
-
-							SGR::Color::Rgb(r, g, b) =>
-								Rgba::new_u8(r, g, b, 255),
-
-							SGR::Color::Cmy(c, m, y) => {
-								let c = c as f64 / 255.0;
-								let m = m as f64 / 255.0;
-								let y = y as f64 / 255.0;
-
-								Rgba::new(
-									1.0 - c,
-									1.0 - m,
-									1.0 - y,
-									1.0)
-							}
-
-							SGR::Color::Cmyk(c, m, y, k) => {
-								let c = c as f64 / 255.0;
-								let m = m as f64 / 255.0;
-								let y = y as f64 / 255.0;
-								let k = k as f64 / 255.0;
-
-								Rgba::new(
-									1.0 - (c * (1.0 - k) + k),
-									1.0 - (m * (1.0 - k) + k),
-									1.0 - (y * (1.0 - k) + k),
-									1.0)
-							}
-
-							_ => unreachable!()
-						}
+					for (i, x) in (x + 1 .. x + width).enumerate() {
+						term!(self; mut cell (x, y)).make_reference(i as u8 + 1);
 					}
 
-					let mut style = **term!(self; style!);
-
-					for mut attr in attrs {
-						if self.config.style().bold().is_bright() {
-							match attr {
-								SGR::Foreground(SGR::Color::Index(ref mut n)) if *n < 8 => {
-									self.cursor.bright = Some(*n);
-
-									if style.attributes.contains(style::BOLD) {
-										*n += 8;
-									}
-								}
-
-								SGR::Reset | SGR::Foreground(_) => {
-									self.cursor.bright = None
-								}
-
-								SGR::Font(SGR::Weight::Normal) | SGR::Font(SGR::Weight::Faint) => {
-									if let Some(n) = self.cursor.bright {
-										style.foreground = Some(*self.config.color().get(n));
-									}
-								}
-
-								SGR::Font(SGR::Weight::Bold) => {
-									if let Some(n) = self.cursor.bright {
-										style.foreground = Some(*self.config.color().get(n + 8));
-									}
-								}
-
-								_ => ()
-							}
-						}
-
-						match attr {
-							SGR::Reset =>
-								style = Style::default(),
-
-							SGR::Italic(true) =>
-								style.attributes.insert(style::ITALIC),
-							SGR::Italic(false) =>
-								style.attributes.remove(style::ITALIC),
-
-							SGR::Underline(true) =>
-								style.attributes.insert(style::UNDERLINE),
-							SGR::Underline(false) =>
-								style.attributes.remove(style::UNDERLINE),
-
-							SGR::Blink(true) =>
-								style.attributes.insert(style::BLINK),
-							SGR::Blink(false) =>
-								style.attributes.remove(style::BLINK),
-
-							SGR::Reverse(true) =>
-								style.attributes.insert(style::REVERSE),
-							SGR::Reverse(false) =>
-								style.attributes.remove(style::REVERSE),
-
-							SGR::Invisible(true) =>
-								style.attributes.insert(style::INVISIBLE),
-							SGR::Invisible(false) =>
-								style.attributes.remove(style::INVISIBLE),
-
-							SGR::Struck(true) =>
-								style.attributes.insert(style::STRUCK),
-							SGR::Struck(false) =>
-								style.attributes.remove(style::STRUCK),
-
-							SGR::Font(SGR::Weight::Normal) =>
-								style.attributes.remove(style::BOLD | style::FAINT),
-
-							SGR::Font(SGR::Weight::Bold) => {
-								style.attributes.remove(style::FAINT);
-								style.attributes.insert(style::BOLD);
-							}
-
-							SGR::Font(SGR::Weight::Faint) => {
-								style.attributes.remove(style::BOLD);
-								style.attributes.insert(style::FAINT);
-							}
-
-							SGR::Foreground(SGR::Color::Default) =>
-								style.foreground = Some(*self.config.style().color().foreground()),
-
-							SGR::Foreground(SGR::Color::Index(n)) =>
-								style.foreground = Some(*self.config.color().get(n)),
-
-							SGR::Foreground(ref color) =>
-								style.foreground = Some(to_rgba(color)),
-
-							SGR::Background(SGR::Color::Default) =>
-								style.background = Some(*self.config.style().color().background()),
-
-							SGR::Background(SGR::Color::Index(n)) =>
-								style.background = Some(*self.config.color().get(n)),
-
-							SGR::Background(ref color) =>
-								style.background = Some(to_rgba(color)),
-						}
-					}
-
-					self.cursor.update(style);
-				}
-
-				Control::DEC(DEC::CursorStyle(n)) => {
-					match n {
-						0 => {
-							if self.config.style().cursor().blink() {
-								self.cursor.state.insert(cursor::BLINK);
-							}
-
-							self.cursor.shape = self.config.style().cursor().shape();
-						}
-
-						1 => {
-							self.cursor.state.insert(cursor::BLINK);
-							self.cursor.shape = Shape::Block;
-						}
-
-						2 => {
-							self.cursor.state.remove(cursor::BLINK);
-							self.cursor.shape = Shape::Block;
-						}
-
-						3 => {
-							self.cursor.state.insert(cursor::BLINK);
-							self.cursor.shape = Shape::Line;
-						}
-
-						4 => {
-							self.cursor.state.remove(cursor::BLINK);
-							self.cursor.shape = Shape::Line;
-						}
-
-						5 => {
-							self.cursor.state.insert(cursor::BLINK);
-							self.cursor.shape = Shape::Beam;
-						}
-
-						6 => {
-							self.cursor.state.remove(cursor::BLINK);
-							self.cursor.shape = Shape::Beam;
-						}
-
-						_ => ()
-					}
-				}
-
-				// Secret control codes.
-				Control::C1(C1::OperatingSystemCommand(cmd)) if cmd.starts_with("0;") ||
-				                                                cmd.starts_with("1;") ||
-				                                                cmd.starts_with("2;") ||
-				                                                cmd.starts_with("k;") => {
-					actions.push(Action::Title(String::from(&cmd[2..])));
-				}
-
-				Control::C1(C1::OperatingSystemCommand(cmd)) if cmd.starts_with("cursor:") => {
-					let mut parts = cmd.split(':').skip(1);
-
-					match parts.next() {
-						Some("fg") => {
-							let     desc  = parts.next().unwrap_or("-");
-							let mut color = *self.config.style().cursor().foreground();
-
-							if let Some(c) = config::util::to_color(desc) {
-								color = c;
-							}
-
-							self.cursor.foreground = color;
-						}
-
-						Some("bg") => {
-							let     desc  = parts.next().unwrap_or("-");
-							let mut color = *self.config.style().cursor().background();
-
-							if let Some(c) = config::util::to_color(desc) {
-								color = c;
-							}
-
-							self.cursor.background = color;
-						}
-
-						_ => ()
-					}
-				}
-
-				Control::C1(C1::OperatingSystemCommand(cmd)) if cmd.starts_with("clipboard:") => {
-					let mut parts = cmd.split(':').skip(1);
-
-					match parts.next() {
-						Some("set") => {
-							if let (Some(name), Some(string)) = (parts.next(), parts.next()) {
-								actions.push(Action::Clipboard(name.into(), string.into()));
-							}
-						}
-
-						_ => ()
-					}
-				}
-
-				code => {
-					debug!(target: "cancer::terminal::unhandled", "unhandled control code: {:?}", code);
+					term!(self; clean references (x + width, y));
 				}
 			}
 		}
 
-		Ok((actions.into_iter(), self.touched.iter(self.region)))
+		// If the character overflows the region, mark it for wrapping.
+		if self.cursor.x() + width >= self.region.width {
+			self.cursor.state.insert(cursor::WRAP);
+		}
+		else {
+			term!(self; cursor Right(width));
+		}
 	}
 }
 
@@ -1490,66 +1516,4 @@ impl Access for Terminal {
 	fn access(&self, x: u32, y: u32) -> &Cell {
 		self.get(x, y)
 	}
-}
-
-enum Unicode<'a> {
-	Done(&'a [u8], &'a str),
-	Incomplete(Option<usize>),
-	Error(usize),
-}
-
-fn unicode(i: &[u8]) -> Unicode {
-	use std::str;
-
-	const WIDTH: [u8; 256] = [
-		1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
-		1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, // 0x1F
-		1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
-		1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, // 0x3F
-		1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
-		1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, // 0x5F
-		1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
-		1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, // 0x7F
-		0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-		0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, // 0x9F
-		0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-		0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, // 0xBF
-		0, 0, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2,
-		2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, // 0xDF
-		3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, // 0xEF
-		4, 4, 4, 4, 4, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, // 0xFF
-	];
-
-	let mut length = WIDTH[i[0] as usize] as usize;
-
-	if length == 0 {
-		return Unicode::Error(0);
-	}
-	else if i.len() < length {
-		return Unicode::Incomplete(None);
-	}
-	else if str::from_utf8(&i[..length]).is_err() {
-		return Unicode::Error(length);
-	}
-
-	let mut rest = &i[length..];
-
-	while !rest.is_empty() && control::parse(rest).is_err() {
-		let w = WIDTH[rest[0] as usize] as usize;
-
-		if w == 0 {
-			break;
-		}
-		else if rest.len() < w {
-			return Unicode::Incomplete(Some(w - rest.len()));
-		}
-		else if str::from_utf8(&rest[..w]).is_err() {
-			break;
-		}
-
-		length += w;
-		rest    = &rest[w..];
-	}
-
-	Unicode::Done(&i[length..], unsafe { str::from_utf8_unchecked(&i[..length]) })
 }

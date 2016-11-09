@@ -40,6 +40,9 @@ pub use self::grid::Grid;
 mod tabs;
 pub use self::tabs::Tabs;
 
+mod input;
+pub use self::input::Input;
+
 mod terminal;
 pub use self::terminal::Terminal;
 
