@@ -56,7 +56,7 @@ macro_rules! overlay {
 		let x = $term.cursor.x();
 		let y = $term.cursor.y();
 
-		if let Cell::Reference(offset) = *overlay!($term; cell (x, y)) {
+		if let Cell::Reference(offset) = *$term.get(x, y) {
 			(x - offset as u32, y)
 		}
 		else {
@@ -92,18 +92,18 @@ macro_rules! overlay {
 	($term:ident; select $before:expr, $after:expr) => ({
 		if let Some(select) = $term.select.as_mut() {
 			Overlay::select(select, &mut $term.changed, $before, $after);
-			overlay!($term; touched all);
+			$term.touched.all();
 		}
 	});
 
 	($term:ident; unselect) => ({
 		Overlay::unselect($term.select.take().unwrap(), &mut $term.changed);
-		overlay!($term; touched all);
+		$term.touched.all();
 	});
 
 	($term:ident; status mode $name:expr) => ({
 		if let Some(status) = $term.status.as_mut() {
-			overlay!($term; touched line ($term.inner.rows()) - 1);
+			$term.touched.line($term.inner.rows() - 1);
 			status.mode($name);
 		}
 	});
@@ -119,41 +119,9 @@ macro_rules! overlay {
 
 	($term:ident; status position $pair:expr) => ({
 		if let Some(status) = $term.status.as_mut() {
-			overlay!($term; touched line ($term.inner.rows()) - 1);
+			$term.touched.line($term.inner.rows() - 1);
 			status.position($pair);
 		}
-	});
-
-	($term:ident; touched all) => (
-		$term.touched.all();
-	);
-
-	($term:ident; touched line $y:expr) => (
-		$term.touched.line($y);
-	);
-
-	($term:ident; touched ($x:expr, $y:expr)) => (
-		$term.touched.mark($x, $y);
-	);
-
-	($term:ident; touched $pair:expr) => (
-		$term.touched.push($pair);
-	);
-
-	($term:ident; cell ($x:expr, $y:expr)) => ({
-		$term.get($x, $y)
-	});
-
-	($term:ident; mut cell ($x:expr, $y:expr)) => ({
-		let view   = $term.inner.grid().view();
-		let offset = (view.len() as u32 - 1 - y) + $term.scroll;
-
-		if !$term.changed.contains_key(&(x, offset)) {
-			let cell = $term.get(x, y).clone();
-			$term.changed.insert((x, offset), cell);
-		}
-
-		$term.changed.get_mut(&(x, offset)).unwrap()
 	});
 }
 
@@ -201,7 +169,7 @@ impl Overlay {
 		Ok(self.inner)
 	}
 
-	pub fn get(&self, x: u32, y: u32) -> &Cell {
+	fn get(&self, x: u32, y: u32) -> &Cell {
 		if let Some(status) = self.status.as_ref() {
 			if y == self.inner.rows() - 1 {
 				return &status[x as usize];
@@ -228,7 +196,19 @@ impl Overlay {
 		}
 	}
 
-	pub fn row(&self, y: u32) -> &grid::Row {
+	fn get_mut(&mut self, x: u32, y: u32) -> &mut Cell {
+		let view   = self.inner.grid().view();
+		let offset = (view.len() as u32 - 1 - y) + self.scroll;
+
+		if !self.changed.contains_key(&(x, offset)) {
+			let cell = self.get(x, y).clone();
+			self.changed.insert((x, offset), cell);
+		}
+
+		self.changed.get_mut(&(x, offset)).unwrap()
+	}
+
+	fn row(&self, y: u32) -> &grid::Row {
 		let back = self.inner.grid().back();
 		let view = self.inner.grid().view();
 
@@ -276,7 +256,7 @@ impl Overlay {
 					}
 				}
 
-				overlay!(self; touched all);
+				self.touched.all();
 				overlay!(self; status position!);
 			}
 
@@ -287,7 +267,7 @@ impl Overlay {
 					}
 				}
 
-				overlay!(self; touched all);
+				self.touched.all();
 				overlay!(self; status position!);
 			}
 
@@ -300,7 +280,7 @@ impl Overlay {
 					}
 				}
 
-				overlay!(self; touched all);
+				self.touched.all();
 				overlay!(self; status position!);
 			}
 
@@ -309,7 +289,7 @@ impl Overlay {
 					self.scroll = self.scroll.saturating_sub(self.inner.rows() - 3);
 				}
 	
-				overlay!(self; touched all);
+				self.touched.all();
 				overlay!(self; status position!);
 			}
 
@@ -378,14 +358,14 @@ impl Overlay {
 			Command::Scroll(command::Scroll::Begin) => {
 				self.scroll = self.inner.grid().back().len() as u32;
 
-				overlay!(self; touched all);
+				self.touched.all();
 				overlay!(self; status position!);
 			}
 
 			Command::Scroll(command::Scroll::End) => {
 				self.scroll = 0;
 
-				overlay!(self; touched all);
+				self.touched.all();
 				overlay!(self; status position!);
 			}
 
@@ -396,7 +376,7 @@ impl Overlay {
 					self.scroll += 1;
 				}
 
-				overlay!(self; touched all);
+				self.touched.all();
 				overlay!(self; status position!);
 			}
 
