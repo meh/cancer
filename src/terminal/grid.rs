@@ -64,27 +64,22 @@ impl Free {
 	pub fn pop(&mut self, cols: usize) -> Row {
 		match self.inner.pop_front() {
 			Some(mut row) => {
-				// Reset the cells.
-				for cell in row.iter_mut() {
+				row.wrap = false;
+				row.resize(cols, Cell::empty(self.empty.clone()));
+
+				for cell in row.iter_mut().filter(|c| !c.is_default()) {
 					cell.make_empty(self.empty.clone());
 				}
 
-				// Resize the row to the wanted width.
-				if row.len() > cols {
-					row.drain(cols ..);
-				}
-				else {
-					for _ in 0 .. cols - row.len() {
-						row.push_back(Cell::empty(self.empty.clone()));
-					}
-				}
-
-				row.wrap = false;
 				row
 			}
 
-			None =>
-				Row { inner: vec_deque![Cell::empty(self.empty.clone()); cols], wrap: false }
+			None => {
+				Row {
+					inner: vec_deque![Cell::empty(self.empty.clone()); cols],
+					wrap:  false
+				}
+			}
 		}
 	}
 

@@ -36,6 +36,14 @@ pub enum Cell {
 	Reference(u8),
 }
 
+impl Default for Cell {
+	fn default() -> Self {
+		Cell::Empty {
+			style: Rc::new(Style::default()),
+		}
+	}
+}
+
 #[derive(Copy, Clone, Debug)]
 pub struct Position<'a> {
 	x: u32,
@@ -63,6 +71,17 @@ impl Cell {
 	/// Create a referencing cell.
 	pub fn reference(offset: u8) -> Self {
 		Cell::Reference(offset)
+	}
+
+	pub fn is_default(&self) -> bool {
+		if let Cell::Empty { ref style, .. } = *self {
+			style.foreground.is_none() &&
+			style.background.is_none() &&
+			style.attributes.is_empty()
+		}
+		else {
+			false
+		}
 	}
 
 	/// Check if the cell is empty.

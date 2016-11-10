@@ -1488,8 +1488,8 @@ impl Terminal {
 		Ok(actions)
 	}
 
-	fn insert(&mut self, ch: &str) {
-		let mut ch = ch;
+	fn insert<T: AsRef<str>>(&mut self, ch: T) {
+		let mut ch = ch.as_ref();
 
 		if term!(self; charset) == DEC::Charset::DEC(DEC::charset::DEC::Graphic) {
 			ch = match ch {
