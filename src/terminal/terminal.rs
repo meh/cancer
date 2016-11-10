@@ -32,6 +32,7 @@ use config::{self, Config};
 use config::style::Shape;
 use style::{self, Style};
 use platform::key::{self, Key};
+use platform::mouse::{self, Mouse};
 use terminal::{Access, Iter, Touched, Cell, Tabs, Grid, Action, cell};
 use terminal::mode::{self, Mode};
 use terminal::cursor::{self, Cursor};
@@ -178,7 +179,7 @@ impl Terminal {
 	}
 
 	/// Get an iterator over positioned cells.
-	pub fn iter<'a, T: Iterator<Item = (u32, u32)>>(&'a self, iter: T) -> Iter<Self, T> {
+	pub fn iter<T: Iterator<Item = (u32, u32)>>(&self, iter: T) -> Iter<Self, T> {
 		Iter::new(self, iter)
 	}
 
@@ -599,6 +600,13 @@ impl Terminal {
 		}
 	}
 
+	/// Handle mouse inputs.
+	pub fn mouse<O: Write>(&mut self, mouse: Mouse, mut output: O) -> io::Result<()> {
+		debug!(target: "cancer::terminal::mouse", "mouse {:?}", mouse);
+
+		Ok(())
+	}
+
 	/// Handle output from the tty.
 	pub fn input<I: AsRef<[u8]>, O: Write>(&mut self, input: I, mut output: O) -> error::Result<(vec::IntoIter<Action>, touched::Iter)> {
 		// Juggle the incomplete buffer cache and the real input.
@@ -782,6 +790,21 @@ impl Terminal {
 						2004 =>
 							self.mode.insert(mode::BRACKETED_PASTE),
 
+						9 =>
+							self.mode.insert(mode::MOUSE_X10),
+
+						1000 =>
+							self.mode.insert(mode::MOUSE_BUTTON),
+
+						1002 =>
+							self.mode.insert(mode::MOUSE_MOTION),
+
+						1003 =>
+							self.mode.insert(mode::MOUSE_MANY),
+
+						1006 =>
+							self.mode.insert(mode::MOUSE_SGR),
+
 						n =>
 							debug!(target: "cancer::terminal::unhandled", "unhandled set: {}", n)
 					}
@@ -852,6 +875,21 @@ impl Terminal {
 
 						2004 =>
 							self.mode.remove(mode::BRACKETED_PASTE),
+
+						9 =>
+							self.mode.remove(mode::MOUSE_X10),
+
+						1000 =>
+							self.mode.remove(mode::MOUSE_BUTTON),
+
+						1002 =>
+							self.mode.remove(mode::MOUSE_MOTION),
+
+						1003 =>
+							self.mode.remove(mode::MOUSE_MANY),
+
+						1006 =>
+							self.mode.remove(mode::MOUSE_SGR),
 
 						n =>
 							debug!(target: "cancer::terminal::unhandled", "unhandled reset: {:?}", n)

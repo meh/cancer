@@ -124,6 +124,32 @@ impl Renderer {
 		self.cache.resize(columns, rows);
 	}
 
+	/// Find the cell position from the real position.
+	pub fn position(&self, x: u32, y: u32) -> Option<(u32, u32)> {
+		let (f, h, v, s) = (&self.font, self.margin.horizontal, self.margin.vertical, self.spacing);
+
+		// Check if the region falls exactly within a margin, if so bail out.
+		if h != 0 && v != 0 &&
+		   (x < h || x >= self.width - h ||
+		    y < v || y >= self.height - v)
+		{
+			return None;
+		}
+
+		// Cache font dimensions.
+		let width  = f.width() as f32;
+		let height = (f.height() + s) as f32;
+
+		// Remove the margin from coordinates.
+		let x = x.saturating_sub(h) as f32;
+		let y = y.saturating_sub(v) as f32;
+
+		let x = (x / width).floor() as u32;
+		let y = (y / height).floor() as u32;
+
+		Some((x, y))
+	}
+
 	/// Turn the damaged region to cell-space.
 	///
 	/// FIXME(meh): this is kinda approximate, should find a proper algorithm.

@@ -15,21 +15,31 @@
 // You should have received a copy of the GNU General Public License
 // along with cancer.  If not, see <http://www.gnu.org/licenses/>.
 
-#[cfg(target_os = "linux")]
-mod x11;
-#[cfg(target_os = "linux")]
-pub use self::x11::Window;
+use platform::key;
 
-#[cfg(unix)]
-mod unix;
-#[cfg(unix)]
-pub use self::unix::Tty;
+#[derive(Eq, PartialEq, Copy, Clone, Debug)]
+pub enum Mouse {
+	Click {
+		press:    bool,
+		modifier: key::Modifier,
+		button:   Button,
+		position: Position,
+	},
 
-pub mod event;
-pub use self::event::Event;
+	Motion(Position),
+}
 
-pub mod key;
-pub use self::key::Key;
+#[derive(Eq, PartialEq, Copy, Clone, Debug)]
+pub enum Button {
+	Left,
+	Middle,
+	Right,
+	Up,
+	Down,
+}
 
-pub mod mouse;
-pub use self::mouse::Mouse;
+#[derive(Eq, PartialEq, Copy, Clone, Debug)]
+pub struct Position {
+	pub x: u32,
+	pub y: u32,
+}

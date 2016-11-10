@@ -24,7 +24,8 @@ use fnv::FnvHasher;
 use picto::Region;
 
 use error;
-use platform::{Key, key};
+use platform::key::{self, Key};
+use platform::mouse::{self, Mouse};
 use terminal::{Access, Action, Terminal, Cursor, Iter};
 use terminal::touched::{self, Touched};
 use terminal::cell::{self, Cell};
@@ -231,9 +232,161 @@ impl Overlay {
 	}
 
 	pub fn key(&mut self, key: Key) -> (vec::IntoIter<Action>, touched::Iter) {
-		let command = self.command(key);
-		let actions = self.handle(command);
+		use platform::key::{Value, Button, Keypad};
 
+		// Check if the key is a number that makes operations run N times, if so
+		// bail out early.
+		if let Value::Char(ref ch) = *key.value() {
+			if let Ok(number) = ch.parse::<u32>() {
+				if self.times.is_some() || number != 0 {
+					if let Some(times) = self.times.take() {
+						self.times = Some(times * 10 + number);
+					}
+					else {
+						self.times = Some(number);
+					}
+
+					return (Vec::new().into_iter(), self.touched.iter(self.inner.region()));
+				}
+			}
+		}
+
+		let new    = self.prefix.is_none();
+		let times  = self.times.take();
+		let prefix = self.prefix.take();
+
+		let command = match *key.value() {
+			Value::Char(ref ch) => match &**ch {
+				"\x19" | "e" if key.modifier() == key::CTRL =>
+					Command::Scroll(command::Scroll::Up(times.unwrap_or(1))),
+
+				"\x05" | "e" if key.modifier() == key::CTRL =>
+					Command::Scroll(command::Scroll::Down(times.unwrap_or(1))),
+
+				"\x15" | "u" if key.modifier() == key::CTRL =>
+					Command::Scroll(command::Scroll::PageUp(times.unwrap_or(1))),
+
+				"\x04" | "d" if key.modifier() == key::CTRL =>
+					Command::Scroll(command::Scroll::PageDown(times.unwrap_or(1))),
+
+				"$" =>
+					Command::Move(command::Move::End),
+
+				"^" | "0" =>
+					Command::Move(command::Move::Start),
+
+				"h" if key.modifier().is_empty() =>
+					Command::Move(command::Move::Left(times.unwrap_or(1))),
+
+				"j" if key.modifier().is_empty() =>
+					Command::Move(command::Move::Down(times.unwrap_or(1))),
+
+				"k" if key.modifier().is_empty() =>
+					Command::Move(command::Move::Up(times.unwrap_or(1))),
+
+				"l" if key.modifier().is_empty() =>
+					Command::Move(command::Move::Right(times.unwrap_or(1))),
+
+				// Scroll to the top.
+				"g" if key.modifier().is_empty() && prefix.is_none() => {
+					self.prefix = Some(b'g');
+					Command::None
+				}
+
+				"g" if key.modifier().is_empty() && prefix == Some(b'g') => {
+					Command::Scroll(command::Scroll::Begin)
+				}
+
+				// Scroll to the end.
+				"G" if key.modifier() == key::SHIFT => {
+					if let Some(times) = times {
+						Command::Scroll(command::Scroll::To(times))
+					}
+					else {
+						Command::Scroll(command::Scroll::End)
+					}
+				}
+
+				// Region selection.
+				"v" if key.modifier().is_empty() => {
+					Command::Select(command::Select::Normal)
+				}
+
+				// Block selection.
+				"\x16" | "v" if key.modifier() == key::CTRL => {
+					Command::Select(command::Select::Block)
+				}
+
+				"y" if key.modifier().is_empty() => {
+					Command::Copy
+				}
+
+				_ => {
+					debug!(target: "cancer::terminal::overlay::unhandled", "key {:?}", key);
+					Command::None
+				}
+			},
+
+			Value::Button(ref button) => match button {
+				&Button::PageUp =>
+					Command::Scroll(command::Scroll::PageUp(times.unwrap_or(1))),
+
+				&Button::PageDown =>
+					Command::Scroll(command::Scroll::PageDown(times.unwrap_or(1))),
+
+				&Button::Left =>
+					Command::Move(command::Move::Left(times.unwrap_or(1))),
+
+				&Button::Down =>
+					Command::Move(command::Move::Down(times.unwrap_or(1))),
+
+				&Button::Up =>
+					Command::Move(command::Move::Up(times.unwrap_or(1))),
+
+				&Button::Right =>
+					Command::Move(command::Move::Right(times.unwrap_or(1))),
+
+				_ => {
+					debug!(target: "cancer::terminal::overlay::unhandled", "key {:?}", key);
+					Command::None
+				}
+			},
+
+			Value::Keypad(ref button) => match button {
+				&Keypad::Left =>
+					Command::Move(command::Move::Left(times.unwrap_or(1))),
+
+				&Keypad::Down =>
+					Command::Move(command::Move::Down(times.unwrap_or(1))),
+
+				&Keypad::Up =>
+					Command::Move(command::Move::Up(times.unwrap_or(1))),
+
+				&Keypad::Right =>
+					Command::Move(command::Move::Right(times.unwrap_or(1))),
+
+				_ => {
+					debug!(target: "cancer::terminal::overlay::unhandled", "key {:?}", key);
+					Command::None
+				}
+			},
+		};
+
+		// Only remove the prefix if it hadn't just been set.
+		if self.prefix.is_some() && !new {
+			self.prefix = None;
+		}
+
+		let actions = self.handle(command);
+		(actions.into_iter(), self.touched.iter(self.inner.region()))
+	}
+
+	pub fn mouse(&mut self, mouse: Mouse) -> (vec::IntoIter<Action>, touched::Iter) {
+		let command = match mouse {
+			_ => Command::None,
+		};
+
+		let actions = self.handle(command);
 		(actions.into_iter(), self.touched.iter(self.inner.region()))
 	}
 
@@ -274,7 +427,7 @@ impl Overlay {
 			Command::Scroll(command::Scroll::PageUp(times)) => {
 				for _ in 0 .. times {
 					self.scroll += self.inner.rows().saturating_sub(3);
-			
+
 					if self.scroll > self.inner.grid().back().len() as u32 {
 						self.scroll = self.inner.grid().back().len().saturating_sub(1) as u32;
 					}
@@ -288,7 +441,7 @@ impl Overlay {
 				for _ in 0 .. times {
 					self.scroll = self.scroll.saturating_sub(self.inner.rows() - 3);
 				}
-	
+
 				self.touched.all();
 				overlay!(self; status position!);
 			}
@@ -436,155 +589,6 @@ impl Overlay {
 		}
 
 		actions
-	}
-
-	fn command(&mut self, key: Key) -> Command {
-		use platform::key::{Value, Button, Keypad};
-
-		// Check if the key is a number that makes operations run N times, if so
-		// bail out early.
-		if let Value::Char(ref ch) = *key.value() {
-			if let Ok(number) = ch.parse::<u32>() {
-				if self.times.is_some() || number != 0 {
-					if let Some(times) = self.times.take() {
-						self.times = Some(times * 10 + number);
-					}
-					else {
-						self.times = Some(number);
-					}
-
-					return Command::None;
-				}
-			}
-		}
-
-		let new    = self.prefix.is_none();
-		let times  = self.times.take();
-		let prefix = self.prefix.take();
-
-		let command = match *key.value() {
-			Value::Char(ref ch) => match &**ch {
-				"\x19" | "e" if key.modifier() == key::CTRL =>
-					Command::Scroll(command::Scroll::Up(times.unwrap_or(1))),
-
-				"\x05" | "e" if key.modifier() == key::CTRL =>
-					Command::Scroll(command::Scroll::Down(times.unwrap_or(1))),
-
-				"\x15" | "u" if key.modifier() == key::CTRL =>
-					Command::Scroll(command::Scroll::PageUp(times.unwrap_or(1))),
-
-				"\x04" | "d" if key.modifier() == key::CTRL =>
-					Command::Scroll(command::Scroll::PageDown(times.unwrap_or(1))),
-
-				"$" =>
-					Command::Move(command::Move::End),
-
-				"^" | "0" =>
-					Command::Move(command::Move::Start),
-
-				"h" if key.modifier().is_empty() =>
-					Command::Move(command::Move::Left(times.unwrap_or(1))),
-
-				"j" if key.modifier().is_empty() =>
-					Command::Move(command::Move::Down(times.unwrap_or(1))),
-
-				"k" if key.modifier().is_empty() =>
-					Command::Move(command::Move::Up(times.unwrap_or(1))),
-
-				"l" if key.modifier().is_empty() =>
-					Command::Move(command::Move::Right(times.unwrap_or(1))),
-
-				// Scroll to the top.
-				"g" if key.modifier().is_empty() && prefix.is_none() => {
-					self.prefix = Some(b'g');
-					Command::None
-				}
-
-				"g" if key.modifier().is_empty() && prefix == Some(b'g') => {
-					Command::Scroll(command::Scroll::Begin)
-				}
-
-				// Scroll to the end.
-				"G" if key.modifier() == key::SHIFT => {
-					if let Some(times) = times {
-						Command::Scroll(command::Scroll::To(times))
-					}
-					else {
-						Command::Scroll(command::Scroll::End)
-					}
-				}
-
-				// Region selection.
-				"v" if key.modifier().is_empty() => {
-					Command::Select(command::Select::Normal)
-				}
-
-				// Block selection.
-				"\x16" | "v" if key.modifier() == key::CTRL => {
-					Command::Select(command::Select::Block)
-				}
-
-				"y" if key.modifier().is_empty() => {
-					Command::Copy
-				}
-
-				_ => {
-					debug!(target: "cancer::terminal::overlay::unhandled", "key {:?}", key);
-					Command::None
-				}
-			},
-
-			Value::Button(ref button) => match button {
-				&Button::PageUp => 
-					Command::Scroll(command::Scroll::PageUp(times.unwrap_or(1))),
-
-				&Button::PageDown =>
-					Command::Scroll(command::Scroll::PageDown(times.unwrap_or(1))),
-
-				&Button::Left =>
-					Command::Move(command::Move::Left(times.unwrap_or(1))),
-
-				&Button::Down =>
-					Command::Move(command::Move::Down(times.unwrap_or(1))),
-
-				&Button::Up =>
-					Command::Move(command::Move::Up(times.unwrap_or(1))),
-
-				&Button::Right =>
-					Command::Move(command::Move::Right(times.unwrap_or(1))),
-
-				_ => {
-					debug!(target: "cancer::terminal::overlay::unhandled", "key {:?}", key);
-					Command::None
-				}
-			},
-
-			Value::Keypad(ref button) => match button {
-				&Keypad::Left =>
-					Command::Move(command::Move::Left(times.unwrap_or(1))),
-
-				&Keypad::Down =>
-					Command::Move(command::Move::Down(times.unwrap_or(1))),
-
-				&Keypad::Up =>
-					Command::Move(command::Move::Up(times.unwrap_or(1))),
-
-				&Keypad::Right =>
-					Command::Move(command::Move::Right(times.unwrap_or(1))),
-
-				_ => {
-					debug!(target: "cancer::terminal::overlay::unhandled", "key {:?}", key);
-					Command::None
-				}
-			},
-		};
-
-		// Only remove the prefix if it hadn't just been set.
-		if self.prefix.is_some() && !new {
-			self.prefix = None;
-		}
-
-		command
 	}
 
 	fn selection(&self) -> Option<String> {

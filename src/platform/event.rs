@@ -16,7 +16,7 @@
 // along with cancer.  If not, see <http://www.gnu.org/licenses/>.
 
 use picto::Region;
-use platform::Key;
+use platform::{Key, Mouse};
 
 #[derive(Eq, PartialEq, Clone, Debug)]
 pub enum Event {
@@ -31,4 +31,7 @@ pub enum Event {
 
 	/// Key press.
 	Key(Key),
+
+	/// Mouse event.
+	Mouse(Mouse),
 }

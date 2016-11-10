@@ -20,7 +20,7 @@ use std::vec;
 
 use picto::Region;
 use error;
-use platform::Key;
+use platform::{Key, Mouse};
 use terminal::{Access, Terminal, Mode, Action, Iter, Cell};
 use terminal::{cursor, touched};
 use overlay::Overlay;
@@ -142,6 +142,19 @@ impl Interface {
 
 			Interface::Overlay(ref mut overlay) => {
 				Ok(overlay.key(key))
+			}
+		}
+	}
+
+	pub fn mouse<O: Write>(&mut self, mouse: Mouse, output: O) -> error::Result<(vec::IntoIter<Action>, touched::Iter)> {
+		match *self {
+			Interface::Terminal(ref mut terminal) => {
+				try!(terminal.mouse(mouse, output));
+				Ok((Vec::new().into_iter(), touched::Iter::empty(terminal.region())))
+			}
+
+			Interface::Overlay(ref mut overlay) => {
+				Ok(overlay.mouse(mouse))
 			}
 		}
 	}

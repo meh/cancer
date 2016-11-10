@@ -28,6 +28,16 @@ bitflags! {
 		const INSERT             = 1 << 8,
 		const ECHO               = 1 << 9,
 		const FOCUS              = 1 << 10,
+
+		const MOUSE_BUTTON = 1 << 11,
+		const MOUSE_MOTION = 1 << 12,
+		const MOUSE_SGR    = 1 << 13,
+		const MOUSE_X10    = 1 << 14,
+		const MOUSE_MANY   = 1 << 15,
+		const MOUSE        = MOUSE_BUTTON.bits |
+		                     MOUSE_MOTION.bits |
+		                     MOUSE_X10.bits    |
+		                     MOUSE_MANY.bits,
 	}
 }
 

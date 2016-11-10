@@ -80,7 +80,8 @@ pub use overlay::Overlay;
 mod style;
 
 mod platform;
-use platform::{Event, Window, Tty, key};
+use platform::{Event, Window, Tty, Mouse};
+use platform::key;
 
 mod renderer;
 use renderer::Renderer;
@@ -320,6 +321,22 @@ fn main() {
 						}
 
 						render!(handle interface.key(key, tty.by_ref()));
+					}
+
+					Event::Mouse(mut event) => {
+						match event {
+							Mouse::Click { ref mut position, .. } | Mouse::Motion(ref mut position) => {
+								if let Some((x, y)) = renderer.position(position.x, position.y) {
+									position.x = x;
+									position.y = y;
+								}
+								else {
+									continue;
+								}
+							}
+						}
+
+						render!(handle interface.mouse(event, tty.by_ref()));
 					}
 				}
 			},

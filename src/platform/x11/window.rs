@@ -29,6 +29,8 @@ use sys::cairo::Surface;
 use config::Config;
 use font::Font;
 use platform::Event;
+use platform::key;
+use platform::mouse::{self, Mouse};
 use platform::x11::Keyboard;
 use picto::Region;
 
@@ -278,6 +280,54 @@ impl Window {
 									}
 
 									connection.flush();
+								}
+
+								xcb::BUTTON_PRESS | xcb::BUTTON_RELEASE => {
+									let press = event.response_type() == xcb::BUTTON_PRESS;
+									let event = xcb::cast_event::<xcb::ButtonPressEvent>(&event);
+
+									let button = match event.detail() {
+										1 => mouse::Button::Left,
+										2 => mouse::Button::Middle,
+										3 => mouse::Button::Right,
+										4 => mouse::Button::Up,
+										5 => mouse::Button::Down,
+										_ => continue,
+									};
+
+									let mut modifier = key::Modifier::empty();
+									{
+										if (event.state() as u32 & xcb::MOD_MASK_SHIFT) != 0 {
+											modifier.insert(key::SHIFT);
+										}
+
+										if (event.state() as u32 & xcb::MOD_MASK_CONTROL) != 0 {
+											modifier.insert(key::CTRL);
+										}
+
+										if (event.state() as u32 & xcb::MOD_MASK_4) != 0 {
+											modifier.insert(key::ALT);
+										}
+									}
+
+									try!(return sender.send(Event::Mouse(Mouse::Click {
+										press:    press,
+										button:   button,
+										modifier: modifier,
+										position: mouse::Position {
+											x: event.event_x() as u32,
+											y: event.event_y() as u32,
+										}
+									})));
+								}
+
+								xcb::MOTION_NOTIFY => {
+									let event = xcb::cast_event::<xcb::MotionNotifyEvent>(&event);
+
+									try!(return sender.send(Event::Mouse(Mouse::Motion(mouse::Position {
+										x: event.event_x() as u32,
+										y: event.event_y() as u32,
+									}))));
 								}
 
 								e if keyboard.owns_event(e) => {
