@@ -45,7 +45,7 @@ impl Input {
 
 fn to_key<T: AsRef<str>>(value: T) -> Key {
 	let     value     = value.as_ref();
-	let mut modifiers = value.split("-").collect::<Vec<&str>>();
+	let mut modifiers = value.split('-').collect::<Vec<&str>>();
 	let     button    = modifiers.pop().unwrap().to_lowercase();
 
 	let modifiers = modifiers.iter().fold(key::NONE, |acc, modifier|

@@ -15,6 +15,7 @@
 // You should have received a copy of the GNU General Public License
 // along with cancer.  If not, see <http://www.gnu.org/licenses/>.
 
+use std::mem;
 use std::io::Write;
 use std::ops::{Deref, DerefMut};
 use std::collections::HashMap;
@@ -129,11 +130,7 @@ macro_rules! overlay {
 impl Overlay {
 	pub fn new(inner: Terminal) -> Self {
 		let mut cursor = inner.cursor().clone();
-		{
-			let tmp = cursor.foreground;
-			cursor.foreground = cursor.background;
-			cursor.background = tmp;
-		}
+		mem::swap(&mut cursor.foreground, &mut cursor.background);
 
 		let status = inner.config().style().status().map(|c| {
 			cursor.travel(cursor::Up(1));
@@ -227,7 +224,7 @@ impl Overlay {
 	}
 
 	/// Get an iterator over positioned cells.
-	pub fn iter<'a, T: Iterator<Item = (u32, u32)>>(&'a self, iter: T) -> Iter<Self, T> {
+	pub fn iter<T: Iterator<Item = (u32, u32)>>(&self, iter: T) -> Iter<Self, T> {
 		Iter::new(self, iter)
 	}
 
@@ -327,23 +324,23 @@ impl Overlay {
 				}
 			},
 
-			Value::Button(ref button) => match button {
-				&Button::PageUp =>
+			Value::Button(button) => match button {
+				Button::PageUp =>
 					Command::Scroll(command::Scroll::PageUp(times.unwrap_or(1))),
 
-				&Button::PageDown =>
+				Button::PageDown =>
 					Command::Scroll(command::Scroll::PageDown(times.unwrap_or(1))),
 
-				&Button::Left =>
+				Button::Left =>
 					Command::Move(command::Move::Left(times.unwrap_or(1))),
 
-				&Button::Down =>
+				Button::Down =>
 					Command::Move(command::Move::Down(times.unwrap_or(1))),
 
-				&Button::Up =>
+				Button::Up =>
 					Command::Move(command::Move::Up(times.unwrap_or(1))),
 
-				&Button::Right =>
+				Button::Right =>
 					Command::Move(command::Move::Right(times.unwrap_or(1))),
 
 				_ => {
@@ -352,17 +349,17 @@ impl Overlay {
 				}
 			},
 
-			Value::Keypad(ref button) => match button {
-				&Keypad::Left =>
+			Value::Keypad(button) => match button {
+				Keypad::Left =>
 					Command::Move(command::Move::Left(times.unwrap_or(1))),
 
-				&Keypad::Down =>
+				Keypad::Down =>
 					Command::Move(command::Move::Down(times.unwrap_or(1))),
 
-				&Keypad::Up =>
+				Keypad::Up =>
 					Command::Move(command::Move::Up(times.unwrap_or(1))),
 
-				&Keypad::Right =>
+				Keypad::Right =>
 					Command::Move(command::Move::Right(times.unwrap_or(1))),
 
 				_ => {

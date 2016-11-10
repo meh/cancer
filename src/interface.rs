@@ -33,7 +33,7 @@ pub enum Interface {
 
 impl Interface {
 	pub fn overlay(&self) -> bool {
-		if let &Interface::Terminal(..) = self {
+		if let Interface::Terminal(..) = *self {
 			false
 		}
 		else {

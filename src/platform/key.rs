@@ -46,7 +46,7 @@ pub enum Value {
 	Keypad(Keypad),
 }
 
-#[derive(Eq, PartialEq, Clone, Debug)]
+#[derive(Eq, PartialEq, Copy, Clone, Debug)]
 pub enum Button {
 	Tab,
 	Escape,
@@ -68,7 +68,7 @@ pub enum Button {
 	F(u8),
 }
 
-#[derive(Eq, PartialEq, Clone, Debug)]
+#[derive(Eq, PartialEq, Copy, Clone, Debug)]
 pub enum Keypad {
 	Enter,
 	Home,

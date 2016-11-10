@@ -55,13 +55,10 @@ pub fn parse(i: &[u8]) -> Input {
 	let mut length = WIDTH[i[0] as usize] as usize;
 	let mut ascii  = length == 1;
 
-	if length == 0 {
-		return Input::Error(0);
-	}
-	else if i.len() < length {
+	if i.len() < length {
 		return Input::Incomplete(None);
 	}
-	else if !ascii && str::from_utf8(&i[..length]).is_err() {
+	else if length == 0 || (!ascii && str::from_utf8(&i[..length]).is_err()) {
 		return Input::Error(length);
 	}
 
@@ -74,13 +71,10 @@ pub fn parse(i: &[u8]) -> Input {
 			ascii = false;
 		}
 
-		if w == 0 {
-			break;
-		}
-		else if rest.len() < w {
+		if rest.len() < w {
 			return Input::Incomplete(Some(w - rest.len()));
 		}
-		else if !ascii && str::from_utf8(&rest[..w]).is_err() {
+		else if w == 0 || (!ascii && str::from_utf8(&rest[..w]).is_err()) {
 			break;
 		}
 
