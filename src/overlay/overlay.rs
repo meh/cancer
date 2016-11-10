@@ -380,7 +380,14 @@ impl Overlay {
 
 	pub fn mouse(&mut self, mouse: Mouse) -> (vec::IntoIter<Action>, touched::Iter) {
 		let command = match mouse {
-			_ => Command::None,
+			Mouse::Click(mouse::Click { button: mouse::Button::Up, .. }) =>
+				Command::Scroll(command::Scroll::Up(1)),
+
+			Mouse::Click(mouse::Click { button: mouse::Button::Down, .. }) =>
+				Command::Scroll(command::Scroll::Down(1)),
+
+			_ =>
+				Command::None,
 		};
 
 		let actions = self.handle(command);
