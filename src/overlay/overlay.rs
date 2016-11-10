@@ -380,6 +380,9 @@ impl Overlay {
 
 	pub fn mouse(&mut self, mouse: Mouse) -> (vec::IntoIter<Action>, touched::Iter) {
 		let command = match mouse {
+			Mouse::Click(mouse::Click { button: mouse::Button::Left, press: false, position, .. }) =>
+				Command::Move(command::Move::To(position.x, position.y)),
+
 			Mouse::Click(mouse::Click { button: mouse::Button::Up, .. }) =>
 				Command::Scroll(command::Scroll::Up(1)),
 
@@ -447,6 +450,11 @@ impl Overlay {
 				}
 
 				self.touched.all();
+				overlay!(self; status position!);
+			}
+
+			Command::Move(command::Move::To(x, y)) => {
+				overlay!(self; cursor Position(Some(x), Some(y)));
 				overlay!(self; status position!);
 			}
 

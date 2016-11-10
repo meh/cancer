@@ -43,6 +43,7 @@ pub enum Move {
 	Down(u32),
 	Start,
 	End,
+	To(u32, u32),
 }
 
 #[derive(Eq, PartialEq, Copy, Clone, Debug)]
