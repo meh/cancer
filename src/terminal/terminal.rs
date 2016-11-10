@@ -46,6 +46,7 @@ pub struct Terminal {
 	cache:   Option<Vec<u8>>,
 	touched: Touched,
 	mode:    Mode,
+	click:   Option<mouse::Click>,
 
 	scroll: Option<u32>,
 	grid:   Grid,
@@ -137,6 +138,7 @@ impl Terminal {
 			cache:   Default::default(),
 			touched: Touched::default(),
 			mode:    Mode::default(),
+			click:   None,
 
 			scroll: None,
 			grid:   grid,
@@ -604,6 +606,89 @@ impl Terminal {
 	pub fn mouse<O: Write>(&mut self, mouse: Mouse, mut output: O) -> io::Result<()> {
 		debug!(target: "cancer::terminal::mouse", "mouse {:?}", mouse);
 
+		// If none of the mouse reporting modes are set, bail out.
+		if !self.mode.intersects(mode::MOUSE) {
+			return Ok(());
+		}
+
+		// Build the proper click event.
+		let click = match mouse {
+			Mouse::Click(click) =>
+				click,
+
+			Mouse::Motion(motion) => {
+				// If no button is being clicked, motions aren't reported.
+				if let Some(mut click) = self.click {
+					// Don't report the same position twice.
+					if click.position == motion.position {
+						return Ok(());
+					}
+
+					click.position = motion.position;
+					click
+				}
+				else if self.mode.contains(mode::MOUSE_MANY) {
+					mouse::Click {
+						press:    false,
+						modifier: motion.modifier,
+						button:   mouse::Button::Middle,
+						position: motion.position,
+					}
+				}
+				else {
+					return Ok(());
+				}
+			}
+		};
+
+		// Reset the click on button release.
+		if !click.press {
+			self.click = None;
+		}
+		else if click.button != mouse::Button::Up && click.button != mouse::Button::Down {
+			self.click = Some(click);
+		}
+
+		let mut button = if !self.mode.contains(mode::MOUSE_SGR) && !click.press {
+			3
+		}
+		else {
+			match click.button {
+				mouse::Button::Left   => 0,
+				mouse::Button::Middle => 1,
+				mouse::Button::Right  => 2,
+				mouse::Button::Up     => 64,
+				mouse::Button::Down   => 65,
+			}
+		};
+
+		if !self.mode.contains(mode::MOUSE_X10) {
+			if click.modifier.contains(key::SHIFT) {
+				button += 4;
+			}
+
+			if click.modifier.contains(key::ALT) {
+				button += 8;
+			}
+
+			if click.modifier.contains(key::CTRL) {
+				button += 16;
+			}
+		}
+
+		if self.mode.contains(mode::MOUSE_SGR) {
+			try!(write!(output, "\x1B[<{button};{x};{y}{mode}",
+				mode = if click.press { 'M' } else { 'm' },
+				button = button, x = click.position.x, y = click.position.y));
+		}
+		else if click.position.x < 223 && click.position.y < 223 {
+			try!(output.write_all(b"\x1B[M"));
+			try!(output.write_all(&[
+				32 + button,
+				32 + click.position.x as u8 + 1,
+				32 + click.position.y as u8 + 1]));
+		}
+
 		Ok(())
 	}
 
@@ -790,17 +875,16 @@ impl Terminal {
 						2004 =>
 							self.mode.insert(mode::BRACKETED_PASTE),
 
-						9 =>
-							self.mode.insert(mode::MOUSE_X10),
-
-						1000 =>
-							self.mode.insert(mode::MOUSE_BUTTON),
-
-						1002 =>
-							self.mode.insert(mode::MOUSE_MOTION),
-
-						1003 =>
-							self.mode.insert(mode::MOUSE_MANY),
+						9 | 1000 | 1002 | 1003 => {
+							self.mode.remove(mode::MOUSE);
+							self.mode.insert(match arg {
+								9    => mode::MOUSE_X10,
+								1000 => mode::MOUSE_BUTTON,
+								1002 => mode::MOUSE_MOTION,
+								1003 => mode::MOUSE_MANY,
+								_    => unreachable!()
+							});
+						}
 
 						1006 =>
 							self.mode.insert(mode::MOUSE_SGR),
@@ -876,17 +960,8 @@ impl Terminal {
 						2004 =>
 							self.mode.remove(mode::BRACKETED_PASTE),
 
-						9 =>
-							self.mode.remove(mode::MOUSE_X10),
-
-						1000 =>
-							self.mode.remove(mode::MOUSE_BUTTON),
-
-						1002 =>
-							self.mode.remove(mode::MOUSE_MOTION),
-
-						1003 =>
-							self.mode.remove(mode::MOUSE_MANY),
+						9 | 1000 | 1002 | 1003 =>
+							self.mode.remove(mode::MOUSE),
 
 						1006 =>
 							self.mode.remove(mode::MOUSE_SGR),

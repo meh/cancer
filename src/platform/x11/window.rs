@@ -295,38 +295,26 @@ impl Window {
 										_ => continue,
 									};
 
-									let mut modifier = key::Modifier::empty();
-									{
-										if (event.state() as u32 & xcb::MOD_MASK_SHIFT) != 0 {
-											modifier.insert(key::SHIFT);
-										}
-
-										if (event.state() as u32 & xcb::MOD_MASK_CONTROL) != 0 {
-											modifier.insert(key::CTRL);
-										}
-
-										if (event.state() as u32 & xcb::MOD_MASK_4) != 0 {
-											modifier.insert(key::ALT);
-										}
-									}
-
-									try!(return sender.send(Event::Mouse(Mouse::Click {
+									try!(return sender.send(Event::Mouse(Mouse::Click(mouse::Click {
 										press:    press,
 										button:   button,
-										modifier: modifier,
+										modifier: key::Modifier::from(event.state()),
 										position: mouse::Position {
 											x: event.event_x() as u32,
 											y: event.event_y() as u32,
 										}
-									})));
+									}))));
 								}
 
 								xcb::MOTION_NOTIFY => {
 									let event = xcb::cast_event::<xcb::MotionNotifyEvent>(&event);
 
-									try!(return sender.send(Event::Mouse(Mouse::Motion(mouse::Position {
-										x: event.event_x() as u32,
-										y: event.event_y() as u32,
+									try!(return sender.send(Event::Mouse(Mouse::Motion(mouse::Motion {
+										modifier: key::Modifier::from(event.state()),
+										position: mouse::Position {
+											x: event.event_x() as u32,
+											y: event.event_y() as u32,
+										}
 									}))));
 								}
 
@@ -409,5 +397,25 @@ impl Window {
 	/// Flush the surface and connection.
 	pub fn flush(&self) {
 		self.connection.flush();
+	}
+}
+
+impl From<u16> for key::Modifier {
+	fn from(value: u16) -> Self {
+		let mut result = key::Modifier::empty();
+
+		if (value as u32 & xcb::MOD_MASK_SHIFT) != 0 {
+			result.insert(key::SHIFT);
+		}
+
+		if (value as u32 & xcb::MOD_MASK_CONTROL) != 0 {
+			result.insert(key::CTRL);
+		}
+
+		if (value as u32 & xcb::MOD_MASK_4) != 0 {
+			result.insert(key::ALT);
+		}
+
+		result
 	}
 }

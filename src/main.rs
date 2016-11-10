@@ -80,8 +80,9 @@ pub use overlay::Overlay;
 mod style;
 
 mod platform;
-use platform::{Event, Window, Tty, Mouse};
+use platform::{Event, Window, Tty};
 use platform::key;
+use platform::mouse::{self, Mouse};
 
 mod renderer;
 use renderer::Renderer;
@@ -325,7 +326,8 @@ fn main() {
 
 					Event::Mouse(mut event) => {
 						match event {
-							Mouse::Click { ref mut position, .. } | Mouse::Motion(ref mut position) => {
+							Mouse::Click(mouse::Click { ref mut position, .. }) |
+							Mouse::Motion(mouse::Motion { ref mut position, .. }) => {
 								if let Some((x, y)) = renderer.position(position.x, position.y) {
 									position.x = x;
 									position.y = y;
