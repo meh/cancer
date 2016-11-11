@@ -64,7 +64,7 @@ impl Free {
 			None => {
 				Row {
 					inner: vec_deque![Cell::empty(self.empty.clone()); cols],
-					wrap:  false
+					wrap:  false,
 				}
 			}
 		}
