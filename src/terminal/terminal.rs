@@ -708,11 +708,7 @@ impl Terminal {
 
 		debug!(target: "cancer::terminal::input::raw", "input: {:?}", input);
 
-		loop {
-			if input.is_empty() {
-				break;
-			}
-
+		while !input.is_empty() {
 			// Try to parse the rest of the input.
 			let item = match control::parse(input) {
 				// No control code.
