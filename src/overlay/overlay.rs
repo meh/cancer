@@ -27,11 +27,10 @@ use picto::Region;
 use error;
 use platform::key::{self, Key};
 use platform::mouse::{self, Mouse};
-use terminal::{Access, Action, Terminal, Cursor, Iter};
+use terminal::{Access, Action, Terminal, Cursor, Iter, Row};
 use terminal::touched::{self, Touched};
 use terminal::cell::{self, Cell};
 use terminal::cursor;
-use terminal::grid;
 use overlay::{Status, Selection};
 use overlay::command::{self, Command};
 
@@ -206,7 +205,7 @@ impl Overlay {
 		self.changed.get_mut(&(x, offset)).unwrap()
 	}
 
-	fn row(&self, y: u32) -> &grid::Row {
+	fn row(&self, y: u32) -> &Row {
 		let back = self.inner.grid().back();
 		let view = self.inner.grid().view();
 
@@ -606,7 +605,7 @@ impl Overlay {
 	fn selection(&self) -> Option<String> {
 		/// Find the index of the first non-empty cell followed by only empty
 		/// cells.
-		fn edge(row: &grid::Row, start: u32, end: u32) -> u32 {
+		fn edge(row: &Row, start: u32, end: u32) -> u32 {
 			let mut found = None;
 
 			for x in start .. end {

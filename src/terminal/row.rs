@@ -15,42 +15,35 @@
 // You should have received a copy of the GNU General Public License
 // along with cancer.  If not, see <http://www.gnu.org/licenses/>.
 
-pub trait Access {
-	fn access(&self, x: u32, y: u32) -> &Cell;
+use std::collections::VecDeque;
+use std::ops::{Deref, DerefMut};
+
+use terminal::Cell;
+
+/// A row within the view or scroll back.
+#[derive(PartialEq, Clone, Debug)]
+pub struct Row {
+	pub(super) inner: VecDeque<Cell>,
+	pub(super) wrap:  bool,
 }
 
-mod iter;
-pub use self::iter::Iter;
+impl Row {
+	/// Check if the `Row` is wrapping.
+	pub fn wrap(&self) -> bool {
+		self.wrap
+	}
+}
 
-pub mod cell;
-pub use self::cell::Cell;
+impl Deref for Row {
+	type Target = VecDeque<Cell>;
 
-mod row;
-pub use self::row::Row;
+	fn deref(&self) -> &Self::Target {
+		&self.inner
+	}
+}
 
-mod free;
-pub use self::free::Free;
-
-pub mod touched;
-pub use self::touched::Touched;
-
-pub mod mode;
-pub use self::mode::Mode;
-
-pub mod cursor;
-pub use self::cursor::Cursor;
-
-pub mod grid;
-pub use self::grid::Grid;
-
-mod tabs;
-pub use self::tabs::Tabs;
-
-mod input;
-pub use self::input::Input;
-
-mod terminal;
-pub use self::terminal::Terminal;
-
-mod action;
-pub use self::action::Action;
+impl DerefMut for Row {
+	fn deref_mut(&mut self) -> &mut Self::Target {
+		&mut self.inner
+	}
+}

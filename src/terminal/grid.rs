@@ -23,7 +23,7 @@ use std::rc::Rc;
 use itertools::Itertools;
 use util::clamp;
 use style::Style;
-use terminal::{Access, Cell};
+use terminal::{Access, Cell, Row, Free};
 
 #[derive(Debug)]
 pub struct Grid {
@@ -34,86 +34,6 @@ pub struct Grid {
 	free: Free,
 	back: VecDeque<Row>,
 	view: VecDeque<Row>,
-}
-
-#[derive(Debug)]
-pub struct Free {
-	empty: Rc<Style>,
-	inner: LinkedList<Row>
-}
-
-impl Free {
-	pub fn new() -> Self {
-		Free {
-			empty: Rc::new(Style::default()),
-			inner: LinkedList::new(),
-		}
-	}
-
-	/// Get the empty `Style`.
-	pub fn style(&self) -> Rc<Style> {
-		self.empty.clone()
-	}
-
-	/// Create an empty `Cell`.
-	pub fn cell(&self) -> Cell {
-		Cell::empty(self.empty.clone())
-	}
-
-	/// Reuse or create a new `Row`.
-	pub fn pop(&mut self, cols: usize) -> Row {
-		match self.inner.pop_front() {
-			Some(mut row) => {
-				row.wrap = false;
-				row.resize(cols, Cell::empty(self.empty.clone()));
-
-				for cell in row.iter_mut().filter(|c| !c.is_default()) {
-					cell.make_empty(self.empty.clone());
-				}
-
-				row
-			}
-
-			None => {
-				Row {
-					inner: vec_deque![Cell::empty(self.empty.clone()); cols],
-					wrap:  false
-				}
-			}
-		}
-	}
-
-	/// Push a `Row` for reuse.
-	pub fn push(&mut self, row: Row) {
-		self.inner.push_front(row);
-	}
-}
-
-/// A row within the view or scroll back.
-#[derive(PartialEq, Clone, Debug)]
-pub struct Row {
-	inner: VecDeque<Cell>,
-	wrap:  bool,
-}
-
-impl Row {
-	pub fn wrap(&self) -> bool {
-		self.wrap
-	}
-}
-
-impl Deref for Row {
-	type Target = VecDeque<Cell>;
-
-	fn deref(&self) -> &Self::Target {
-		&self.inner
-	}
-}
-
-impl DerefMut for Row {
-	fn deref_mut(&mut self) -> &mut Self::Target {
-		&mut self.inner
-	}
 }
 
 impl Grid {
