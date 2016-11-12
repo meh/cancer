@@ -317,21 +317,19 @@ impl Overlay {
 				"\x16" | "v" if key.modifier() == key::CTRL =>
 					Command::Select(command::Select::Block),
 
-				"y" if key.modifier().is_empty() => {
+				"y" if key.modifier().is_empty() =>
 					Command::Copy(match times {
 						Some(1) => "PRIMARY",
 						Some(2) => "SECONDARY",
 						_       => "CLIPBOARD",
-					}.into())
-				}
+					}.into()),
 
-				"p" if key.modifier().is_empty() => {
+				"p" if key.modifier().is_empty() =>
 					Command::Paste(match times {
 						Some(1) => "PRIMARY",
 						Some(2) => "SECONDARY",
 						_       => "CLIPBOARD",
-					}.into())
-				}
+					}.into()),
 
 				_ => {
 					debug!(target: "cancer::overlay::unhandled", "key {:?}", key);
