@@ -17,5 +17,5 @@ You also have to run the following command to make sure the terminal
 capabilities are installed.
 
 ```shell
-tic assets/cancer.info
+cancer -T | tic -
 ```
