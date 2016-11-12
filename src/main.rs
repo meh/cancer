@@ -125,7 +125,16 @@ fn main() {
 			.long("term")
 			.takes_value(true).
 			help("Specify the TERM environment variable to use."))
+		.arg(Arg::with_name("tic")
+			.short("T")
+			.long("tic")
+			.help("Print the terminfo database to stdout and exit."))
 		.get_matches();
+
+	if matches.is_present("tic") {
+		print!("{}", include_str!("../assets/cancer.info"));
+		return;
+	}
 
 	let     config    = Arc::new(Config::load(matches.value_of("config")).unwrap());
 	let     font      = Arc::new(Font::load(matches.value_of("font").unwrap_or(config.style().font())).unwrap());
