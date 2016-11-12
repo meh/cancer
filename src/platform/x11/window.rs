@@ -234,6 +234,11 @@ impl Window {
 									try!(return sender.send(Event::Redraw(Region::from(x, y, w, h))));
 								}
 
+								xcb::MAP_NOTIFY => {
+									try!(return sender.send(Event::Redraw(Region::from(0, 0,
+										width.load(Ordering::Relaxed), height.load(Ordering::Relaxed)))));
+								}
+
 								xcb::FOCUS_IN | xcb::FOCUS_OUT => {
 									let value = event.response_type() == xcb::FOCUS_IN;
 
