@@ -264,16 +264,16 @@ impl Overlay {
 				"i" if key.modifier().is_empty() =>
 					Command::Exit,
 
-				"\x19" | "e" if key.modifier() == key::CTRL =>
+				"e" if key.modifier() == key::CTRL =>
 					Command::Scroll(command::Scroll::Up(times.unwrap_or(1))),
 
-				"\x05" | "e" if key.modifier() == key::CTRL =>
+				"e" if key.modifier() == key::CTRL =>
 					Command::Scroll(command::Scroll::Down(times.unwrap_or(1))),
 
-				"\x15" | "u" if key.modifier() == key::CTRL =>
+				"u" if key.modifier() == key::CTRL =>
 					Command::Scroll(command::Scroll::PageUp(times.unwrap_or(1))),
 
-				"\x04" | "d" if key.modifier() == key::CTRL =>
+				"d" if key.modifier() == key::CTRL =>
 					Command::Scroll(command::Scroll::PageDown(times.unwrap_or(1))),
 
 				"$" =>
@@ -314,7 +314,7 @@ impl Overlay {
 				"v" if key.modifier().is_empty() =>
 					Command::Select(command::Select::Normal),
 
-				"\x16" | "v" if key.modifier() == key::CTRL =>
+				"v" if key.modifier() == key::CTRL =>
 					Command::Select(command::Select::Block),
 
 				"y" if key.modifier().is_empty() =>

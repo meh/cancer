@@ -294,7 +294,19 @@ impl Terminal {
 					try!(output.write_all(b"\x1B"));
 				}
 
-				output.write_all(string.as_bytes())
+				if key.modifier().contains(key::CTRL) && string.len() == 1 {
+					let ch = string.as_bytes()[0];
+
+					if ch >= b'a' && ch <= b'z' {
+						output.write_all(&[ch - b'a' + 1])
+					}
+					else {
+						output.write_all(string.as_bytes())
+					}
+				}
+				else {
+					output.write_all(string.as_bytes())
+				}
 			}
 
 			Value::Button(Button::Tab) => write! {

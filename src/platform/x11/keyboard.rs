@@ -260,10 +260,18 @@ impl Keyboard {
 				Keypad::Number((symbol - keysyms::KEY_KP_0) as u8).into(),
 
 			_ => {
-				let string = self.string(code);
+				let mut string = self.string(code);
 
 				if string.is_empty() {
 					return None;
+				}
+
+				if modifier.contains(key::CTRL) && string.len() == 1 {
+					let ch = string.as_bytes()[0];
+
+					if ch >= 1 && ch <= 26 {
+						string = unsafe { String::from_utf8_unchecked(vec![(ch - 1 + b'a')]) };
+					}
 				}
 
 				string.into()
