@@ -16,13 +16,10 @@
 // along with cancer.  If not, see <http://www.gnu.org/licenses/>.
 
 use std::mem;
-use std::ops::{Deref, DerefMut};
-use std::collections::{VecDeque, LinkedList};
-use std::rc::Rc;
+use std::collections::VecDeque;
 
 use itertools::Itertools;
 use util::clamp;
-use style::Style;
 use terminal::{Access, Cell, Row, Free};
 
 #[derive(Debug)]

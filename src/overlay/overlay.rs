@@ -404,7 +404,7 @@ impl Overlay {
 			Mouse::Click(mouse::Click { button: mouse::Button::Left, press: false, position, .. }) =>
 				Command::Move(command::Move::To(position.x, position.y)),
 
-			Mouse::Click(mouse::Click { button: mouse::Button::Middle, press: false, position, .. }) =>
+			Mouse::Click(mouse::Click { button: mouse::Button::Middle, press: false, .. }) =>
 				Command::Paste("PRIMARY".into()),
 
 			Mouse::Click(mouse::Click { button: mouse::Button::Up, .. }) =>

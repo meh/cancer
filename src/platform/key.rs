@@ -17,9 +17,9 @@
 
 #[derive(Eq, Clone, Debug)]
 pub struct Key {
+	value:    Value,
 	modifier: Modifier,
 	lock:     Lock,
-	value:    Value,
 }
 
 impl PartialEq for Key {
@@ -140,9 +140,9 @@ impl From<Keypad> for Value {
 impl Key {
 	pub fn new(value: Value, modifier: Modifier, lock: Lock) -> Self {
 		Key {
+			value:    value,
 			modifier: modifier,
 			lock:     lock,
-			value:    value,
 		}
 	}
 
