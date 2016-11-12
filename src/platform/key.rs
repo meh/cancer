@@ -15,11 +15,17 @@
 // You should have received a copy of the GNU General Public License
 // along with cancer.  If not, see <http://www.gnu.org/licenses/>.
 
-#[derive(Eq, PartialEq, Clone, Debug)]
+#[derive(Eq, Clone, Debug)]
 pub struct Key {
 	modifier: Modifier,
 	lock:     Lock,
 	value:    Value,
+}
+
+impl PartialEq for Key {
+	fn eq(&self, other: &Key) -> bool {
+		self.modifier == other.modifier && self.value == other.value
+	}
 }
 
 bitflags! {
