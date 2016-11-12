@@ -22,7 +22,7 @@ use xcbu::ewmh;
 use xkbcommon::xkb::{self, keysyms};
 
 use error;
-use platform::key::{self, Key, Button, Keypad, Modifier};
+use platform::key::{self, Key, Button, Keypad, Modifier, Lock};
 
 pub struct Keyboard {
 	connection: Arc<ewmh::Connection>,
@@ -137,10 +137,12 @@ impl Keyboard {
 		const MODIFIERS: &[(&str, Modifier)] = &[
 			(xkb::MOD_NAME_ALT,   key::ALT),
 			(xkb::MOD_NAME_CTRL,  key::CTRL),
-			(xkb::MOD_NAME_CAPS,  key::CAPS),
 			(xkb::MOD_NAME_LOGO,  key::LOGO),
-			(xkb::MOD_NAME_NUM,   key::NUM),
 			(xkb::MOD_NAME_SHIFT, key::SHIFT)];
+
+		const LOCKS: &[(&str, Lock)] = &[
+			(xkb::MOD_NAME_CAPS, key::CAPS),
+			(xkb::MOD_NAME_NUM,  key::NUM)];
 
 		let modifier = MODIFIERS.iter().fold(Modifier::empty(), |modifier, &(n, m)|
 			if self.state.mod_name_is_active(&n, xkb::STATE_MODS_EFFECTIVE) {
@@ -148,6 +150,14 @@ impl Keyboard {
 			}
 			else {
 				modifier
+			});
+
+		let lock = LOCKS.iter().fold(Lock::empty(), |lock, &(n, m)|
+			if self.state.mod_name_is_active(&n, xkb::STATE_MODS_EFFECTIVE) {
+				lock | m
+			}
+			else {
+				lock
 			});
 
 		let symbol = self.symbol(code);
@@ -258,6 +268,6 @@ impl Keyboard {
 
 				string.into()
 			}
-		}, modifier))
+		}, modifier, lock))
 	}
 }

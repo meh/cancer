@@ -18,17 +18,15 @@
 #[derive(Eq, PartialEq, Clone, Debug)]
 pub struct Key {
 	modifier: Modifier,
+	lock:     Lock,
 	value:    Value,
 }
 
 bitflags! {
 	pub flags Modifier: u8 {
-		const NONE  = 0,
 		const ALT   = 1 << 0,
-		const CAPS  = 1 << 1,
 		const CTRL  = 1 << 2,
 		const LOGO  = 1 << 4,
-		const NUM   = 1 << 5,
 		const SHIFT = 1 << 6,
 	}
 }
@@ -36,6 +34,19 @@ bitflags! {
 impl Default for Modifier {
 	fn default() -> Self {
 		Modifier::empty()
+	}
+}
+
+bitflags! {
+	pub flags Lock: u8 {
+		const CAPS = 1 << 0,
+		const NUM  = 1 << 1,
+	}
+}
+
+impl Default for Lock {
+	fn default() -> Self {
+		Lock::empty()
 	}
 }
 
@@ -121,9 +132,10 @@ impl From<Keypad> for Value {
 }
 
 impl Key {
-	pub fn new(value: Value, modifier: Modifier) -> Self {
+	pub fn new(value: Value, modifier: Modifier, lock: Lock) -> Self {
 		Key {
 			modifier: modifier,
+			lock:     lock,
 			value:    value,
 		}
 	}

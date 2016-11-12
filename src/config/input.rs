@@ -26,7 +26,7 @@ pub struct Input {
 impl Default for Input {
 	fn default() -> Self {
 		Input {
-			prefix: Key::new("a".to_string().into(), key::LOGO),
+			prefix: Key::new("a".to_string().into(), key::LOGO, Default::default()),
 		}
 	}
 }
@@ -48,7 +48,7 @@ fn to_key<T: AsRef<str>>(value: T) -> Key {
 	let mut modifiers = value.split('-').collect::<Vec<&str>>();
 	let     button    = modifiers.pop().unwrap().to_lowercase();
 
-	let modifiers = modifiers.iter().fold(key::NONE, |acc, modifier|
+	let modifiers = modifiers.iter().fold(Default::default(), |acc, modifier|
 		match *modifier {
 			"C" => acc | key::CTRL,
 			"A" => acc | key::ALT,
@@ -101,5 +101,5 @@ fn to_key<T: AsRef<str>>(value: T) -> Key {
 			button.into()
 	};
 
-	Key::new(key, modifiers)
+	Key::new(key, modifiers, Default::default())
 }
