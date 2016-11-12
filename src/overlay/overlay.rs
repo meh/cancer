@@ -99,8 +99,10 @@ macro_rules! overlay {
 	});
 
 	($term:ident; unselect) => ({
-		Overlay::unselect($term.select.take().unwrap(), &mut $term.changed);
-		$term.touched.all();
+		if let Some(select) = $term.select.take() {
+			Overlay::unselect(select, &mut $term.changed);
+			$term.touched.all();
+		}
 	});
 
 	($term:ident; status mode $name:expr) => ({
