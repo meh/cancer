@@ -315,21 +315,20 @@ impl Overlay {
 				"\x16" | "v" if key.modifier() == key::CTRL =>
 					Command::Select(command::Select::Block),
 
-				"y" if key.modifier().is_empty() =>
-					Command::Copy("CLIPBOARD".into()),
-
-				"\"" => {
-					self.prefix = Some(b'"');
-					Command::None
+				"y" if key.modifier().is_empty() => {
+					Command::Copy(match times {
+						Some(1) => "PRIMARY",
+						Some(2) => "SECONDARY",
+						_       => "CLIPBOARD",
+					}.into())
 				}
 
 				"p" if key.modifier().is_empty() => {
-					if prefix == Some(b'"') {
-						Command::Paste("PRIMARY".into())
-					}
-					else {
-						Command::Paste("CLIPBOARD".into())
-					}
+					Command::Paste(match times {
+						Some(1) => "PRIMARY",
+						Some(2) => "SECONDARY",
+						_       => "CLIPBOARD",
+					}.into())
 				}
 
 				_ => {
@@ -616,8 +615,10 @@ impl Overlay {
 			Command::Copy(name) => {
 				if let Some(selection) = self.selection() {
 					overlay!(self; status mode "NORMAL");
-					actions.push(Action::Copy(name, selection));
 					overlay!(self; unselect);
+
+					actions.push(Action::Overlay(false));
+					actions.push(Action::Copy(name, selection));
 				}
 			}
 
