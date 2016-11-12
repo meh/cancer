@@ -430,7 +430,15 @@ impl Overlay {
 
 		match command {
 			Command::None => (),
-			Command::Exit => actions.push(Action::Overlay(false)),
+			Command::Exit => {
+				if self.select.is_some() {
+					overlay!(self; unselect);
+					overlay!(self; status mode "NORMAL")
+				}
+				else {
+					actions.push(Action::Overlay(false));
+				}
+			}
 
 			Command::Scroll(command::Scroll::Up(times)) => {
 				for _ in 0 .. times {
