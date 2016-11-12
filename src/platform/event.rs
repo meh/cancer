@@ -29,6 +29,9 @@ pub enum Event {
 	/// Window resize.
 	Resize(u32, u32),
 
+	/// Paste request.
+	Paste(Vec<u8>),
+
 	/// Key press.
 	Key(Key),
 

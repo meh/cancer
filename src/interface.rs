@@ -20,8 +20,9 @@ use std::vec;
 
 use picto::Region;
 use error;
+use config::Config;
 use platform::{Key, Mouse};
-use terminal::{Access, Terminal, Mode, Action, Iter, Cell};
+use terminal::{Access, Terminal, Mode, Iter, Cell};
 use terminal::{cursor, touched};
 use overlay::Overlay;
 
@@ -31,7 +32,26 @@ pub enum Interface {
 	Overlay(Overlay),
 }
 
+#[derive(Eq, PartialEq, Clone, Debug)]
+pub enum Action {
+	Overlay(bool),
+	Title(String),
+	Resize(u32, u32),
+	Copy(String, String),
+	Paste(String),
+}
+
 impl Interface {
+	pub fn config(&self) -> &Config {
+		match *self {
+			Interface::Terminal(ref terminal) =>
+				terminal.config(),
+
+			Interface::Overlay(ref overlay) =>
+				overlay.config(),
+		}
+	}
+
 	pub fn overlay(&self) -> bool {
 		if let Interface::Terminal(..) = *self {
 			false
@@ -134,10 +154,14 @@ impl Interface {
 	}
 
 	pub fn key<O: Write>(&mut self, key: Key, output: O) -> error::Result<(vec::IntoIter<Action>, touched::Iter)> {
+		if &key == self.config().input().prefix() {
+			return Ok((vec![Action::Overlay(!self.overlay())].into_iter(), touched::Iter::empty()));
+		}
+
 		match *self {
 			Interface::Terminal(ref mut terminal) => {
 				try!(terminal.key(key, output));
-				Ok((Vec::new().into_iter(), touched::Iter::empty(terminal.region())))
+				Ok((Vec::new().into_iter(), touched::Iter::empty()))
 			}
 
 			Interface::Overlay(ref mut overlay) => {
@@ -150,7 +174,7 @@ impl Interface {
 		match *self {
 			Interface::Terminal(ref mut terminal) => {
 				try!(terminal.mouse(mouse, output));
-				Ok((Vec::new().into_iter(), touched::Iter::empty(terminal.region())))
+				Ok((Vec::new().into_iter(), touched::Iter::empty()))
 			}
 
 			Interface::Overlay(ref mut overlay) => {
@@ -167,7 +191,7 @@ impl Interface {
 
 			Interface::Overlay(ref mut overlay) => {
 				overlay.input(input);
-				Ok((Vec::new().into_iter(), touched::Iter::empty(overlay.region())))
+				Ok((Vec::new().into_iter(), touched::Iter::empty()))
 			}
 		}
 	}

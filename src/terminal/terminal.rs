@@ -33,11 +33,12 @@ use config::style::Shape;
 use style::{self, Style};
 use platform::key::{self, Key};
 use platform::mouse::{self, Mouse};
-use terminal::{Access, Iter, Touched, Cell, Tabs, Grid, Action, cell};
+use terminal::{Access, Iter, Touched, Cell, Tabs, Grid, cell};
 use terminal::mode::{self, Mode};
 use terminal::cursor::{self, Cursor};
 use terminal::touched;
 use terminal::input::{self, Input};
+use interface::Action;
 
 #[derive(Debug)]
 pub struct Terminal {
@@ -1468,7 +1469,7 @@ impl Terminal {
 				match parts.next() {
 					Some("set") => {
 						if let (Some(name), Some(string)) = (parts.next(), parts.next()) {
-							actions.push(Action::Clipboard(name.into(), string.into()));
+							actions.push(Action::Copy(name.into(), string.into()));
 						}
 					}
 

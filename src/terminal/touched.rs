@@ -87,8 +87,8 @@ enum State {
 }
 
 impl Iter {
-	pub fn empty(region: Region) -> Self {
-		Iter::new(region, false, Default::default(), Default::default())
+	pub fn empty() -> Self {
+		Iter::new(Region::from(0, 0, 0, 0), false, Default::default(), Default::default())
 	}
 
 	pub fn new(region:   Region,

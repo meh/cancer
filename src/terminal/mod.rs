@@ -51,6 +51,3 @@ pub use self::input::Input;
 
 mod terminal;
 pub use self::terminal::Terminal;
-
-mod action;
-pub use self::action::Action;

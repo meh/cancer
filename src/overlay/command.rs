@@ -18,10 +18,12 @@
 #[derive(Eq, PartialEq, Clone, Debug)]
 pub enum Command {
 	None,
+	Exit,
 	Move(Move),
 	Scroll(Scroll),
 	Select(Select),
-	Copy,
+	Copy(String),
+	Paste(String),
 }
 
 #[derive(Eq, PartialEq, Copy, Clone, Debug)]

@@ -27,12 +27,13 @@ use picto::Region;
 use error;
 use platform::key::{self, Key};
 use platform::mouse::{self, Mouse};
-use terminal::{Access, Action, Terminal, Cursor, Iter, Row};
+use terminal::{Access, Terminal, Cursor, Iter, Row};
 use terminal::touched::{self, Touched};
 use terminal::cell::{self, Cell};
 use terminal::cursor;
 use overlay::{Status, Selection};
 use overlay::command::{self, Command};
+use interface::Action;
 
 pub type Changed = HashMap<(u32, u32), Cell, BuildHasherDefault<FnvHasher>>;
 
@@ -230,6 +231,8 @@ impl Overlay {
 	pub fn key(&mut self, key: Key) -> (vec::IntoIter<Action>, touched::Iter) {
 		use platform::key::{Value, Button, Keypad};
 
+		debug!(target: "cancer::overlay::input", "key {:?}", key);
+
 		// Check if the key is a number that makes operations run N times, if so
 		// bail out early.
 		if let Value::Char(ref ch) = *key.value() {
@@ -253,6 +256,12 @@ impl Overlay {
 
 		let command = match *key.value() {
 			Value::Char(ref ch) => match &**ch {
+				"c" if key.modifier() == key::CTRL =>
+					Command::Exit,
+
+				"i" if key.modifier().is_empty() =>
+					Command::Exit,
+
 				"\x19" | "e" if key.modifier() == key::CTRL =>
 					Command::Scroll(command::Scroll::Up(times.unwrap_or(1))),
 
@@ -283,17 +292,14 @@ impl Overlay {
 				"l" if key.modifier().is_empty() =>
 					Command::Move(command::Move::Right(times.unwrap_or(1))),
 
-				// Scroll to the top.
 				"g" if key.modifier().is_empty() && prefix.is_none() => {
 					self.prefix = Some(b'g');
 					Command::None
 				}
 
-				"g" if key.modifier().is_empty() && prefix == Some(b'g') => {
-					Command::Scroll(command::Scroll::Begin)
-				}
+				"g" if key.modifier().is_empty() && prefix == Some(b'g') =>
+					Command::Scroll(command::Scroll::Begin),
 
-				// Scroll to the end.
 				"G" if key.modifier() == key::SHIFT => {
 					if let Some(times) = times {
 						Command::Scroll(command::Scroll::To(times))
@@ -303,27 +309,39 @@ impl Overlay {
 					}
 				}
 
-				// Region selection.
-				"v" if key.modifier().is_empty() => {
-					Command::Select(command::Select::Normal)
+				"v" if key.modifier().is_empty() =>
+					Command::Select(command::Select::Normal),
+
+				"\x16" | "v" if key.modifier() == key::CTRL =>
+					Command::Select(command::Select::Block),
+
+				"y" if key.modifier().is_empty() =>
+					Command::Copy("CLIPBOARD".into()),
+
+				"\"" => {
+					self.prefix = Some(b'"');
+					Command::None
 				}
 
-				// Block selection.
-				"\x16" | "v" if key.modifier() == key::CTRL => {
-					Command::Select(command::Select::Block)
-				}
-
-				"y" if key.modifier().is_empty() => {
-					Command::Copy
+				"p" if key.modifier().is_empty() => {
+					if prefix == Some(b'"') {
+						Command::Paste("PRIMARY".into())
+					}
+					else {
+						Command::Paste("CLIPBOARD".into())
+					}
 				}
 
 				_ => {
-					debug!(target: "cancer::terminal::overlay::unhandled", "key {:?}", key);
+					debug!(target: "cancer::overlay::unhandled", "key {:?}", key);
 					Command::None
 				}
 			},
 
 			Value::Button(button) => match button {
+				Button::Escape if key.modifier().is_empty() =>
+					Command::Exit,
+
 				Button::PageUp =>
 					Command::Scroll(command::Scroll::PageUp(times.unwrap_or(1))),
 
@@ -342,8 +360,11 @@ impl Overlay {
 				Button::Right =>
 					Command::Move(command::Move::Right(times.unwrap_or(1))),
 
+				Button::Insert if key.modifier() == key::SHIFT =>
+					Command::Paste("PRIMARY".into()),
+
 				_ => {
-					debug!(target: "cancer::terminal::overlay::unhandled", "key {:?}", key);
+					debug!(target: "cancer::overlay::unhandled", "key {:?}", key);
 					Command::None
 				}
 			},
@@ -362,7 +383,7 @@ impl Overlay {
 					Command::Move(command::Move::Right(times.unwrap_or(1))),
 
 				_ => {
-					debug!(target: "cancer::terminal::overlay::unhandled", "key {:?}", key);
+					debug!(target: "cancer::overlay::unhandled", "key {:?}", key);
 					Command::None
 				}
 			},
@@ -378,9 +399,14 @@ impl Overlay {
 	}
 
 	pub fn mouse(&mut self, mouse: Mouse) -> (vec::IntoIter<Action>, touched::Iter) {
+		debug!(target: "cancer::overlay::input", "mouse {:?}", mouse);
+
 		let command = match mouse {
 			Mouse::Click(mouse::Click { button: mouse::Button::Left, press: false, position, .. }) =>
 				Command::Move(command::Move::To(position.x, position.y)),
+
+			Mouse::Click(mouse::Click { button: mouse::Button::Middle, press: false, position, .. }) =>
+				Command::Paste("PRIMARY".into()),
 
 			Mouse::Click(mouse::Click { button: mouse::Button::Up, .. }) =>
 				Command::Scroll(command::Scroll::Up(1)),
@@ -405,6 +431,7 @@ impl Overlay {
 
 		match command {
 			Command::None => (),
+			Command::Exit => actions.push(Action::Overlay(false)),
 
 			Command::Scroll(command::Scroll::Up(times)) => {
 				for _ in 0 .. times {
@@ -586,17 +613,22 @@ impl Overlay {
 				}
 			}
 
-			Command::Copy => {
+			Command::Copy(name) => {
 				if let Some(selection) = self.selection() {
 					overlay!(self; status mode "NORMAL");
-					actions.push(Action::Clipboard("CLIPBOARD".into(), selection));
+					actions.push(Action::Copy(name, selection));
 					overlay!(self; unselect);
 				}
+			}
+
+			Command::Paste(name) => {
+				actions.push(Action::Overlay(false));
+				actions.push(Action::Paste(name));
 			}
 		}
 
 		if let Some(selection) = self.selection() {
-			actions.push(Action::Clipboard("PRIMARY".into(), selection));
+			actions.push(Action::Copy("PRIMARY".into(), selection));
 		}
 
 		actions

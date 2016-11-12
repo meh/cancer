@@ -52,7 +52,8 @@ pub struct Window {
 pub enum Request {
 	Title(String),
 	Resize(u32, u32),
-	Clipboard(String, String),
+	Copy(String, String),
+	Paste(String),
 }
 
 impl Window {
@@ -82,6 +83,7 @@ impl Window {
 						xcb::EVENT_MASK_BUTTON_RELEASE |
 						xcb::EVENT_MASK_POINTER_MOTION |
 						xcb::EVENT_MASK_STRUCTURE_NOTIFY |
+						xcb::EVENT_MASK_PROPERTY_CHANGE |
 						xcb::EVENT_MASK_FOCUS_CHANGE |
 						xcb::EVENT_MASK_EXPOSURE)]);
 
@@ -166,6 +168,7 @@ impl Window {
 				let UTF8_STRING = xcb::intern_atom(&connection, false, "UTF8_STRING").get_reply().unwrap().atom();
 				let STRING      = xcb::ATOM_STRING;
 				let TARGETS     = xcb::intern_atom(&connection, false, "TARGETS").get_reply().unwrap().atom();
+				let SELECTION   = xcb::intern_atom(&connection, false, "CANCER_CLIPBOARD").get_reply().unwrap().atom();
 
 				loop {
 					select! {
@@ -182,7 +185,7 @@ impl Window {
 										(xcb::CONFIG_WINDOW_HEIGHT as u16, h)]);
 								}
 
-								Request::Clipboard(name, value) => {
+								Request::Copy(name, value) => {
 									let atom = match &*name.to_uppercase() {
 										"PRIMARY"   => Some(PRIMARY),
 										"SECONDARY" => Some(SECONDARY),
@@ -195,6 +198,22 @@ impl Window {
 									if let Some(atom) = atom {
 										clipboard.insert(atom, value);
 										xcb::set_selection_owner(&connection, window, atom, xcb::CURRENT_TIME);
+										connection.flush();
+									}
+								}
+
+								Request::Paste(name) => {
+									let atom = match &*name.to_uppercase() {
+										"PRIMARY"   => Some(PRIMARY),
+										"SECONDARY" => Some(SECONDARY),
+										"CLIPBOARD" => Some(CLIPBOARD),
+										_           => None,
+									};
+
+									debug!(target: "cancer::platform::clipboard", "get clipboard: {:?}({:?})", name, atom);
+
+									if let Some(atom) = atom {
+										xcb::convert_selection(&connection, window, atom, UTF8_STRING, SELECTION, xcb::CURRENT_TIME);
 										connection.flush();
 									}
 								}
@@ -280,6 +299,16 @@ impl Window {
 									}
 
 									connection.flush();
+								}
+
+								xcb::PROPERTY_NOTIFY => {
+									let event = xcb::cast_event::<xcb::PropertyNotifyEvent>(&event);
+
+									if event.atom() == SELECTION {
+										let reply = try!(continue icccm::get_text_property(&connection, window, SELECTION).get_reply());
+										xcb::delete_property(&connection, window, SELECTION);
+										try!(return sender.send(Event::Paste(reply.name().as_bytes().to_vec())));
+									}
 								}
 
 								xcb::BUTTON_PRESS | xcb::BUTTON_RELEASE => {
@@ -390,8 +419,13 @@ impl Window {
 	}
 
 	/// Set the clipboard.
-	pub fn clipboard<T1: Into<String>, T2: Into<String>>(&self, name: T1, value: T2) {
-		self.sender.send(Request::Clipboard(name.into(), value.into())).unwrap();
+	pub fn copy<T1: Into<String>, T2: Into<String>>(&self, name: T1, value: T2) {
+		self.sender.send(Request::Copy(name.into(), value.into())).unwrap();
+	}
+
+	/// Request the clipboard contents.
+	pub fn paste<T: Into<String>>(&self, name: T) {
+		self.sender.send(Request::Paste(name.into())).unwrap();
 	}
 
 	/// Flush the surface and connection.

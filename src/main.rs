@@ -69,10 +69,10 @@ mod font;
 use font::Font;
 
 mod terminal;
-use terminal::{Terminal, Action};
+use terminal::Terminal;
 
 mod interface;
-pub use interface::Interface;
+pub use interface::{Interface, Action};
 
 mod overlay;
 pub use overlay::Overlay;
@@ -81,7 +81,6 @@ mod style;
 
 mod platform;
 use platform::{Event, Window, Tty};
-use platform::key;
 use platform::mouse::{self, Mouse};
 
 mod renderer;
@@ -193,17 +192,31 @@ fn main() {
 		});
 
 		(handle $what:expr) => ({
-			let (actions, touched) = try!(continue $what);
+			let actions = {
+				let (actions, touched) = try!(continue $what);
 
-			if touched.all() {
-				batched = true;
-			}
-			else if !batched {
-				render!(touched);
-			}
+				if touched.all() {
+					batched = true;
+				}
+				else if !batched {
+					render!(touched);
+				}
+				
+				actions
+			};
 
 			for action in actions {
 				match action {
+					Action::Overlay(true) => {
+						interface = Overlay::new(try!(return interface.into_inner(tty.by_ref()))).into();
+						render!(interface.region().absolute());
+					}
+
+					Action::Overlay(false) => {
+						interface = try!(return interface.into_inner(tty.by_ref())).into();
+						render!(interface.region().absolute());
+					}
+
 					Action::Title(string) => {
 						window.set_title(string);
 					}
@@ -213,13 +226,17 @@ fn main() {
 						window.resize(width, height);
 					}
 
-					Action::Clipboard(name, value) => {
-						window.clipboard(name, value);
+					Action::Copy(name, value) => {
+						window.copy(name, value);
+					}
+
+					Action::Paste(name) => {
+						window.paste(name)
 					}
 				}
 			}
 
-			try!(break tty.flush());
+			try!(return tty.flush());
 		});
 
 		($iter:expr) => ({
@@ -256,7 +273,7 @@ fn main() {
 			},
 
 			event = events.recv() => {
-				match try!(break event) {
+				match try!(return event) {
 					Event::Redraw(region) => {
 						let options = render!(options!);
 			
@@ -283,13 +300,13 @@ fn main() {
 					}
 
 					Event::Focus(focus) => {
-						try!(break interface.focus(focus, tty.by_ref()));
+						try!(return interface.focus(focus, tty.by_ref()));
 						render!(cursor);
 					}
 
 					Event::Resize(width, height) => {
 						if interface.overlay() {
-							interface = try!(break interface.into_inner(tty.by_ref())).into();
+							interface = try!(return interface.into_inner(tty.by_ref())).into();
 						}
 
 						renderer.resize(width, height);
@@ -299,28 +316,17 @@ fn main() {
 						let columns = renderer.columns();
 
 						if interface.columns() != columns || interface.rows() != rows {
-							try!(break tty.resize(columns, rows));
+							try!(return tty.resize(columns, rows));
 							interface.resize(columns, rows);
 						}
 					}
 
+					Event::Paste(value) => {
+						try!(return tty.write_all(&value));
+						try!(return tty.flush());
+					}
+
 					Event::Key(key) => {
-						if interface.overlay() &&
-						   ((key.value() == &key::Value::Button(key::Button::Escape) && key.modifier().is_empty()) ||
-						    (key.value() == &key::Value::Char("c".into()) && key.modifier() == key::CTRL) ||
-							  (key.value() == &key::Value::Char("i".into()) && key.modifier().is_empty()))
-						{
-							interface = try!(break interface.into_inner(tty.by_ref())).into();
-							render!(interface.region().absolute());
-							continue;
-						}
-
-						if !interface.overlay() && &key == config.input().prefix() {
-							interface = Overlay::new(try!(break interface.into_inner(tty.by_ref()))).into();
-							render!(interface.region().absolute());
-							continue;
-						}
-
 						render!(handle interface.key(key, tty.by_ref()));
 					}
 
@@ -344,7 +350,7 @@ fn main() {
 			},
 
 			input = input.recv() => {
-				let input = try!(break input);
+				let input = try!(return input);
 				render!(handle interface.input(&input, tty.by_ref()));
 			}
 		}
