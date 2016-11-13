@@ -331,7 +331,7 @@ fn main() {
 					}
 
 					Event::Paste(value) => {
-						try!(return tty.write_all(&value));
+						try!(return interface.paste(&value, tty.by_ref()));
 						try!(return tty.flush());
 					}
 

@@ -153,6 +153,18 @@ impl Interface {
 		Ok(())
 	}
 
+	pub fn paste<O: Write>(&mut self, value: &[u8], output: O) -> error::Result<()> {
+		match *self {
+			Interface::Terminal(ref mut terminal) =>
+				try!(terminal.paste(value, output)),
+
+			Interface::Overlay(ref mut overlay) =>
+				try!(overlay.paste(value, output)),
+		}
+
+		Ok(())
+	}
+
 	pub fn key<O: Write>(&mut self, key: Key, output: O) -> error::Result<(vec::IntoIter<Action>, touched::Iter)> {
 		if &key == self.config().input().prefix() {
 			return Ok((vec![Action::Overlay(!self.overlay())].into_iter(), touched::Iter::empty()));

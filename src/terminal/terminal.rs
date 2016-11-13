@@ -246,6 +246,20 @@ impl Terminal {
 		Ok(())
 	}
 
+	pub fn paste<O: Write>(&mut self, value: &[u8], mut output: O) -> io::Result<()> {
+		if self.mode.contains(mode::BRACKETED_PASTE) {
+			try!(output.write_all(b"\x1B[200~"));
+		}
+
+		try!(output.write_all(value));
+
+		if self.mode.contains(mode::BRACKETED_PASTE) {
+			try!(output.write_all(b"\x1B[201~"));
+		}
+
+		Ok(())
+	}
+
 	/// Handle a key.
 	pub fn key<O: Write>(&mut self, key: Key, mut output: O) -> io::Result<()> {
 		use platform::key::{Value, Button, Keypad};
