@@ -248,7 +248,7 @@ impl Terminal {
 
 	/// Handle a key.
 	pub fn key<O: Write>(&mut self, key: Key, mut output: O) -> io::Result<()> {
-		use platform::key::{Value, Button};
+		use platform::key::{Value, Button, Keypad};
 
 		macro_rules! write {
 			() => ();
@@ -323,7 +323,8 @@ impl Terminal {
 				_   => b"\x7F",
 			},
 
-			Value::Button(Button::Enter) => write! {
+			Value::Button(Button::Enter) |
+			Value::Keypad(Keypad::Enter) => write! {
 				ALT # CRLF => b"\x1B\r\n",
 				ALT        => b"\x1B\r",
 
@@ -342,7 +343,8 @@ impl Terminal {
 				_                      => b"\x1B[P",
 			},
 
-			Value::Button(Button::Insert) => write! {
+			Value::Button(Button::Insert) |
+			Value::Keypad(Keypad::Insert) => write! {
 				CTRL # APPLICATION_KEYPAD => b"\x1B[2;5~",
 				CTRL                      => b"\x1B[L",
 
@@ -353,7 +355,8 @@ impl Terminal {
 				_                      => b"\x1B[M",
 			},
 
-			Value::Button(Button::Home) => write! {
+			Value::Button(Button::Home) |
+			Value::Keypad(Keypad::Home) => write! {
 				SHIFT # APPLICATION_CURSOR => b"\x1B[1;2H",
 				SHIFT                      => b"\x1B[2J",
 
@@ -361,7 +364,8 @@ impl Terminal {
 				_                      => b"\x1B[7~",
 			},
 
-			Value::Button(Button::End) => write! {
+			Value::Button(Button::End) |
+			Value::Keypad(Keypad::End) => write! {
 				CTRL # APPLICATION_KEYPAD => b"\x1B[1;5F",
 				CTRL                      => b"\x1B[J",
 
@@ -371,19 +375,26 @@ impl Terminal {
 				_ => b"\x1B[8~",
 			},
 
-			Value::Button(Button::PageUp) => write! {
+			Value::Keypad(Keypad::Begin) => write! {
+				_ => b"\x1B[E",
+			},
+
+			Value::Button(Button::PageUp) |
+			Value::Keypad(Keypad::PageUp) => write! {
 				CTRL  => b"\x1B[5;5~",
 				SHIFT => b"\x1B[5;2~",
 				_     => b"\x1B[5~",
 			},
 
-			Value::Button(Button::PageDown) => write! {
+			Value::Button(Button::PageDown) |
+			Value::Keypad(Keypad::PageDown) => write! {
 				CTRL  => b"\x1B[6;5~",
 				SHIFT => b"\x1B[6;2~",
 				_     => b"\x1B[6~",
 			},
 
-			Value::Button(Button::Up) => write! {
+			Value::Button(Button::Up) |
+			Value::Keypad(Keypad::Up) => write! {
 				CTRL  => b"\x1B[1;5A",
 				ALT   => b"\x1B[1;3A",
 				SHIFT => b"\x1B[1;2A",
@@ -392,7 +403,8 @@ impl Terminal {
 				_                      => b"\x1B[A",
 			},
 
-			Value::Button(Button::Down) => write! {
+			Value::Button(Button::Down) |
+			Value::Keypad(Keypad::Down) => write! {
 				CTRL  => b"\x1B[1;5B",
 				ALT   => b"\x1B[1;3B",
 				SHIFT => b"\x1B[1;2B",
@@ -401,7 +413,8 @@ impl Terminal {
 				_                      => b"\x1B[B",
 			},
 
-			Value::Button(Button::Right) => write! {
+			Value::Button(Button::Right) |
+			Value::Keypad(Keypad::Right) => write! {
 				CTRL  => b"\x1B[1;5C",
 				ALT   => b"\x1B[1;3C",
 				SHIFT => b"\x1B[1;2C",
@@ -410,7 +423,8 @@ impl Terminal {
 				_                      => b"\x1B[C",
 			},
 
-			Value::Button(Button::Left) => write! {
+			Value::Button(Button::Left) |
+			Value::Keypad(Keypad::Left) => write! {
 				CTRL  => b"\x1B[1;5D",
 				ALT   => b"\x1B[1;3D",
 				SHIFT => b"\x1B[1;2D",
@@ -610,7 +624,7 @@ impl Terminal {
 			Value::Button(Button::F(_)) =>
 				unreachable!(),
 
-			Value::Keypad(..) =>
+			Value::Keypad(_) =>
 				unimplemented!(),
 		}
 	}

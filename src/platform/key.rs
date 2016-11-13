@@ -146,11 +146,15 @@ impl Key {
 		}
 	}
 
+	pub fn value(&self) -> &Value {
+		&self.value
+	}
+
 	pub fn modifier(&self) -> Modifier {
 		self.modifier
 	}
 
-	pub fn value(&self) -> &Value {
-		&self.value
+	pub fn lock(&self) -> Lock {
+		self.lock
 	}
 }
