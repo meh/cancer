@@ -15,8 +15,8 @@
 // You should have received a copy of the GNU General Public License
 // along with cancer.  If not, see <http://www.gnu.org/licenses/>.
 
-use std::fs::File;
-use std::io::Read;
+use std::fs::{self, File};
+use std::io::{Read, Write};
 use std::path::Path;
 
 use toml;
@@ -52,8 +52,16 @@ impl Config {
 			path.as_ref().into()
 		}
 		else {
-			app_root(AppDataType::UserConfig, &AppInfo { name: "cancer", author: "meh." })
-				?.join("config.toml")
+			let path = app_root(AppDataType::UserConfig, &AppInfo { name: "cancer", author: "meh." })
+				?.join("config.toml");
+
+			if fs::metadata(&path).is_err() {
+				if let Ok(mut file) = File::create(&path) {
+					let _ = file.write_all(include_bytes!("../../assets/default.toml"));
+				}
+			}
+
+			path
 		};
 
 		let table = if let Ok(mut file) = File::open(path) {

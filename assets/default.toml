@@ -1,0 +1,49 @@
+[environment]
+cache  = 4096
+scroll = 4096
+batch  = 30
+
+[input]
+prefix = "L-a"
+
+[style]
+blink = 500
+bold  = "normal"
+
+margin  = 0
+spacing = 0
+
+[style.color]
+foreground    = "#c0c0c0"
+background    = "#000000"
+underline     = false
+strikethrough = false
+
+[style.cursor]
+shape = "block"
+blink = false
+
+foreground = "#000"
+background = "#fff"
+
+[style.status]
+foreground = "#000000"
+background = "#c0c0c0"
+
+[color]
+0  = "#000000"
+1  = "#cd0000"
+2  = "#00cd00"
+3  = "#cdcd00"
+4  = "#0000cd"
+5  = "#cd00cd"
+6  = "#00cdcd"
+7  = "#e5e5e5"
+8  = "#7f7f7f"
+9  = "#ff0000"
+10 = "#00ff00"
+11 = "#ffff00"
+12 = "#5c5cff"
+13 = "#ff00ff"
+14 = "#00ffff"
+15 = "#ffffff"
