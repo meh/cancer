@@ -3,7 +3,7 @@ name    = "cancer"
 version = "0.1.0"
 
 authors = ["meh. <meh@schizofreni.co>"]
-license = "WTFPL"
+license = "GPL-3"
 
 description = "Terminal cancer."
 repository  = "https://github.com/meh/terme"
