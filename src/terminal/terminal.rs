@@ -719,8 +719,10 @@ impl Terminal {
 
 		if self.mode.contains(mode::MOUSE_SGR) {
 			try!(write!(output, "\x1B[<{button};{x};{y}{mode}",
-				mode = if click.press { 'M' } else { 'm' },
-				button = button, x = click.position.x, y = click.position.y));
+				mode   = if click.press { 'M' } else { 'm' },
+				button = button,
+				x      = click.position.x + 1,
+				y      = click.position.y + 1));
 		}
 		else if click.position.x < 223 && click.position.y < 223 {
 			try!(output.write_all(b"\x1B[M"));
