@@ -58,9 +58,21 @@ impl Config {
 
 		let table = if let Ok(mut file) = File::open(path) {
 			let mut content = String::new();
-			file.read_to_string(&mut content)?;
+			let _ = file.read_to_string(&mut content);
+			let mut parser = toml::Parser::new(&content);
 
-			toml::Parser::new(&content).parse().ok_or(error::Error::Config)?
+			if let Some(table) = parser.parse() {
+				table
+			}
+			else {
+				error!("could not load configuration file");
+
+				for error in &parser.errors {
+					error!("syntax error: {}", error);
+				}
+
+				toml::Table::new()
+			}
 		}
 		else {
 			error!("could not load configuration file");
