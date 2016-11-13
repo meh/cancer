@@ -250,7 +250,7 @@ impl Style {
 	}
 
 	pub fn font(&self) -> &str {
-		self.font.as_ref().map(AsRef::as_ref).unwrap_or("monospace")
+		self.font.as_ref().map(AsRef::as_ref).unwrap_or("monospace 16px")
 	}
 
 	pub fn blink(&self) -> u32 {
