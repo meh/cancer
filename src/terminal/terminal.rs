@@ -1519,6 +1519,10 @@ impl Terminal {
 				}
 			}
 
+			Control::C0(C0::Bell) => {
+				actions.push(Action::Urgent);
+			}
+
 			code => {
 				debug!(target: "cancer::terminal::unhandled", "unhandled control code: {:?}", code);
 			}

@@ -50,6 +50,7 @@ pub struct Window {
 
 #[derive(Eq, PartialEq, Clone, Debug)]
 pub enum Request {
+	Urgent,
 	Title(String),
 	Resize(u32, u32),
 	Copy(String, String),
@@ -61,6 +62,7 @@ impl Window {
 	pub fn open(name: Option<&str>, config: &Config, font: &Font) -> error::Result<Self> {
 		let margin  = config.style().margin();
 		let spacing = config.style().spacing();
+		let bell    = config.environment().bell();
 
 		let mut width  = (80 * font.width()) + (margin * 2);
 		let mut height = (24 * (font.height() + spacing)) + (margin * 2);
@@ -174,6 +176,15 @@ impl Window {
 					select! {
 						request = receiver.recv() => {
 							match try!(return request) {
+								Request::Urgent => {
+									if !focus.load(Ordering::Relaxed) {
+										icccm::set_wm_hints(&connection, window, &icccm::WmHints::empty().is_urgent().build());
+									}
+
+									xcb::bell(&connection, bell);
+									connection.flush();
+								}
+
 								Request::Title(ref title) => {
 									icccm::set_wm_name(&connection, window, title);
 									ewmh::set_wm_name(&connection, window, title);
@@ -431,6 +442,11 @@ impl Window {
 	/// Request the clipboard contents.
 	pub fn paste<T: Into<String>>(&self, name: T) {
 		self.sender.send(Request::Paste(name.into())).unwrap();
+	}
+
+	/// Request urgency.
+	pub fn urgent(&self) {
+		self.sender.send(Request::Urgent).unwrap();
 	}
 
 	/// Flush the surface and connection.

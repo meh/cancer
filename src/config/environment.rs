@@ -23,6 +23,8 @@ pub struct Environment {
 	program: Option<String>,
 	term:    Option<String>,
 
+	bell: i8,
+
 	cache:  usize,
 	scroll: usize,
 	batch:  u32,
@@ -34,6 +36,8 @@ impl Default for Environment {
 			display: None,
 			program: None,
 			term:    None,
+
+			bell: 0,
 
 			cache:  4096,
 			scroll: 4096,
@@ -54,6 +58,10 @@ impl Environment {
 
 		if let Some(value) = table.get("term").and_then(|v| v.as_str()) {
 			self.term = Some(value.into());
+		}
+
+		if let Some(value) = table.get("bell").and_then(|v| v.as_integer()) {
+			self.bell = value as i8;
 		}
 
 		if let Some(value) = table.get("cache") {
@@ -95,6 +103,10 @@ impl Environment {
 
 	pub fn term(&self) -> Option<&str> {
 		self.term.as_ref().map(AsRef::as_ref)
+	}
+
+	pub fn bell(&self) -> i8 {
+		self.bell
 	}
 
 	pub fn cache(&self) -> usize {

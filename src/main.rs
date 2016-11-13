@@ -216,6 +216,10 @@ fn main() {
 
 			for action in actions {
 				match action {
+					Action::Urgent => {
+						window.urgent();
+					}
+
 					Action::Overlay(true) => {
 						interface = Overlay::new(try!(return interface.into_inner(tty.by_ref()))).into();
 						render!(interface.region().absolute());

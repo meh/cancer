@@ -34,6 +34,7 @@ pub enum Interface {
 
 #[derive(Eq, PartialEq, Clone, Debug)]
 pub enum Action {
+	Urgent,
 	Overlay(bool),
 	Title(String),
 	Resize(u32, u32),
