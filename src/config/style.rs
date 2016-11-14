@@ -61,7 +61,7 @@ pub enum Bold {
 
 impl Default for Bold {
 	fn default() -> Self {
-		Bold::Normal
+		Bold::Bright
 	}
 }
 

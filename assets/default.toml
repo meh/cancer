@@ -9,7 +9,7 @@ prefix = "L-a"
 
 [style]
 blink = 500
-bold  = "normal"
+bold  = "bright"
 
 margin  = 0
 spacing = 0
