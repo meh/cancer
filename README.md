@@ -11,8 +11,6 @@ with Cargo after cloning the repository.
 cargo install --force
 ```
 
-Terminfo
---------
 You also have to run the following command to make sure the terminal
 capabilities are installed.
 
