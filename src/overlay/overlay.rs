@@ -78,6 +78,17 @@ macro_rules! overlay {
 		(x, offset)
 	});
 
+	($term:ident; select $before:expr, $after:expr) => ({
+		if $term.selection.is_some() {
+			let s = $term.selection.unwrap();
+			$term.highlight(&s, false);
+			$term.select($before, $after);
+			let s = $term.selection.unwrap();
+			$term.highlight(&s, true);
+			$term.touched.all();
+		}
+	});
+
 	($term:ident; cursor $($travel:tt)*) => ({
 		let before = overlay!($term; cursor absolute);
 		$term.touched.push($term.cursor.position());
@@ -87,16 +98,18 @@ macro_rules! overlay {
 		let after = overlay!($term; cursor absolute);
 		$term.touched.push($term.cursor.position());
 
-		if $term.selection.is_some() {
-			let s = $term.selection.unwrap();
-			$term.highlight(&s, false);
-			$term.select(before, after);
-			let s = $term.selection.unwrap();
-			$term.highlight(&s, true);
-			$term.touched.all();
-		}
+		overlay!($term; select before, after);
 
 		r
+	});
+
+	($term:ident; scroll $block:block) => ({
+		let before = overlay!($term; cursor absolute);
+		$block;
+		let after = overlay!($term; cursor absolute);
+
+		$term.touched.all();
+		overlay!($term; select before, after);
 	});
 
 	($term:ident; status mode $name:expr) => ({
@@ -266,7 +279,7 @@ impl Overlay {
 				"i" if key.modifier().is_empty() =>
 					Command::Exit,
 
-				"e" if key.modifier() == key::CTRL =>
+				"y" if key.modifier() == key::CTRL =>
 					Command::Scroll(command::Scroll::Up(times.unwrap_or(1))),
 
 				"e" if key.modifier() == key::CTRL =>
@@ -444,49 +457,82 @@ impl Overlay {
 				}
 			}
 
-			Command::Scroll(command::Scroll::Up(times)) => {
-				for _ in 0 .. times {
-					let offset = if self.status.is_some() { 1 } else { 0 };
+			Command::Scroll(command::Scroll::Begin) => {
+				overlay!(self; scroll {
+					self.scroll = self.inner.grid().back().len() as u32;
+				});
 
-					if self.scroll < self.inner.grid().back().len() as u32 + offset {
+				overlay!(self; status position!);
+			}
+
+			Command::Scroll(command::Scroll::End) => {
+				overlay!(self; scroll {
+					self.scroll = 0;
+				});
+
+				overlay!(self; status position!);
+			}
+
+			Command::Scroll(command::Scroll::To(n)) => {
+				overlay!(self; scroll {
+					self.scroll = (self.inner.grid().back().len() as u32).saturating_sub(n - 1);
+
+					if self.status.is_some() {
 						self.scroll += 1;
 					}
-				}
+				});
 
-				self.touched.all();
+				overlay!(self; status position!);
+			}
+
+
+			Command::Scroll(command::Scroll::Up(times)) => {
+				overlay!(self; scroll {
+					for _ in 0 .. times {
+						let offset = if self.status.is_some() { 1 } else { 0 };
+
+						if self.scroll < self.inner.grid().back().len() as u32 + offset {
+							self.scroll += 1;
+						}
+					}
+				});
+
 				overlay!(self; status position!);
 			}
 
 			Command::Scroll(command::Scroll::Down(times)) => {
-				for _ in 0 .. times {
-					if self.scroll > 0 {
-						self.scroll -= 1;
+				overlay!(self; scroll {
+					for _ in 0 .. times {
+						if self.scroll > 0 {
+							self.scroll -= 1;
+						}
 					}
-				}
+				});
 
-				self.touched.all();
 				overlay!(self; status position!);
 			}
 
 			Command::Scroll(command::Scroll::PageUp(times)) => {
-				for _ in 0 .. times {
-					self.scroll += self.inner.rows().saturating_sub(3);
+				overlay!(self; scroll {
+					for _ in 0 .. times {
+						self.scroll += self.inner.rows().saturating_sub(3);
 
-					if self.scroll > self.inner.grid().back().len() as u32 {
-						self.scroll = self.inner.grid().back().len().saturating_sub(1) as u32;
+						if self.scroll > self.inner.grid().back().len() as u32 {
+							self.scroll = self.inner.grid().back().len().saturating_sub(1) as u32;
+						}
 					}
-				}
+				});
 
-				self.touched.all();
 				overlay!(self; status position!);
 			}
 
 			Command::Scroll(command::Scroll::PageDown(times)) => {
-				for _ in 0 .. times {
-					self.scroll = self.scroll.saturating_sub(self.inner.rows() - 3);
-				}
+				overlay!(self; scroll {
+					for _ in 0 .. times {
+						self.scroll = self.scroll.saturating_sub(self.inner.rows() - 3);
+					}
+				});
 
-				self.touched.all();
 				overlay!(self; status position!);
 			}
 
@@ -554,31 +600,6 @@ impl Overlay {
 					}
 				}
 
-				overlay!(self; status position!);
-			}
-
-			Command::Scroll(command::Scroll::Begin) => {
-				self.scroll = self.inner.grid().back().len() as u32;
-
-				self.touched.all();
-				overlay!(self; status position!);
-			}
-
-			Command::Scroll(command::Scroll::End) => {
-				self.scroll = 0;
-
-				self.touched.all();
-				overlay!(self; status position!);
-			}
-
-			Command::Scroll(command::Scroll::To(n)) => {
-				self.scroll = (self.inner.grid().back().len() as u32).saturating_sub(n - 1);
-
-				if self.status.is_some() {
-					self.scroll += 1;
-				}
-
-				self.touched.all();
 				overlay!(self; status position!);
 			}
 
