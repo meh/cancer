@@ -148,6 +148,20 @@ impl Cell {
 		mem::replace(self, Cell::Reference(offset));
 	}
 
+	/// Change the style in place.
+	pub fn set_style(&mut self, value: Rc<Style>) {
+		match *self {
+			Cell::Empty { ref mut style, .. } =>
+				*style = value,
+
+			Cell::Occupied { ref mut style, .. } =>
+				*style = value,
+
+			Cell::Reference(..) =>
+				()
+		}
+	}
+
 	/// Get the cell style.
 	pub fn style(&self) -> &Rc<Style> {
 		match *self {

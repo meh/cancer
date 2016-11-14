@@ -15,16 +15,18 @@
 // You should have received a copy of the GNU General Public License
 // along with cancer.  If not, see <http://www.gnu.org/licenses/>.
 
+use std::rc::Rc;
 use std::mem;
 use std::io::Write;
 use std::ops::{Deref, DerefMut};
-use std::collections::HashMap;
 use std::vec;
+use picto::Region;
+use std::collections::HashMap;
 use std::hash::BuildHasherDefault;
 use fnv::FnvHasher;
-use picto::Region;
 
 use error;
+use style::Style;
 use platform::key::{self, Key};
 use platform::mouse::{self, Mouse};
 use terminal::{Access, Terminal, Cursor, Iter, Row};
@@ -35,22 +37,21 @@ use overlay::{Status, Selection};
 use overlay::command::{self, Command};
 use interface::Action;
 
-pub type Changed = HashMap<(u32, u32), Cell, BuildHasherDefault<FnvHasher>>;
-
 #[derive(Debug)]
 pub struct Overlay {
 	inner:   Terminal,
 	cache:   Vec<u8>,
 	touched: Touched,
 
-	scroll:  u32,
-	cursor:  Cursor,
-	changed: Changed,
-	status:  Option<Status>,
+	scroll: u32,
+	cursor: Cursor,
+	view:   HashMap<(u32, u32), Cell, BuildHasherDefault<FnvHasher>>,
+	status: Option<Status>,
 
-	prefix: Option<u8>,
-	times:  Option<u32>,
-	select: Option<Selection>,
+	prefix:    Option<u8>,
+	times:     Option<u32>,
+	selection: Option<Selection>,
+	selected:  Rc<Style>,
 }
 
 macro_rules! overlay {
@@ -86,23 +87,16 @@ macro_rules! overlay {
 		let after = overlay!($term; cursor absolute);
 		$term.touched.push($term.cursor.position());
 
-		overlay!($term; select before, after);
+		if $term.selection.is_some() {
+			let s = $term.selection.unwrap();
+			$term.highlight(&s, false);
+			$term.select(before, after);
+			let s = $term.selection.unwrap();
+			$term.highlight(&s, true);
+			$term.touched.all();
+		}
 
 		r
-	});
-
-	($term:ident; select $before:expr, $after:expr) => ({
-		if let Some(select) = $term.select.as_mut() {
-			Overlay::select(select, &mut $term.changed, $before, $after);
-			$term.touched.all();
-		}
-	});
-
-	($term:ident; unselect) => ({
-		if let Some(select) = $term.select.take() {
-			Overlay::unselect(select, &mut $term.changed);
-			$term.touched.all();
-		}
 	});
 
 	($term:ident; status mode $name:expr) => ({
@@ -117,6 +111,7 @@ macro_rules! overlay {
 			let (x, y) = overlay!($term; cursor absolute);
 			let x      = x + 1;
 			let y      = $term.inner.grid().back().len() as u32 + $term.inner.grid().view().len() as u32 - y;
+
 			overlay!($term; status position (x, y));
 		}
 	});
@@ -146,21 +141,28 @@ impl Overlay {
 			status.position((x, y));
 
 			status
-		});;
+		});
+
+		let mut style = Style::default();
+		style.foreground = Some(*inner.config().style().selection().foreground());
+		style.background = Some(*inner.config().style().selection().background());
+		style.attributes = inner.config().style().selection().attributes();
 
 		Overlay {
 			inner:   inner,
 			touched: Touched::default(),
 			cache:   Vec::new(),
 
-			scroll:  0,
-			cursor:  cursor,
-			changed: Default::default(),
-			status:  status,
+			scroll: 0,
+			cursor: cursor,
+			view:   Default::default(),
+			status: status,
 
 			prefix: None,
 			times:  None,
-			select: None,
+
+			selection: None,
+			selected:  Rc::new(style),
 		}
 	}
 
@@ -184,7 +186,7 @@ impl Overlay {
 			offset -= 1;
 		}
 
-		if let Some(cell) = self.changed.get(&(x, offset)) {
+		if let Some(cell) = self.view.get(&(x, offset)) {
 			return cell;
 		}
 
@@ -200,12 +202,12 @@ impl Overlay {
 		let view   = self.inner.grid().view();
 		let offset = (view.len() as u32 - 1 - y) + self.scroll;
 
-		if !self.changed.contains_key(&(x, offset)) {
+		if !self.view.contains_key(&(x, offset)) {
 			let cell = self.get(x, y).clone();
-			self.changed.insert((x, offset), cell);
+			self.view.insert((x, offset), cell);
 		}
 
-		self.changed.get_mut(&(x, offset)).unwrap()
+		self.view.get_mut(&(x, offset)).unwrap()
 	}
 
 	fn row(&self, y: u32) -> &Row {
@@ -431,9 +433,11 @@ impl Overlay {
 		match command {
 			Command::None => (),
 			Command::Exit => {
-				if self.select.is_some() {
-					overlay!(self; unselect);
-					overlay!(self; status mode "NORMAL")
+				if let Some(selection) = self.selection.take() {
+					overlay!(self; status mode "NORMAL");
+
+					self.highlight(&selection, false);
+					self.touched.all();
 				}
 				else {
 					actions.push(Action::Overlay(false));
@@ -504,7 +508,7 @@ impl Overlay {
 			Command::Move(command::Move::Left(times)) => {
 				for _ in 0 ..times {
 					if overlay!(self; cursor Left(1)).is_some() {
-						if let Some(&Selection::Normal { .. }) = self.select.as_ref() {
+						if let Some(&Selection::Normal { .. }) = self.selection.as_ref() {
 							if overlay!(self; cursor Up(1)).is_some() {
 								self.handle(Command::Scroll(command::Scroll::Up(1)));
 							}
@@ -540,7 +544,7 @@ impl Overlay {
 			Command::Move(command::Move::Right(times)) => {
 				for _ in 0 .. times {
 					if overlay!(self; cursor Right(1)).is_some() {
-						if let Some(&Selection::Normal { .. }) = self.select.as_ref() {
+						if let Some(&Selection::Normal { .. }) = self.selection.as_ref() {
 							if overlay!(self; cursor Down(1)).is_some() {
 								self.handle(Command::Scroll(command::Scroll::Down(1)));
 							}
@@ -579,7 +583,7 @@ impl Overlay {
 			}
 
 			Command::Select(command::Select::Normal) => {
-				match self.select.take() {
+				match self.selection.take() {
 					Some(Selection::Normal { .. }) => {
 						overlay!(self; status mode "NORMAL");
 					}
@@ -594,13 +598,15 @@ impl Overlay {
 						overlay!(self; status mode "VISUAL");
 
 						let (x, y) = overlay!(self; cursor absolute);
-						self.select = Some(Selection::Normal { start: (x, y), end: (x + 1, y) });
+						let s = Selection::Normal { start: (x, y), end: (x + 1, y) };
+						self.selection = Some(s);
+						self.highlight(&s, true);
 					}
 				}
 			}
 
 			Command::Select(command::Select::Block) => {
-				match self.select.take() {
+				match self.selection.take() {
 					Some(Selection::Block(..)) => {
 						overlay!(self; status mode "NORMAL");
 					}
@@ -615,7 +621,7 @@ impl Overlay {
 						overlay!(self; status mode "VISUAL BLOCK");
 
 						let (x, y) = overlay!(self; cursor absolute);
-						self.select = Some(Selection::Block(Region::from(x, y, 1, 1)));
+						self.selection = Some(Selection::Block(Region::from(x, y, 1, 1)));
 					}
 				}
 			}
@@ -623,7 +629,10 @@ impl Overlay {
 			Command::Copy(name) => {
 				if let Some(selection) = self.selection() {
 					overlay!(self; status mode "NORMAL");
-					overlay!(self; unselect);
+
+					let s = self.selection.take().unwrap();
+					self.highlight(&s, false);
+					self.touched.all();
 
 					actions.push(Action::Overlay(false));
 					actions.push(Action::Copy(name, selection));
@@ -663,12 +672,12 @@ impl Overlay {
 			found.unwrap_or(end)
 		}
 
-		match self.select {
+		match self.selection {
 			Some(Selection::Normal { start, end }) => {
 				let mut lines  = vec![];
 				let mut unwrap = None::<Vec<String>>;
 
-				for y in (start.1 ... end.1).rev() {
+				for y in end.1 ... start.1 {
 					let (start, end) = if start.1 == end.1 {
 						(start.0, end.0)
 					}
@@ -708,20 +717,22 @@ impl Overlay {
 				}
 
 				let mut result = String::new();
-				for lines in lines {
+
+				for lines in lines.into_iter().rev() {
 					for line in lines.into_iter().rev() {
 						result.push_str(&line);
 					}
 
 					result.push('\n');
 				}
-				result.pop();
 
+				result.pop();
 				Some(result)
 			}
 
 			Some(Selection::Block(region)) => {
 				let mut result = String::new();
+
 				for y in region.y .. region.y + region.height {
 					let row = self.row(y);
 
@@ -731,8 +742,8 @@ impl Overlay {
 
 					result.push('\n');
 				}
-				result.pop();
 
+				result.pop();
 				Some(result)
 			}
 
@@ -741,26 +752,100 @@ impl Overlay {
 		}
 	}
 
-	fn select(selection: &mut Selection, changed: &mut Changed, before: (u32, u32), after: (u32, u32)) {
-		match *selection {
-			Selection::Normal { ref mut start, ref mut end } => {
-				// TODO: it
+	fn select(&mut self, before: (u32, u32), after: (u32, u32)) {
+		if before == after {
+			return;
+		}
+
+		match self.selection.as_mut() {
+			None => (),
+
+			Some(&mut Selection::Normal { ref mut start, ref mut end }) => {
+				// Cursor went down.
+				if before.1 > after.1 {
+					if after.1 <= start.1 && after.1 >= end.1 {
+						*start = after;
+					}
+					else {
+						*end = after;
+					}
+				}
+				// Cursor went up.
+				else if before.1 < after.1 {
+					if after.1 > start.1 || (after.1 < start.1 && after.1 > end.0) {
+						*start = after;
+					}
+					else {
+						*end = after;
+					}
+				}
+				// Cursor went right.
+				else if after.0 > before.0 {
+					if end.1 == after.1 && after.0 > end.0 {
+						end.0 = after.0;
+					}
+					else {
+						start.0 = after.0;
+					}
+				}
+				// Cursor went left.
+				else if after.0 < before.0 {
+					if end.1 == after.1 || after.0 > start.0 {
+						end.0 = after.0;
+					}
+					else {
+						start.0 = after.0;
+					}
+				}
 			}
 
-			Selection::Block(ref mut region) => {
+			Some(&mut Selection::Block(ref mut region)) => {
 				// TODO: it
 			}
 		}
 	}
 
-	fn unselect(selection: Selection, changed: &mut Changed) {
-		match selection {
+	fn highlight(&mut self, selection: &Selection, value: bool) {
+		match *selection {
 			Selection::Normal { start, end } => {
-				// TODO: it
+				for y in end.1 ... start.1 {
+					let (start, end) = if start.1 == end.1 {
+						(start.0, end.0)
+					}
+					else if y == start.1 {
+						(start.0, self.inner.columns())
+					}
+					else if y == end.1 {
+						(0, end.0)
+					}
+					else {
+						(0, self.inner.columns())
+					};
+
+					for x in start .. end {
+						if value {
+							let mut cell = self.row(y)[x as usize].clone();
+							cell.set_style(self.selected.clone());
+							self.view.insert((x, y), cell);
+						}
+						else {
+							self.view.remove(&(x, y));
+						}
+					}
+				}
 			}
 
 			Selection::Block(region) => {
-				// TODO: it
+				for (x, y) in region.relative() {
+					if value {
+						let mut cell = self.row(y)[x as usize].clone();
+						cell.set_style(self.selected.clone());
+						self.view.insert((x, y), cell);
+					}
+					else {
+						self.view.remove(&(x, y));
+					}
+				}
 			}
 		}
 	}

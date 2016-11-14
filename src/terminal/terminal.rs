@@ -834,6 +834,15 @@ impl Terminal {
 					&CSI::CursorPositionReport { x: self.cursor.x(), y: self.cursor.y() }, true));
 			}
 
+			Control::DEC(DEC::Unicode(value)) => {
+				if value {
+					self.mode.insert(mode::UTF8);
+				}
+				else {
+					self.mode.remove(mode::UTF8);
+				}
+			}
+
 			Control::DEC(DEC::ScrollRegion { top, bottom }) => {
 				let mut top    = top;
 				let mut bottom = util::clamp(bottom.unwrap_or(self.region.height),

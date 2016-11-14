@@ -17,7 +17,7 @@
 
 use picto::Region;
 
-#[derive(Debug)]
+#[derive(Eq, PartialEq, Copy, Clone, Debug)]
 pub enum Selection {
 	Normal {
 		start: (u32, u32),

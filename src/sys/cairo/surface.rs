@@ -35,7 +35,7 @@ impl Surface {
 impl Surface {
 	pub fn new(connection: &xcb::Connection, drawable: xcb::Drawable, visual: xcb::Visualtype, width: u32, height: u32) -> Self {
 		unsafe {
-			Surface(cairo_xcb_surface_create(connection.get_raw_conn(), drawable, visual.ptr, width as c_int, height as c_int))
+			Surface(cairo_xcb_surface_create(connection.get_raw_conn(), drawable, &visual.base, width as c_int, height as c_int))
 		}
 	}
 

@@ -29,9 +29,10 @@ pub struct Style {
 	margin:  u8,
 	spacing: u8,
 
-	color:  Color,
-	cursor: Cursor,
-	status: Option<Status>,
+	color:     Color,
+	cursor:    Cursor,
+	status:    Option<Status>,
+	selection: Selection,
 }
 
 impl Default for Style {
@@ -44,9 +45,10 @@ impl Default for Style {
 			margin:  0,
 			spacing: 0,
 
-			color:  Default::default(),
-			cursor: Default::default(),
-			status: Some(Default::default()),
+			color:     Default::default(),
+			cursor:    Default::default(),
+			status:    Some(Default::default()),
+			selection: Default::default(),
 		}
 	}
 }
@@ -133,6 +135,23 @@ pub struct Status {
 impl Default for Status {
 	fn default() -> Self {
 		Status {
+			foreground: to_color("#000").unwrap(),
+			background: to_color("#c0c0c0").unwrap(),
+			attributes: style::NONE,
+		}
+	}
+}
+
+#[derive(PartialEq, Clone, Debug)]
+pub struct Selection {
+	foreground: Rgba<f64>,
+	background: Rgba<f64>,
+	attributes: style::Attributes,
+}
+
+impl Default for Selection {
+	fn default() -> Self {
+		Selection {
 			foreground: to_color("#000").unwrap(),
 			background: to_color("#c0c0c0").unwrap(),
 			attributes: style::NONE,
@@ -247,6 +266,22 @@ impl Style {
 				self.status = None;
 			}
 		}
+
+		if let Some(value) = table.get("selection") {
+			if let Some(table) = value.as_table() {
+				if let Some(value) = table.get("foreground").and_then(|v| v.as_str()).and_then(|v| to_color(v)) {
+					self.selection.foreground = value;
+				}
+
+				if let Some(value) = table.get("background").and_then(|v| v.as_str()).and_then(|v| to_color(v)) {
+					self.selection.background = value;
+				}
+
+				if let Some(value) = table.get("attributes").and_then(|v| v.as_str()) {
+					self.selection.attributes = to_attributes(value);
+				}
+			}
+		}
 	}
 
 	pub fn font(&self) -> &str {
@@ -279,6 +314,10 @@ impl Style {
 
 	pub fn status(&self) -> Option<&Status> {
 		self.status.as_ref()
+	}
+
+	pub fn selection(&self) -> &Selection {
+		&self.selection
 	}
 }
 
@@ -319,6 +358,20 @@ impl Cursor {
 }
 
 impl Status {
+	pub fn foreground(&self) -> &Rgba<f64> {
+		&self.foreground
+	}
+
+	pub fn background(&self) -> &Rgba<f64> {
+		&self.background
+	}
+
+	pub fn attributes(&self) -> style::Attributes {
+		self.attributes
+	}
+}
+
+impl Selection {
 	pub fn foreground(&self) -> &Rgba<f64> {
 		&self.foreground
 	}

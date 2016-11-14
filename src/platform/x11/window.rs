@@ -323,7 +323,10 @@ impl Window {
 									if event.atom() == SELECTION {
 										let reply = try!(continue icccm::get_text_property(&connection, window, SELECTION).get_reply());
 										xcb::delete_property(&connection, window, SELECTION);
-										try!(return sender.send(Event::Paste(reply.name().as_bytes().to_vec())));
+
+										if !reply.name().is_empty() {
+											try!(return sender.send(Event::Paste(reply.name().as_bytes().to_vec())));
+										}
 									}
 								}
 
