@@ -725,19 +725,19 @@ impl Overlay {
 						(start.0, end.0)
 					}
 					else if y == start.1 {
-						(start.0, self.inner.columns())
+						(start.0, self.inner.columns() - 1)
 					}
 					else if y == end.1 {
 						(0, end.0)
 					}
 					else {
-						(0, self.inner.columns())
+						(0, self.inner.columns() - 1)
 					};
 
 					let     row  = self.row(y);
 					let mut line = String::new();
 
-					for x in start .. edge(row, start, end) {
+					for x in start ... edge(row, start, end) {
 						line.push_str(row[x as usize].value());
 					}
 
@@ -779,7 +779,7 @@ impl Overlay {
 				for y in (end.1 ... start.1).rev() {
 					let row = self.row(y);
 
-					for x in start.0 .. edge(row, start.0, end.0) {
+					for x in start.0 ... edge(row, start.0, end.0) {
 						result.push_str(row[x as usize].value());
 					}
 
