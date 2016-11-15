@@ -348,6 +348,12 @@ impl Overlay {
 				Button::Right =>
 					Command::Move(command::Move::Right(times.unwrap_or(1))),
 
+				Button::Home =>
+					Command::Move(command::Move::Start),
+
+				Button::End =>
+					Command::Move(command::Move::End),
+
 				Button::Insert if key.modifier() == key::SHIFT =>
 					Command::Paste("PRIMARY".into()),
 
@@ -358,6 +364,12 @@ impl Overlay {
 			},
 
 			Value::Keypad(button) => match button {
+				Keypad::Home =>
+					Command::Move(command::Move::Start),
+
+				Keypad::End =>
+					Command::Move(command::Move::End),
+
 				Keypad::Left =>
 					Command::Move(command::Move::Left(times.unwrap_or(1))),
 
