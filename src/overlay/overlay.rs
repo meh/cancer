@@ -682,15 +682,14 @@ impl Overlay {
 			}
 
 			Command::Copy(name) => {
-				if let Some(selection) = self.selection() {
+				if let Some(selection) = self.selection.take() {
 					overlay!(self; status mode "NORMAL");
 
-					let old = self.selection.take().unwrap();
-					self.highlight(&old, false);
+					self.highlight(&selection, false);
 					self.touched.all();
 
 					actions.push(Action::Overlay(false));
-					actions.push(Action::Copy(name, selection));
+					actions.push(Action::Copy(name, self.selection(&selection)));
 				}
 			}
 
@@ -700,15 +699,15 @@ impl Overlay {
 			}
 		}
 
-		if let Some(selection) = self.selection() {
-			actions.push(Action::Copy("PRIMARY".into(), selection));
+		if let Some(selection) = self.selection {
+			actions.push(Action::Copy("PRIMARY".into(), self.selection(&selection)));
 		}
 
 		actions
 	}
 
 	/// Turn the current selection to its text representation.
-	fn selection(&self) -> Option<String> {
+	fn selection(&self, selection: &Selection) -> String {
 		/// Find the index of the first non-empty cell followed by only empty
 		/// cells.
 		fn edge(row: &Row, start: u32, end: u32) -> u32 {
@@ -728,11 +727,11 @@ impl Overlay {
 			found.unwrap_or(end)
 		}
 
-		let mut lines  = vec![];
-		let mut unwrap = None::<Vec<String>>;
-
-		match try!(option self.selection) {
+		match *selection {
 			Selection::Normal { start, end } => {
+				let mut lines  = vec![];
+				let mut unwrap = None::<Vec<String>>;
+
 				for y in end.1 ... start.1 {
 					let (start, end) = if start.1 == end.1 {
 						(start.0, end.0)
@@ -771,61 +770,45 @@ impl Overlay {
 						lines.push(vec![line]);
 					}
 				}
+
+				let mut result = String::new();
+
+				for lines in lines.into_iter().rev() {
+					for line in lines.into_iter().rev() {
+						result.push_str(&line);
+					}
+
+					result.push('\n');
+				}
+
+				result.pop();
+				result
 			}
 
 			Selection::Block { start, end } => {
-				for y in end.1 ... start.1 {
-					let     row  = self.row(y);
-					let mut line = String::new();
+				let mut result = String::new();
+
+				for y in (end.1 ... start.1).rev() {
+					let row = self.row(y);
 
 					for x in start.0 ... edge(row, start.0, end.0) {
-						line.push_str(row[x as usize].value());
+						result.push_str(row[x as usize].value());
 					}
 
-					lines.push(vec![line]);
+					result.push('\n');
 				}
+
+				result.pop();
+				result
 			}
 
 			Selection::Line { start, end } => {
-				for y in end ... start {
-					let     row  = self.row(y);
-					let mut line = String::new();
-
-					for x in 0 ... edge(row, 0, self.inner.columns() - 1) {
-						line.push_str(row[x as usize].value());
-					}
-
-					if row.wrap() {
-						if let Some(mut unwrapped) = unwrap.take() {
-							unwrapped.push(line);
-							unwrap = Some(unwrapped);
-						}
-						else {
-							unwrap = Some(vec![line]);
-						}
-					}
-					else if let Some(mut unwrapped) = unwrap.take() {
-						unwrapped.push(line);
-						lines.push(unwrapped);
-					}
-					else {
-						lines.push(vec![line]);
-					}
-				}
+				self.selection(&Selection::Normal {
+					start: (0, start),
+					end:   (self.inner.columns() - 1, end)
+				})
 			}
 		}
-
-		let mut result = String::new();
-		for lines in lines.into_iter().rev() {
-			for line in lines.into_iter().rev() {
-				result.push_str(&line);
-			}
-
-			result.push('\n');
-		}
-		result.pop();
-
-		Some(result)
 	}
 
 	/// Update the current selection based on the cursor movement.
