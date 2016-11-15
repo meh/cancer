@@ -15,9 +15,6 @@
 // You should have received a copy of the GNU General Public License
 // along with cancer.  If not, see <http://www.gnu.org/licenses/>.
 
-mod selection;
-pub use self::selection::Selection;
-
 mod command;
 pub use self::command::Command;
 

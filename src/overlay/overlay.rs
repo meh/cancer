@@ -20,7 +20,6 @@ use std::mem;
 use std::io::Write;
 use std::ops::{Deref, DerefMut};
 use std::vec;
-use picto::Region;
 use std::collections::HashMap;
 use std::hash::BuildHasherDefault;
 use fnv::FnvHasher;
@@ -33,7 +32,7 @@ use terminal::{Access, Terminal, Cursor, Iter, Row};
 use terminal::touched::{self, Touched};
 use terminal::cell::{self, Cell};
 use terminal::cursor;
-use overlay::{Status, Selection};
+use overlay::Status;
 use overlay::command::{self, Command};
 use interface::Action;
 
@@ -52,6 +51,19 @@ pub struct Overlay {
 	times:     Option<u32>,
 	selection: Option<Selection>,
 	selected:  Rc<Style>,
+}
+
+#[derive(Eq, PartialEq, Copy, Clone, Debug)]
+enum Selection {
+	Normal {
+		start: (u32, u32),
+		end:   (u32, u32)
+	},
+
+	Block {
+		start: (u32, u32),
+		end:   (u32, u32),
+	}
 }
 
 macro_rules! overlay {
@@ -209,18 +221,6 @@ impl Overlay {
 		else {
 			&view[view.len() - 1 - offset as usize][x as usize]
 		}
-	}
-
-	fn get_mut(&mut self, x: u32, y: u32) -> &mut Cell {
-		let view   = self.inner.grid().view();
-		let offset = (view.len() as u32 - 1 - y) + self.scroll;
-
-		if !self.view.contains_key(&(x, offset)) {
-			let cell = self.get(x, y).clone();
-			self.view.insert((x, offset), cell);
-		}
-
-		self.view.get_mut(&(x, offset)).unwrap()
 	}
 
 	fn row(&self, y: u32) -> &Row {
@@ -609,17 +609,19 @@ impl Overlay {
 						overlay!(self; status mode "NORMAL");
 					}
 
-					Some(Selection::Block(region)) => {
-						overlay!(self; status mode "VISUAL BLOCK");
+					Some(Selection::Block { start, end }) => {
+						overlay!(self; status mode "VISUAL");
 
-						// TODO: convert from `Block` to `Normal`.
+						self.highlight(&Selection::Block { start: start, end: end }, false);
+						self.selection = Some(Selection::Normal { start: start, end: end });
+						self.highlight(&Selection::Normal { start: start, end: end }, true);
 					}
 
 					None => {
 						overlay!(self; status mode "VISUAL");
 
 						let (x, y) = overlay!(self; cursor absolute);
-						let s = Selection::Normal { start: (x, y), end: (x + 1, y) };
+						let s = Selection::Normal { start: (x, y), end: (x, y) };
 						self.selection = Some(s);
 						self.highlight(&s, true);
 					}
@@ -628,21 +630,25 @@ impl Overlay {
 
 			Command::Select(command::Select::Block) => {
 				match self.selection.take() {
-					Some(Selection::Block(..)) => {
+					Some(Selection::Block { .. }) => {
 						overlay!(self; status mode "NORMAL");
 					}
 
 					Some(Selection::Normal { start, end }) => {
-						overlay!(self; status mode "VISUAL");
+						overlay!(self; status mode "VISUAL BLOCK");
 
-						// TODO: convert from `Normal` to `Block`.
+						self.highlight(&Selection::Normal { start: start, end: end }, false);
+						self.selection = Some(Selection::Block { start: start, end: end });
+						self.highlight(&Selection::Block { start: start, end: end }, true);
 					}
 
 					None => {
 						overlay!(self; status mode "VISUAL BLOCK");
 
 						let (x, y) = overlay!(self; cursor absolute);
-						self.selection = Some(Selection::Block(Region::from(x, y, 1, 1)));
+						let s = Selection::Block { start: (x, y), end: (x, y) };
+						self.selection = Some(s);
+						self.highlight(&s, true);
 					}
 				}
 			}
@@ -751,13 +757,13 @@ impl Overlay {
 				Some(result)
 			}
 
-			Some(Selection::Block(region)) => {
+			Some(Selection::Block { start, end }) => {
 				let mut result = String::new();
 
-				for y in region.y .. region.y + region.height {
+				for y in (end.1 ... start.1).rev() {
 					let row = self.row(y);
 
-					for x in region.x .. edge(row, region.x, region.x + region.width) {
+					for x in start.0 .. edge(row, start.0, end.0) {
 						result.push_str(row[x as usize].value());
 					}
 
@@ -793,7 +799,7 @@ impl Overlay {
 				}
 				// Cursor went up.
 				else if before.1 < after.1 {
-					if after.1 > start.1 || (after.1 < start.1 && after.1 > end.0) {
+					if after.1 > start.1 && after.1 >= start.1 {
 						*start = after;
 					}
 					else {
@@ -802,7 +808,9 @@ impl Overlay {
 				}
 				// Cursor went right.
 				else if after.0 > before.0 {
-					if end.1 == after.1 && after.0 > end.0 {
+					if (start.1 == end.1 && after.0 >= end.0) ||
+					   (start.1 != end.1 && end.1 == after.1)
+					{
 						end.0 = after.0;
 					}
 					else {
@@ -811,7 +819,9 @@ impl Overlay {
 				}
 				// Cursor went left.
 				else if after.0 < before.0 {
-					if end.1 == after.1 || after.0 > start.0 {
+					if (start.1 == end.1 && after.0 >= start.0) ||
+					   (start.1 != end.1 && end.1 == after.1)
+					{
 						end.0 = after.0;
 					}
 					else {
@@ -820,8 +830,44 @@ impl Overlay {
 				}
 			}
 
-			Some(&mut Selection::Block(ref mut region)) => {
-				// TODO: it
+			Some(&mut Selection::Block { ref mut start, ref mut end }) => {
+				// Cursor went down.
+				if before.1 > after.1 {
+					if after.1 < end.1 {
+						end.1 = after.1;
+					}
+					else {
+						start.1 = after.1;
+					}
+				}
+				// Cursor went up.
+				else if before.1 < after.1 {
+					if after.1 > start.1 {
+						start.1 = after.1;
+					}
+					else {
+						end.1 = after.1;
+					}
+				}
+
+				// Cursor went right.
+				if after.0 > before.0 {
+					if after.0 > end.0 {
+						end.0 = after.0;
+					}
+					else {
+						start.0 = after.0;
+					}
+				}
+				// Cursor went left.
+				else if after.0 < before.0 {
+					if after.0 < start.0 {
+						start.0 = after.0;
+					}
+					else {
+						end.0 = after.0;
+					}
+				}
 			}
 		}
 	}
@@ -834,16 +880,16 @@ impl Overlay {
 						(start.0, end.0)
 					}
 					else if y == start.1 {
-						(start.0, self.inner.columns())
+						(start.0, self.inner.columns() - 1)
 					}
 					else if y == end.1 {
 						(0, end.0)
 					}
 					else {
-						(0, self.inner.columns())
+						(0, self.inner.columns() - 1)
 					};
 
-					for x in start .. end {
+					for x in start ... end {
 						if value {
 							let mut cell = self.row(y)[x as usize].clone();
 							cell.set_style(self.selected.clone());
@@ -856,15 +902,17 @@ impl Overlay {
 				}
 			}
 
-			Selection::Block(region) => {
-				for (x, y) in region.relative() {
-					if value {
-						let mut cell = self.row(y)[x as usize].clone();
-						cell.set_style(self.selected.clone());
-						self.view.insert((x, y), cell);
-					}
-					else {
-						self.view.remove(&(x, y));
+			Selection::Block { start, end } => {
+				for y in end.1 ... start.1 {
+					for x in start.0 ... end.0 {
+						if value {
+							let mut cell = self.row(y)[x as usize].clone();
+							cell.set_style(self.selected.clone());
+							self.view.insert((x, y), cell);
+						}
+						else {
+							self.view.remove(&(x, y));
+						}
 					}
 				}
 			}
