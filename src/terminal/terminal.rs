@@ -752,21 +752,24 @@ impl Terminal {
 		debug!(target: "cancer::terminal::input::raw", "input: {:?}", input);
 
 		while !input.is_empty() {
-			// Try to parse the rest of the input.
+			// Try to parse the input.
 			let item = match control::parse(input) {
 				// No control code.
 				control::Result::Error(_) => {
 					let kind = match input::parse(input) {
+						// Invalid encoding.
 						Input::Error(0) => {
 							input = &input[1..];
 							input::Kind::Unicode("�")
 						}
 
+						// Invalid encoding with length.
 						Input::Error(length) => {
 							input = &input[length..];
 							input::Kind::Unicode("�")
 						}
 
+						// The given input isn't a complete unicode sequence, cache it.
 						Input::Incomplete(_) => {
 							debug!(target: "cancer::terminal::input", "incomplete input: {:?}", input);
 
@@ -774,6 +777,7 @@ impl Terminal {
 							break;
 						}
 
+						// Parsed a unicode or ascii string.
 						Input::Done(rest, value) => {
 							input = rest;
 							value
@@ -797,7 +801,7 @@ impl Terminal {
 					continue;
 				}
 
-				// The given input isn't a complete sequence, cache the current input.
+				// The given input isn't a complete sequence, cache it.
 				control::Result::Incomplete(_) => {
 					debug!(target: "cancer::terminal::input", "incomplete input: {:?}", input);
 
@@ -805,7 +809,7 @@ impl Terminal {
 					break;
 				}
 
-				// We got a sequence or a raw input.
+				// Parsed a control sequence.
 				control::Result::Done(rest, item) => {
 					input = rest;
 					item
