@@ -90,61 +90,18 @@ macro_rules! overlay {
 		(x, offset)
 	});
 
-	($term:ident; select $before:expr, $after:expr) => ({
-		if $term.selection.is_some() {
-			let s = $term.selection.unwrap();
-			$term.highlight(&s, false);
-			$term.select($before, $after);
-			let s = $term.selection.unwrap();
-			$term.highlight(&s, true);
-			$term.touched.all();
-		}
-	});
-
 	($term:ident; cursor $($travel:tt)*) => ({
-		let before = overlay!($term; cursor absolute);
 		$term.touched.push($term.cursor.position());
-
 		let r = $term.cursor.travel(cursor::$($travel)*);
-
-		let after = overlay!($term; cursor absolute);
 		$term.touched.push($term.cursor.position());
-
-		overlay!($term; select before, after);
 
 		r
-	});
-
-	($term:ident; scroll $block:block) => ({
-		let before = overlay!($term; cursor absolute);
-		$block;
-		let after = overlay!($term; cursor absolute);
-
-		$term.touched.all();
-		overlay!($term; select before, after);
 	});
 
 	($term:ident; status mode $name:expr) => ({
 		if let Some(status) = $term.status.as_mut() {
 			$term.touched.line($term.inner.rows() - 1);
 			status.mode($name);
-		}
-	});
-
-	($term:ident; status position!) => ({
-		if $term.status.is_some() {
-			let (x, y) = overlay!($term; cursor absolute);
-			let x      = x + 1;
-			let y      = $term.inner.grid().back().len() as u32 + $term.inner.grid().view().len() as u32 - y;
-
-			overlay!($term; status position (x, y));
-		}
-	});
-
-	($term:ident; status position $pair:expr) => ({
-		if let Some(status) = $term.status.as_mut() {
-			$term.touched.line($term.inner.rows() - 1);
-			status.position($pair);
 		}
 	});
 }
@@ -454,6 +411,33 @@ impl Overlay {
 
 	/// Handle a command.
 	fn handle(&mut self, command: Command) -> Vec<Action> {
+		let before  = overlay!(self; cursor absolute);
+		let actions = self.command(command);
+		let after   = overlay!(self; cursor absolute);
+
+		if after != before {
+			if self.selection.is_some() {
+				let s = self.selection.unwrap();
+				self.highlight(&s, false);
+				self.select(before, after);
+				let s = self.selection.unwrap();
+				self.highlight(&s, true);
+				self.touched.all();
+			}
+
+			if let Some(status) = self.status.as_mut() {
+				let x = after.0 + 1;
+				let y = self.inner.grid().back().len() as u32 + self.inner.grid().view().len() as u32 - after.1;
+
+				self.touched.line(self.inner.rows() - 1);
+				status.position((x, y));
+			}
+		}
+
+		actions
+	}
+
+	fn command(&mut self, command: Command) -> Vec<Action> {
 		let mut actions = Vec::new();
 
 		match command {
@@ -471,99 +455,79 @@ impl Overlay {
 			}
 
 			Command::Scroll(command::Scroll::Begin) => {
-				overlay!(self; scroll {
-					self.scroll = self.inner.grid().back().len() as u32;
-				});
-
-				overlay!(self; status position!);
+				self.scroll = self.inner.grid().back().len() as u32;
+				self.touched.all();
 			}
 
 			Command::Scroll(command::Scroll::End) => {
-				overlay!(self; scroll {
-					self.scroll = 0;
-				});
-
-				overlay!(self; status position!);
+				self.scroll = 0;
+				self.touched.all();
 			}
 
 			Command::Scroll(command::Scroll::To(n)) => {
-				overlay!(self; scroll {
-					self.scroll = (self.inner.grid().back().len() as u32).saturating_sub(n - 1);
+				self.scroll = (self.inner.grid().back().len() as u32).saturating_sub(n - 1);
 
-					if self.status.is_some() {
-						self.scroll += 1;
-					}
-				});
+				if self.status.is_some() {
+					self.scroll += 1;
+				}
 
-				overlay!(self; status position!);
+				self.touched.all();
 			}
 
-
 			Command::Scroll(command::Scroll::Up(times)) => {
-				overlay!(self; scroll {
-					for _ in 0 .. times {
-						let offset = if self.status.is_some() { 1 } else { 0 };
+				for _ in 0 .. times {
+					let offset = if self.status.is_some() { 1 } else { 0 };
 
-						if self.scroll < self.inner.grid().back().len() as u32 + offset {
-							self.scroll += 1;
-						}
+					if self.scroll < self.inner.grid().back().len() as u32 + offset {
+						self.scroll += 1;
 					}
-				});
+				}
 
-				overlay!(self; status position!);
+				self.touched.all();
 			}
 
 			Command::Scroll(command::Scroll::Down(times)) => {
-				overlay!(self; scroll {
-					for _ in 0 .. times {
-						if self.scroll > 0 {
-							self.scroll -= 1;
-						}
+				for _ in 0 .. times {
+					if self.scroll > 0 {
+						self.scroll -= 1;
 					}
-				});
+				}
 
-				overlay!(self; status position!);
+				self.touched.all();
 			}
 
 			Command::Scroll(command::Scroll::PageUp(times)) => {
-				overlay!(self; scroll {
-					for _ in 0 .. times {
-						self.scroll += self.inner.rows().saturating_sub(3);
+				for _ in 0 .. times {
+					self.scroll += self.inner.rows().saturating_sub(3);
 
-						if self.scroll > self.inner.grid().back().len() as u32 {
-							self.scroll = self.inner.grid().back().len().saturating_sub(1) as u32;
-						}
+					if self.scroll > self.inner.grid().back().len() as u32 {
+						self.scroll = self.inner.grid().back().len().saturating_sub(1) as u32;
 					}
-				});
+				}
 
-				overlay!(self; status position!);
+				self.touched.all();
 			}
 
 			Command::Scroll(command::Scroll::PageDown(times)) => {
-				overlay!(self; scroll {
-					for _ in 0 .. times {
-						self.scroll = self.scroll.saturating_sub(self.inner.rows() - 3);
-					}
-				});
+				for _ in 0 .. times {
+					self.scroll = self.scroll.saturating_sub(self.inner.rows() - 3);
+				}
 
-				overlay!(self; status position!);
+				self.touched.all();
 			}
 
 			Command::Move(command::Move::To(x, y)) => {
 				if self.status.is_none() || y != self.inner.rows() - 1 {
 					overlay!(self; cursor Position(Some(x), Some(y)));
-					overlay!(self; status position!);
 				}
 			}
 
 			Command::Move(command::Move::End) => {
 				overlay!(self; cursor Position(Some(self.inner.columns() - 1), None));
-				overlay!(self; status position!);
 			}
 
 			Command::Move(command::Move::Start) => {
 				overlay!(self; cursor Position(Some(0), None));
-				overlay!(self; status position!);
 			}
 
 			Command::Move(command::Move::Left(times)) => {
@@ -571,35 +535,29 @@ impl Overlay {
 					if overlay!(self; cursor Left(1)).is_some() {
 						if let Some(&Selection::Normal { .. }) = self.selection.as_ref() {
 							if overlay!(self; cursor Up(1)).is_some() {
-								self.handle(Command::Scroll(command::Scroll::Up(1)));
+								self.command(Command::Scroll(command::Scroll::Up(1)));
 							}
 
 							overlay!(self; cursor Position(Some(self.inner.columns() - 1), None));
 						}
 					}
 				}
-
-				overlay!(self; status position!);
 			}
 
 			Command::Move(command::Move::Down(times)) => {
 				for _ in 0 .. times {
 					if overlay!(self; cursor Down(1)).is_some() {
-						self.handle(Command::Scroll(command::Scroll::Down(1)));
+						self.command(Command::Scroll(command::Scroll::Down(1)));
 					}
 				}
-
-				overlay!(self; status position!);
 			}
 
 			Command::Move(command::Move::Up(times)) => {
 				for _ in 0 .. times {
 					if overlay!(self; cursor Up(1)).is_some() {
-						self.handle(Command::Scroll(command::Scroll::Up(1)));
+						self.command(Command::Scroll(command::Scroll::Up(1)));
 					}
 				}
-
-				overlay!(self; status position!);
 			}
 
 			Command::Move(command::Move::Right(times)) => {
@@ -615,7 +573,6 @@ impl Overlay {
 					}
 				}
 
-				overlay!(self; status position!);
 			}
 
 			Command::Select(command::Select::Normal) => {
@@ -797,10 +754,6 @@ impl Overlay {
 
 	/// Update the current selection based on the cursor movement.
 	fn select(&mut self, before: (u32, u32), after: (u32, u32)) {
-		if before == after {
-			return;
-		}
-
 		match self.selection.as_mut() {
 			None => (),
 
@@ -890,7 +843,7 @@ impl Overlay {
 	}
 
 	/// Enable or disable highlighting of the given selection.
-	fn highlight(&mut self, selection: &Selection, value: bool) {
+	fn highlight(&mut self, selection: &Selection, flag: bool) {
 		match *selection {
 			Selection::Normal { start, end } => {
 				for y in end.1 ... start.1 {
@@ -908,7 +861,7 @@ impl Overlay {
 					};
 
 					for x in start ... end {
-						if value {
+						if flag {
 							let mut cell = self.row(y)[x as usize].clone();
 							cell.set_style(self.selected.clone());
 							self.view.insert((x, y), cell);
@@ -923,7 +876,7 @@ impl Overlay {
 			Selection::Block { start, end } => {
 				for y in end.1 ... start.1 {
 					for x in start.0 ... end.0 {
-						if value {
+						if flag {
 							let mut cell = self.row(y)[x as usize].clone();
 							cell.set_style(self.selected.clone());
 							self.view.insert((x, y), cell);
