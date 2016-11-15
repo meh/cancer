@@ -537,8 +537,10 @@ impl Overlay {
 			}
 
 			Command::Move(command::Move::To(x, y)) => {
-				overlay!(self; cursor Position(Some(x), Some(y)));
-				overlay!(self; status position!);
+				if self.status.is_none() || y != self.inner.rows() - 1 {
+					overlay!(self; cursor Position(Some(x), Some(y)));
+					overlay!(self; status position!);
+				}
 			}
 
 			Command::Move(command::Move::End) => {
