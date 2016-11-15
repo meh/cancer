@@ -63,7 +63,12 @@ enum Selection {
 	Block {
 		start: (u32, u32),
 		end:   (u32, u32),
-	}
+	},
+
+	Line {
+		start: u32,
+		end:   u32,
+	},
 }
 
 macro_rules! overlay {
@@ -297,6 +302,9 @@ impl Overlay {
 
 				"v" if key.modifier() == key::CTRL =>
 					Command::Select(command::Select::Block),
+
+				"V" if key.modifier() == key::SHIFT =>
+					Command::Select(command::Select::Line),
 
 				"y" if key.modifier().is_empty() =>
 					Command::Copy(match times {
@@ -565,7 +573,7 @@ impl Overlay {
 					if overlay!(self; cursor Right(1)).is_some() {
 						if let Some(&Selection::Normal { .. }) = self.selection.as_ref() {
 							if overlay!(self; cursor Down(1)).is_some() {
-								self.handle(Command::Scroll(command::Scroll::Down(1)));
+								self.command(Command::Scroll(command::Scroll::Down(1)));
 							}
 
 							overlay!(self; cursor Position(Some(0), None));
@@ -584,18 +592,45 @@ impl Overlay {
 					Some(Selection::Block { start, end }) => {
 						overlay!(self; status mode "VISUAL");
 
-						self.highlight(&Selection::Block { start: start, end: end }, false);
-						self.selection = Some(Selection::Normal { start: start, end: end });
-						self.highlight(&Selection::Normal { start: start, end: end }, true);
+						let old = Selection::Block { start: start, end: end };
+						let new = Selection::Normal {
+							start: start,
+							end:   end
+						};
+
+						self.highlight(&old, false);
+						self.selection = Some(new);
+						self.highlight(&new, true);
+						self.touched.all();
+					}
+
+					Some(Selection::Line { start, end }) => {
+						overlay!(self; status mode "VISUAL");
+
+						let old = Selection::Line { start: start, end: end };
+						let new = Selection::Normal {
+							start: (0, start),
+							end:   (self.inner.columns() - 1, end)
+						};
+
+						self.highlight(&old, false);
+						self.selection = Some(new);
+						self.highlight(&new, true);
+						self.touched.all();
 					}
 
 					None => {
 						overlay!(self; status mode "VISUAL");
 
 						let (x, y) = overlay!(self; cursor absolute);
-						let s = Selection::Normal { start: (x, y), end: (x, y) };
-						self.selection = Some(s);
-						self.highlight(&s, true);
+						let new    = Selection::Normal {
+							start: (x, y),
+							end: (x, y)
+						};
+
+						self.selection = Some(new);
+						self.highlight(&new, true);
+						self.touched.all();
 					}
 				}
 			}
@@ -609,18 +644,97 @@ impl Overlay {
 					Some(Selection::Normal { start, end }) => {
 						overlay!(self; status mode "VISUAL BLOCK");
 
-						self.highlight(&Selection::Normal { start: start, end: end }, false);
-						self.selection = Some(Selection::Block { start: start, end: end });
-						self.highlight(&Selection::Block { start: start, end: end }, true);
+						let old = Selection::Normal { start: start, end: end };
+						let new = Selection::Block {
+							start: start,
+							end:   end
+						};
+
+						self.highlight(&old, false);
+						self.selection = Some(new);
+						self.highlight(&new, true);
+						self.touched.all();
+					}
+
+					Some(Selection::Line { start, end }) => {
+						overlay!(self; status mode "VISUAL BLOCK");
+
+						let old = Selection::Line { start: start, end: end };
+						let new = Selection::Block {
+							start: (0, start),
+							end:   (self.inner.columns() - 1, end)
+						};
+
+						self.highlight(&old, false);
+						self.selection = Some(new);
+						self.highlight(&new, true);
+						self.touched.all();
 					}
 
 					None => {
 						overlay!(self; status mode "VISUAL BLOCK");
 
 						let (x, y) = overlay!(self; cursor absolute);
-						let s = Selection::Block { start: (x, y), end: (x, y) };
-						self.selection = Some(s);
-						self.highlight(&s, true);
+						let new    = Selection::Block {
+							start: (x, y),
+							end:   (x, y)
+						};
+
+						self.selection = Some(new);
+						self.highlight(&new, true);
+						self.touched.all();
+					}
+				}
+			}
+
+			Command::Select(command::Select::Line) => {
+				match self.selection.take() {
+					Some(Selection::Line { .. }) => {
+						overlay!(self; status mode "NORMAL");
+					}
+
+					Some(Selection::Normal { start, end }) => {
+						overlay!(self; status mode "VISUAL LINE");
+
+						let old = Selection::Normal { start: start, end: end };
+						let new = Selection::Line {
+							start: start.1,
+							end:   end.1
+						};
+
+						self.highlight(&old, false);
+						self.selection = Some(new);
+						self.highlight(&new, true);
+						self.touched.all();
+					}
+
+					Some(Selection::Block { start, end }) => {
+						overlay!(self; status mode "VISUAL LINE");
+
+						let old = Selection::Block { start: start, end: end };
+						let new = Selection::Line {
+							start: start.1,
+							end:   end.1
+						};
+
+						self.highlight(&old, false);
+						self.selection = Some(new);
+						self.highlight(&new, true);
+						self.touched.all();
+					}
+
+					None => {
+						overlay!(self; status mode "VISUAL LINE");
+
+						let (_, y) = overlay!(self; cursor absolute);
+						let new    = Selection::Line {
+							start: y,
+							end:   y
+						};
+
+						self.selection = Some(new);
+						self.highlight(&new, true);
+						self.touched.all();
 					}
 				}
 			}
@@ -629,8 +743,9 @@ impl Overlay {
 				if let Some(selection) = self.selection() {
 					overlay!(self; status mode "NORMAL");
 
-					let s = self.selection.take().unwrap();
-					self.highlight(&s, false);
+					let old = self.selection.take().unwrap();
+
+					self.highlight(&old, false);
 					self.touched.all();
 
 					actions.push(Action::Overlay(false));
@@ -747,6 +862,50 @@ impl Overlay {
 				Some(result)
 			}
 
+			Some(Selection::Line { start, end }) => {
+				let mut lines  = vec![];
+				let mut unwrap = None::<Vec<String>>;
+
+				for y in end ... start {
+					let     row  = self.row(y);
+					let mut line = String::new();
+
+					for x in 0 ... edge(row, 0, self.inner.columns() - 1) {
+						line.push_str(row[x as usize].value());
+					}
+
+					if row.wrap() {
+						if let Some(mut unwrapped) = unwrap.take() {
+							unwrapped.push(line);
+							unwrap = Some(unwrapped);
+						}
+						else {
+							unwrap = Some(vec![line]);
+						}
+					}
+					else if let Some(mut unwrapped) = unwrap.take() {
+						unwrapped.push(line);
+						lines.push(unwrapped);
+					}
+					else {
+						lines.push(vec![line]);
+					}
+				}
+
+				let mut result = String::new();
+
+				for lines in lines.into_iter().rev() {
+					for line in lines.into_iter().rev() {
+						result.push_str(&line);
+					}
+
+					result.push('\n');
+				}
+
+				result.pop();
+				Some(result)
+			}
+
 			None =>
 				None
 		}
@@ -839,6 +998,27 @@ impl Overlay {
 					}
 				}
 			}
+
+			Some(&mut Selection::Line { ref mut start, ref mut end }) => {
+				// Cursor went down.
+				if before.1 > after.1 {
+					if after.1 < *end {
+						*end = after.1;
+					}
+					else {
+						*start = after.1;
+					}
+				}
+				// Cursor went up.
+				else if before.1 < after.1 {
+					if after.1 > *start {
+						*start = after.1;
+					}
+					else {
+						*end = after.1;
+					}
+				}
+			}
 		}
 	}
 
@@ -876,6 +1056,21 @@ impl Overlay {
 			Selection::Block { start, end } => {
 				for y in end.1 ... start.1 {
 					for x in start.0 ... end.0 {
+						if flag {
+							let mut cell = self.row(y)[x as usize].clone();
+							cell.set_style(self.selected.clone());
+							self.view.insert((x, y), cell);
+						}
+						else {
+							self.view.remove(&(x, y));
+						}
+					}
+				}
+			}
+
+			Selection::Line { start, end } => {
+				for y in end ... start {
+					for x in 0 .. self.inner.columns() {
 						if flag {
 							let mut cell = self.row(y)[x as usize].clone();
 							cell.set_style(self.selected.clone());

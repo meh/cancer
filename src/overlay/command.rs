@@ -52,4 +52,5 @@ pub enum Move {
 pub enum Select {
 	Normal,
 	Block,
+	Line,
 }
