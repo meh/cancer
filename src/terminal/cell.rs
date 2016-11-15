@@ -151,9 +151,7 @@ impl Cell {
 	/// Change the style in place.
 	pub fn set_style(&mut self, value: Rc<Style>) {
 		match *self {
-			Cell::Empty { ref mut style, .. } =>
-				*style = value,
-
+			Cell::Empty { ref mut style, .. } |
 			Cell::Occupied { ref mut style, .. } =>
 				*style = value,
 
