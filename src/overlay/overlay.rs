@@ -250,6 +250,9 @@ impl Overlay {
 				"i" if key.modifier().is_empty() =>
 					Command::Exit,
 
+				"q" if key.modifier().is_empty() =>
+					Command::Exit,
+
 				"y" if key.modifier() == key::CTRL =>
 					Command::Scroll(command::Scroll::Up(times.unwrap_or(1))),
 
