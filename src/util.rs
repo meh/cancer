@@ -16,6 +16,15 @@
 // along with cancer.  If not, see <http://www.gnu.org/licenses/>.
 
 macro_rules! try {
+	(return option $body:expr) => (
+		if let Some(value) = $body {
+			value
+		}
+		else {
+			return;
+		}
+	);
+
 	(return $body:expr) => (
 		if let Ok(value) = $body {
 			value
@@ -40,6 +49,15 @@ macro_rules! try {
 		}
 		else {
 			break;
+		}
+	);
+
+	(option $body:expr) => (
+		if let Some(value) = $body {
+			value
+		}
+		else {
+			return None;
 		}
 	);
 

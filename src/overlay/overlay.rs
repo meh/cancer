@@ -686,7 +686,6 @@ impl Overlay {
 					overlay!(self; status mode "NORMAL");
 
 					let old = self.selection.take().unwrap();
-
 					self.highlight(&old, false);
 					self.touched.all();
 
@@ -719,7 +718,7 @@ impl Overlay {
 				let cell = &row[x as usize];
 
 				if cell.is_empty() && found.is_none() {
-					found = Some(x)
+					found = Some(x.saturating_sub(1));
 				}
 				else if cell.is_occupied() && found.is_some() {
 					found = None;
@@ -729,11 +728,11 @@ impl Overlay {
 			found.unwrap_or(end)
 		}
 
-		match self.selection {
-			Some(Selection::Normal { start, end }) => {
-				let mut lines  = vec![];
-				let mut unwrap = None::<Vec<String>>;
+		let mut lines  = vec![];
+		let mut unwrap = None::<Vec<String>>;
 
+		match try!(option self.selection) {
+			Selection::Normal { start, end } => {
 				for y in end.1 ... start.1 {
 					let (start, end) = if start.1 == end.1 {
 						(start.0, end.0)
@@ -772,42 +771,22 @@ impl Overlay {
 						lines.push(vec![line]);
 					}
 				}
-
-				let mut result = String::new();
-
-				for lines in lines.into_iter().rev() {
-					for line in lines.into_iter().rev() {
-						result.push_str(&line);
-					}
-
-					result.push('\n');
-				}
-
-				result.pop();
-				Some(result)
 			}
 
-			Some(Selection::Block { start, end }) => {
-				let mut result = String::new();
-
-				for y in (end.1 ... start.1).rev() {
-					let row = self.row(y);
+			Selection::Block { start, end } => {
+				for y in end.1 ... start.1 {
+					let     row  = self.row(y);
+					let mut line = String::new();
 
 					for x in start.0 ... edge(row, start.0, end.0) {
-						result.push_str(row[x as usize].value());
+						line.push_str(row[x as usize].value());
 					}
 
-					result.push('\n');
+					lines.push(vec![line]);
 				}
-
-				result.pop();
-				Some(result)
 			}
 
-			Some(Selection::Line { start, end }) => {
-				let mut lines  = vec![];
-				let mut unwrap = None::<Vec<String>>;
-
+			Selection::Line { start, end } => {
 				for y in end ... start {
 					let     row  = self.row(y);
 					let mut line = String::new();
@@ -833,32 +812,26 @@ impl Overlay {
 						lines.push(vec![line]);
 					}
 				}
+			}
+		}
 
-				let mut result = String::new();
-
-				for lines in lines.into_iter().rev() {
-					for line in lines.into_iter().rev() {
-						result.push_str(&line);
-					}
-
-					result.push('\n');
-				}
-
-				result.pop();
-				Some(result)
+		let mut result = String::new();
+		for lines in lines.into_iter().rev() {
+			for line in lines.into_iter().rev() {
+				result.push_str(&line);
 			}
 
-			None =>
-				None
+			result.push('\n');
 		}
+		result.pop();
+
+		Some(result)
 	}
 
 	/// Update the current selection based on the cursor movement.
 	fn select(&mut self, before: (u32, u32), after: (u32, u32)) {
-		match self.selection.as_mut() {
-			None => (),
-
-			Some(&mut Selection::Normal { ref mut start, ref mut end }) => {
+		match *try!(return option self.selection.as_mut()) {
+			Selection::Normal { ref mut start, ref mut end } => {
 				// Cursor went down.
 				if before.1 > after.1 {
 					if after.1 <= start.1 && after.1 >= end.1 {
@@ -901,7 +874,7 @@ impl Overlay {
 				}
 			}
 
-			Some(&mut Selection::Block { ref mut start, ref mut end }) => {
+			Selection::Block { ref mut start, ref mut end } => {
 				// Cursor went down.
 				if before.1 > after.1 {
 					if after.1 < end.1 {
@@ -941,7 +914,7 @@ impl Overlay {
 				}
 			}
 
-			Some(&mut Selection::Line { ref mut start, ref mut end }) => {
+			Selection::Line { ref mut start, ref mut end } => {
 				// Cursor went down.
 				if before.1 > after.1 {
 					if after.1 < *end {
