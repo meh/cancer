@@ -150,6 +150,7 @@ macro_rules! overlay {
 }
 
 impl Overlay {
+	/// Create a new `Overlay` for the given `Terminal`.
 	pub fn new(inner: Terminal) -> Self {
 		let mut cursor = inner.cursor().clone();
 		mem::swap(&mut cursor.foreground, &mut cursor.background);
@@ -191,11 +192,15 @@ impl Overlay {
 		}
 	}
 
+	/// Convert the `Overlay` into its wrapped `Terminal`, writing any cached
+	/// input.
 	pub fn into_inner<W: Write>(mut self, output: W) -> error::Result<Terminal> {
 		try!(self.inner.input(self.cache, output));
 		Ok(self.inner)
 	}
 
+	/// Get the cell at the given coordinates taking scrolling and status bar
+	/// into consideration.
 	fn get(&self, x: u32, y: u32) -> &Cell {
 		if let Some(status) = self.status.as_ref() {
 			if y == self.inner.rows() - 1 {
@@ -223,6 +228,8 @@ impl Overlay {
 		}
 	}
 
+	/// Fetch the underlying row at the given index based on the current
+	/// scrolling.
 	fn row(&self, y: u32) -> &Row {
 		let back = self.inner.grid().back();
 		let view = self.inner.grid().view();
@@ -235,6 +242,7 @@ impl Overlay {
 		}
 	}
 
+	/// Get the current cursor position.
 	pub fn cursor(&self) -> cursor::Cell {
 		let (x, y) = overlay!(self; cursor);
 		cursor::Cell::new(&self.cursor, cell::Position::new(x, y, self.get(x, y)))
@@ -245,6 +253,7 @@ impl Overlay {
 		Iter::new(self, iter)
 	}
 
+	/// Handle key input.
 	pub fn key(&mut self, key: Key) -> (vec::IntoIter<Action>, touched::Iter) {
 		use platform::key::{Value, Button, Keypad};
 
@@ -412,6 +421,7 @@ impl Overlay {
 		(actions.into_iter(), self.touched.iter(self.inner.region()))
 	}
 
+	/// Handle mouse events.
 	pub fn mouse(&mut self, mouse: Mouse) -> (vec::IntoIter<Action>, touched::Iter) {
 		debug!(target: "cancer::overlay::input", "mouse {:?}", mouse);
 
@@ -436,10 +446,13 @@ impl Overlay {
 		(actions.into_iter(), self.touched.iter(self.inner.region()))
 	}
 
+	/// Handle terminal input, effectively caching it until the overlay is
+	/// closed.
 	pub fn input<I: AsRef<[u8]>>(&mut self, input: I) {
 		self.cache.extend(input.as_ref());
 	}
 
+	/// Handle a command.
 	fn handle(&mut self, command: Command) -> Vec<Action> {
 		let mut actions = Vec::new();
 
@@ -681,6 +694,7 @@ impl Overlay {
 		actions
 	}
 
+	/// Turn the current selection to its text representation.
 	fn selection(&self) -> Option<String> {
 		/// Find the index of the first non-empty cell followed by only empty
 		/// cells.
@@ -781,6 +795,7 @@ impl Overlay {
 		}
 	}
 
+	/// Update the current selection based on the cursor movement.
 	fn select(&mut self, before: (u32, u32), after: (u32, u32)) {
 		if before == after {
 			return;
@@ -874,6 +889,7 @@ impl Overlay {
 		}
 	}
 
+	/// Enable or disable highlighting of the given selection.
 	fn highlight(&mut self, selection: &Selection, value: bool) {
 		match *selection {
 			Selection::Normal { start, end } => {
