@@ -580,163 +580,105 @@ impl Overlay {
 						}
 					}
 				}
-
 			}
 
-			Command::Select(command::Select::Normal) => {
-				match self.selection.take() {
-					Some(Selection::Normal { .. }) => {
-						overlay!(self; status mode "NORMAL");
+			Command::Select(mode) => {
+				let (name, old, new) = match (mode, self.selection.take()) {
+					(command::Select::Normal, Some(Selection::Normal { start, end })) => {
+						("NORMAL",
+							Some(Selection::Normal { start: start, end: end }),
+							None)
 					}
 
-					Some(Selection::Block { start, end }) => {
-						overlay!(self; status mode "VISUAL");
-
-						let old = Selection::Block { start: start, end: end };
-						let new = Selection::Normal {
-							start: start,
-							end:   end
-						};
-
-						self.highlight(&old, false);
-						self.selection = Some(new);
-						self.highlight(&new, true);
-						self.touched.all();
+					(command::Select::Normal, Some(Selection::Block { start, end })) => {
+						("VISUAL",
+							Some(Selection::Block { start: start, end: end }),
+							Some(Selection::Normal { start: start, end: end }))
 					}
 
-					Some(Selection::Line { start, end }) => {
-						overlay!(self; status mode "VISUAL");
+					(command::Select::Normal, Some(Selection::Line { start, end })) => {
+						let columns = self.inner.columns();
 
-						let old = Selection::Line { start: start, end: end };
-						let new = Selection::Normal {
-							start: (0, start),
-							end:   (self.inner.columns() - 1, end)
-						};
-
-						self.highlight(&old, false);
-						self.selection = Some(new);
-						self.highlight(&new, true);
-						self.touched.all();
+						("VISUAL",
+							Some(Selection::Line { start: start, end: end }),
+							Some(Selection::Normal { start: (0, start), end: (columns - 1, end) }))
 					}
 
-					None => {
-						overlay!(self; status mode "VISUAL");
-
+					(command::Select::Normal, None) => {
 						let (x, y) = overlay!(self; cursor absolute);
-						let new    = Selection::Normal {
-							start: (x, y),
-							end: (x, y)
-						};
 
-						self.selection = Some(new);
-						self.highlight(&new, true);
-						self.touched.all();
-					}
-				}
-			}
-
-			Command::Select(command::Select::Block) => {
-				match self.selection.take() {
-					Some(Selection::Block { .. }) => {
-						overlay!(self; status mode "NORMAL");
+						("VISUAL",
+							None,
+							Some(Selection::Normal { start: (x, y), end: (x, y) }))
 					}
 
-					Some(Selection::Normal { start, end }) => {
-						overlay!(self; status mode "VISUAL BLOCK");
-
-						let old = Selection::Normal { start: start, end: end };
-						let new = Selection::Block {
-							start: start,
-							end:   end
-						};
-
-						self.highlight(&old, false);
-						self.selection = Some(new);
-						self.highlight(&new, true);
-						self.touched.all();
+					(command::Select::Block, Some(Selection::Block { start, end })) => {
+						("NORMAL",
+							Some(Selection::Block { start: start, end: end }),
+							None)
 					}
 
-					Some(Selection::Line { start, end }) => {
-						overlay!(self; status mode "VISUAL BLOCK");
-
-						let old = Selection::Line { start: start, end: end };
-						let new = Selection::Block {
-							start: (0, start),
-							end:   (self.inner.columns() - 1, end)
-						};
-
-						self.highlight(&old, false);
-						self.selection = Some(new);
-						self.highlight(&new, true);
-						self.touched.all();
+					(command::Select::Block, Some(Selection::Normal { start, end })) => {
+						("VISUAL BLOCK",
+							Some(Selection::Normal { start: start, end: end }),
+							Some(Selection::Block { start: start, end: end }))
 					}
 
-					None => {
-						overlay!(self; status mode "VISUAL BLOCK");
+					(command::Select::Block, Some(Selection::Line { start, end })) => {
+						let columns = self.inner.columns();
 
+						("VISUAL BLOCK",
+							Some(Selection::Line { start: start, end: end }),
+							Some(Selection::Block { start: (0, start), end: (columns - 1, end) }))
+					}
+
+					(command::Select::Block, None) => {
 						let (x, y) = overlay!(self; cursor absolute);
-						let new    = Selection::Block {
-							start: (x, y),
-							end:   (x, y)
-						};
 
-						self.selection = Some(new);
-						self.highlight(&new, true);
-						self.touched.all();
-					}
-				}
-			}
-
-			Command::Select(command::Select::Line) => {
-				match self.selection.take() {
-					Some(Selection::Line { .. }) => {
-						overlay!(self; status mode "NORMAL");
+						("VISUAL BLOCK",
+							None,
+							Some(Selection::Block { start: (x, y), end: (x, y) }))
 					}
 
-					Some(Selection::Normal { start, end }) => {
-						overlay!(self; status mode "VISUAL LINE");
-
-						let old = Selection::Normal { start: start, end: end };
-						let new = Selection::Line {
-							start: start.1,
-							end:   end.1
-						};
-
-						self.highlight(&old, false);
-						self.selection = Some(new);
-						self.highlight(&new, true);
-						self.touched.all();
+					(command::Select::Line, Some(Selection::Line { start, end })) => {
+						("NORMAL",
+							Some(Selection::Line { start: start, end: end }),
+							None)
 					}
 
-					Some(Selection::Block { start, end }) => {
-						overlay!(self; status mode "VISUAL LINE");
-
-						let old = Selection::Block { start: start, end: end };
-						let new = Selection::Line {
-							start: start.1,
-							end:   end.1
-						};
-
-						self.highlight(&old, false);
-						self.selection = Some(new);
-						self.highlight(&new, true);
-						self.touched.all();
+					(command::Select::Line, Some(Selection::Normal { start, end })) => {
+						("VISUAL LINE",
+							Some(Selection::Normal { start: start, end: end }),
+							Some(Selection::Line { start: start.1, end: end.1 }))
 					}
 
-					None => {
-						overlay!(self; status mode "VISUAL LINE");
+					(command::Select::Line, Some(Selection::Block { start, end })) => {
+						("VISUAL LINE",
+							Some(Selection::Block { start: start, end: end }),
+							Some(Selection::Line { start: start.1, end: end.1 }))
+					}
 
+					(command::Select::Line, None) => {
 						let (_, y) = overlay!(self; cursor absolute);
-						let new    = Selection::Line {
-							start: y,
-							end:   y
-						};
 
-						self.selection = Some(new);
-						self.highlight(&new, true);
-						self.touched.all();
+						("VISUAL LINE",
+							None,
+							Some(Selection::Line { start: y, end: y }))
 					}
+				};
+
+				overlay!(self; status mode name);
+
+				if let Some(old) = old {
+					self.highlight(&old, false);
 				}
+
+				if let Some(new) = new {
+					self.selection = Some(new);
+					self.highlight(&new, true);
+				}
+
+				self.touched.all();
 			}
 
 			Command::Copy(name) => {
