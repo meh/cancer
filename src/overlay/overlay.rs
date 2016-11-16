@@ -463,9 +463,9 @@ impl Overlay {
 
 	/// Handle a command.
 	fn handle(&mut self, command: Command) -> Vec<Action> {
-		let before  = overlay!(self; cursor absolute);
-		let actions = self.command(command);
-		let after   = overlay!(self; cursor absolute);
+		let     before  = overlay!(self; cursor absolute);
+		let mut actions = self.command(command);
+		let     after   = overlay!(self; cursor absolute);
 
 		if after != before {
 			if self.selection.is_some() {
@@ -484,6 +484,11 @@ impl Overlay {
 				self.touched.line(self.inner.rows() - 1);
 				status.position((x, y));
 			}
+
+			if let Some(selection) = self.selection {
+				debug!(target: "cancer::overlay::selection", "selection: {:?}", self.selection(&selection));
+				actions.push(Action::Copy("PRIMARY".into(), self.selection(&selection)));
+			}
 		}
 
 		actions
@@ -493,6 +498,8 @@ impl Overlay {
 		fn is_boundary<T: AsRef<str>>(ch: T) -> bool {
 			!ch.as_ref().chars().any(|c| c.is_alphabetic() || c.is_numeric())
 		}
+
+		debug!(target: "cancer::overlay::command", "command: {:?}", command);
 
 		let mut actions = Vec::new();
 
@@ -842,10 +849,6 @@ impl Overlay {
 			}
 		}
 
-		if let Some(selection) = self.selection {
-			actions.push(Action::Copy("PRIMARY".into(), self.selection(&selection)));
-		}
-
 		actions
 	}
 
@@ -856,7 +859,7 @@ impl Overlay {
 		fn edge(row: &Row, start: u32, end: u32) -> u32 {
 			let mut found = None;
 
-			for x in start .. end {
+			for x in start ... end {
 				let cell = &row[x as usize];
 
 				if cell.is_empty() && found.is_none() {
