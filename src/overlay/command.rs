@@ -37,7 +37,7 @@ pub enum Scroll {
 	To(u32),
 }
 
-#[derive(Eq, PartialEq, Copy, Clone, Debug)]
+#[derive(Eq, PartialEq, Clone, Debug)]
 pub enum Move {
 	Left(u32),
 	Right(u32),
@@ -47,6 +47,7 @@ pub enum Move {
 	End,
 	To(u32, u32),
 	Word(Word),
+	Until(Until),
 }
 
 #[derive(Eq, PartialEq, Copy, Clone, Debug)]
@@ -55,6 +56,15 @@ pub enum Word {
 	Previous(u32),
 	NextEnd(u32),
 	PreviousEnd(u32),
+}
+
+#[derive(Eq, PartialEq, Clone, Debug)]
+pub enum Until {
+	Next(u32, String),
+	Previous(u32, String),
+
+	NextBefore(u32, String),
+	PreviousBefore(u32, String),
 }
 
 #[derive(Eq, PartialEq, Copy, Clone, Debug)]

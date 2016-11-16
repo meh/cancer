@@ -267,12 +267,29 @@ impl Overlay {
 			}
 		}
 
-		let new    = self.prefix.is_none();
 		let times  = self.times.take();
 		let prefix = self.prefix.take();
 
 		let command = match *key.value() {
 			Value::Char(ref ch) => match &**ch {
+				"e" if key.modifier().is_empty() && prefix == Some(b'g') =>
+					Command::Move(command::Move::Word(command::Word::PreviousEnd(times.unwrap_or(1)))),
+
+				"g" if key.modifier().is_empty() && prefix == Some(b'g') =>
+					Command::Scroll(command::Scroll::Begin),
+
+				ch if prefix == Some(b'f') =>
+					Command::Move(command::Move::Until(command::Until::Next(times.unwrap_or(1), ch.into()))),
+
+				ch if prefix == Some(b'F') =>
+					Command::Move(command::Move::Until(command::Until::Previous(times.unwrap_or(1), ch.into()))),
+
+				ch if prefix == Some(b't') =>
+					Command::Move(command::Move::Until(command::Until::NextBefore(times.unwrap_or(1), ch.into()))),
+
+				ch if prefix == Some(b'T') =>
+					Command::Move(command::Move::Until(command::Until::PreviousBefore(times.unwrap_or(1), ch.into()))),
+
 				"c" if key.modifier() == key::CTRL =>
 					Command::Exit,
 
@@ -318,19 +335,8 @@ impl Overlay {
 				"b" if key.modifier().is_empty() =>
 					Command::Move(command::Move::Word(command::Word::Previous(times.unwrap_or(1)))),
 
-				"e" if key.modifier().is_empty() && prefix == Some(b'g') =>
-					Command::Move(command::Move::Word(command::Word::PreviousEnd(times.unwrap_or(1)))),
-
 				"e" if key.modifier().is_empty() =>
 					Command::Move(command::Move::Word(command::Word::NextEnd(times.unwrap_or(1)))),
-
-				"g" if key.modifier().is_empty() && prefix.is_none() => {
-					self.prefix = Some(b'g');
-					Command::None
-				}
-
-				"g" if key.modifier().is_empty() && prefix == Some(b'g') =>
-					Command::Scroll(command::Scroll::Begin),
 
 				"G" if key.modifier() == key::SHIFT => {
 					if let Some(times) = times {
@@ -339,6 +345,31 @@ impl Overlay {
 					else {
 						Command::Scroll(command::Scroll::End)
 					}
+				}
+
+				"g" if key.modifier().is_empty() && prefix.is_none() => {
+					self.prefix = Some(b'g');
+					Command::None
+				}
+
+				"f" if key.modifier().is_empty() && prefix.is_none() => {
+					self.prefix = Some(b'f');
+					Command::None
+				}
+
+				"F" if key.modifier() == key::SHIFT && prefix.is_none() => {
+					self.prefix = Some(b'F');
+					Command::None
+				}
+
+				"t" if key.modifier().is_empty() && prefix.is_none() => {
+					self.prefix = Some(b't');
+					Command::None
+				}
+
+				"T" if key.modifier() == key::SHIFT && prefix.is_none() => {
+					self.prefix = Some(b'T');
+					Command::None
 				}
 
 				"v" if key.modifier().is_empty() =>
@@ -432,11 +463,6 @@ impl Overlay {
 				}
 			},
 		};
-
-		// Only remove the prefix if it hadn't just been set.
-		if self.prefix.is_some() && !new {
-			self.prefix = None;
-		}
 
 		let actions = self.handle(command);
 		(actions.into_iter(), self.touched.iter(self.inner.region()))
@@ -737,6 +763,74 @@ impl Overlay {
 						self.command(Command::Move(command::Move::Left(1)));
 						c = overlay!(self; cursor);
 					});
+				}
+			}
+
+			Command::Move(command::Move::Until(command::Until::Next(times, ch))) => {
+				for _ in 0 .. times {
+					let mut c = overlay!(self; cursor);
+
+					if self.get(c.0, c.1).value() == ch {
+						self.command(Command::Move(command::Move::Right(1)));
+						c = overlay!(self; cursor);
+					}
+
+					overlay!(self; while self.get(c.0, c.1).value() != ch => {
+						self.command(Command::Move(command::Move::Right(1)));
+						c = overlay!(self; cursor);
+					});
+				}
+			}
+
+			Command::Move(command::Move::Until(command::Until::Previous(times, ch))) => {
+				for _ in 0 .. times {
+					let mut c = overlay!(self; cursor);
+
+					if self.get(c.0, c.1).value() == ch {
+						self.command(Command::Move(command::Move::Left(1)));
+						c = overlay!(self; cursor);
+					}
+
+					overlay!(self; while self.get(c.0, c.1).value() != ch => {
+						self.command(Command::Move(command::Move::Left(1)));
+						c = overlay!(self; cursor);
+					});
+				}
+			}
+
+			Command::Move(command::Move::Until(command::Until::NextBefore(times, ch))) => {
+				for _ in 0 .. times {
+					let mut c = overlay!(self; cursor);
+
+					if self.get(c.0, c.1).value() == ch {
+						self.command(Command::Move(command::Move::Right(1)));
+						c = overlay!(self; cursor);
+					}
+
+					overlay!(self; while self.get(c.0, c.1).value() != ch => {
+						self.command(Command::Move(command::Move::Right(1)));
+						c = overlay!(self; cursor);
+					});
+
+					self.command(Command::Move(command::Move::Left(1)));
+				}
+			}
+
+			Command::Move(command::Move::Until(command::Until::PreviousBefore(times, ch))) => {
+				for _ in 0 .. times {
+					let mut c = overlay!(self; cursor);
+
+					if self.get(c.0, c.1).value() == ch {
+						self.command(Command::Move(command::Move::Left(1)));
+						c = overlay!(self; cursor);
+					}
+
+					overlay!(self; while self.get(c.0, c.1).value() != ch => {
+						self.command(Command::Move(command::Move::Left(1)));
+						c = overlay!(self; cursor);
+					});
+
+					self.command(Command::Move(command::Move::Right(1)));
 				}
 			}
 
