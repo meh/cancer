@@ -97,6 +97,9 @@ fn to_key<T: AsRef<str>>(value: T) -> Key {
 		"left" =>
 			key::Button::Left.into(),
 
+		"menu" =>
+			key::Button::Menu.into(),
+
 		_ =>
 			button.into()
 	};

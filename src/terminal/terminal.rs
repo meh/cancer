@@ -638,8 +638,7 @@ impl Terminal {
 			Value::Button(Button::F(_)) =>
 				unreachable!(),
 
-			Value::Keypad(_) =>
-				unimplemented!(),
+			_ => Ok(())
 		}
 	}
 

@@ -83,6 +83,7 @@ pub enum Button {
 	Left,
 
 	F(u8),
+	Menu,
 }
 
 #[derive(Eq, PartialEq, Copy, Clone, Debug)]

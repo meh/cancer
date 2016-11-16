@@ -208,6 +208,9 @@ impl Keyboard {
 			keysyms::KEY_F1 ... keysyms::KEY_F35 =>
 				Button::F((symbol - keysyms::KEY_F1 + 1) as u8).into(),
 
+			keysyms::KEY_Menu =>
+				Button::Menu.into(),
+
 			keysyms::KEY_KP_Enter =>
 				Keypad::Enter.into(),
 
