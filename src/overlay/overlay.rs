@@ -617,8 +617,14 @@ impl Overlay {
 			Command::Move(command::Move::Right(times)) => {
 				for _ in 0 .. times {
 					if overlay!(self; cursor Right(1)).is_some() {
-						if overlay!(self; cursor Down(1)).is_some() && self.scroll != 0 {
+						if overlay!(self; cursor Down(1)).is_some() {
 							self.command(Command::Scroll(command::Scroll::Down(1)));
+						}
+
+						if self.scroll == 0 && self.cursor.position() !=
+							(self.inner.columns() - 1,
+							 self.inner.rows() - 1 - if self.status.is_some() { 1 } else { 0 })
+						{
 							overlay!(self; cursor Position(Some(0), None));
 						}
 					}
