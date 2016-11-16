@@ -792,7 +792,9 @@ impl Overlay {
 						c = overlay!(self; cursor);
 					}
 
-					self.command(Command::Move(command::Move::Left(1)));
+					if !self.at_end() {
+						self.command(Command::Move(command::Move::Left(1)));
+					}
 				}
 			}
 
@@ -810,7 +812,9 @@ impl Overlay {
 						c = overlay!(self; cursor);
 					}
 
-					self.command(Command::Move(command::Move::Right(1)));
+					if !self.at_start() {
+						self.command(Command::Move(command::Move::Right(1)));
+					}
 				}
 			}
 
