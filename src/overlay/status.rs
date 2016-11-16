@@ -19,7 +19,6 @@ use std::rc::Rc;
 use std::ops::Deref;
 use unicode_segmentation::UnicodeSegmentation;
 
-use config;
 use style::Style;
 use terminal::Cell;
 
@@ -34,8 +33,8 @@ pub struct Status {
 }
 
 impl Status {
-	pub fn new(config: &config::style::Status, cols: u32) -> Self {
-		let style = Rc::new(**config);
+	pub fn new(style: Style, cols: u32) -> Self {
+		let style = Rc::new(style);
 
 		Status {
 			cols:  cols,

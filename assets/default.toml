@@ -27,15 +27,22 @@ blink = false
 foreground = "#000"
 background = "#fff"
 
-[style.status]
+[style.overlay.cursor]
+shape = "block"
+blink = false
+
+foreground = "#000"
+background = "#fff"
+
+[style.overlay.status]
 foreground = "#000000"
 background = "#c0c0c0"
 
-[style.selection]
+[style.overlay.selection]
 foreground = "#000000"
 background = "#c0c0c0"
 
-[style.hint]
+[style.overlay.hint]
 foreground = "#000000"
 background = "#c0c0c0"
 attributes = "bold"

@@ -16,7 +16,6 @@
 // along with cancer.  If not, see <http://www.gnu.org/licenses/>.
 
 use std::rc::Rc;
-use std::mem;
 use std::io::Write;
 use std::ops::{Deref, DerefMut};
 use std::vec;
@@ -133,13 +132,26 @@ impl Overlay {
 	/// Create a new `Overlay` for the given `Terminal`.
 	pub fn new(inner: Terminal) -> Self {
 		let mut cursor = inner.cursor().clone();
-		mem::swap(&mut cursor.foreground, &mut cursor.background);
+		{
+			let config = inner.config().style().overlay().cursor();
 
-		let status = inner.config().style().status().map(|c| {
+			cursor.foreground = *config.foreground();
+			cursor.background = *config.background();
+			cursor.shape      = config.shape();
+
+			if config.blink() {
+				cursor.state.insert(cursor::BLINK);
+			}
+			else {
+				cursor.state.remove(cursor::BLINK);
+			}
+		}
+
+		let status = inner.config().style().overlay().status().map(|c| {
 			cursor.travel(cursor::Up(1));
 			cursor.scroll = (0, inner.rows() - 2);
 
-			let mut status = Status::new(c, inner.columns());
+			let mut status = Status::new(*c, inner.columns());
 			status.mode("NORMAL");
 
 			let (x, y) = cursor.position();
@@ -149,8 +161,8 @@ impl Overlay {
 			status
 		});
 
-		let selected = Rc::new(**inner.config().style().selection());
-		let hint     = Rc::new(**inner.config().style().hint());
+		let selected = Rc::new(*inner.config().style().overlay().selection());
+		let hint     = Rc::new(*inner.config().style().overlay().hint());
 
 		Overlay {
 			inner:   inner,

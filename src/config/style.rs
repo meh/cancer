@@ -15,7 +15,6 @@
 // You should have received a copy of the GNU General Public License
 // along with cancer.  If not, see <http://www.gnu.org/licenses/>.
 
-use std::ops::Deref;
 use toml::{self, Value};
 use picto::color::Rgba;
 use config::util::{to_color, to_attributes};
@@ -32,9 +31,7 @@ pub struct Style {
 
 	color:     Color,
 	cursor:    Cursor,
-	status:    Option<Status>,
-	selection: Selection,
-	hint:      Hint,
+	overlay:   Overlay,
 }
 
 impl Default for Style {
@@ -47,11 +44,9 @@ impl Default for Style {
 			margin:  0,
 			spacing: 0,
 
-			color:     Default::default(),
-			cursor:    Default::default(),
-			status:    Some(Default::default()),
-			selection: Default::default(),
-			hint:      Default::default(),
+			color:   Default::default(),
+			cursor:  Default::default(),
+			overlay: Default::default(),
 		}
 	}
 }
@@ -128,14 +123,39 @@ impl Default for Cursor {
 	}
 }
 
-#[derive(PartialEq, Clone, Default, Debug)]
-pub struct Status(style::Style);
+#[derive(PartialEq, Clone, Debug)]
+pub struct Overlay {
+	cursor:    Cursor,
+	status:    Option<style::Style>,
+	selection: style::Style,
+	hint:      style::Style,
+}
 
-#[derive(PartialEq, Clone, Default, Debug)]
-pub struct Selection(style::Style);
+impl Default for Overlay {
+	fn default() -> Self {
+		Overlay {
+			cursor: Cursor::default(),
 
-#[derive(PartialEq, Clone, Default, Debug)]
-pub struct Hint(style::Style);
+			status: Some(style::Style {
+				foreground: to_color("#000"),
+				background: to_color("#c0c0c0"),
+				attributes: style::NONE,
+			}),
+
+			selection: style::Style {
+				foreground: to_color("#000"),
+				background: to_color("#c0c0c0"),
+				attributes: style::NONE,
+			},
+
+			hint: style::Style {
+				foreground: to_color("#000"),
+				background: to_color("#c0c0c0"),
+				attributes: style::BOLD,
+			},
+		}
+	}
+}
 
 impl Style {
 	pub fn load(&mut self, table: &toml::Table) {
@@ -222,57 +242,59 @@ impl Style {
 			}
 		}
 
-		if let Some(value) = table.get("status") {
-			if let Some(table) = value.as_table() {
-				let mut status = Status::default();
+		if let Some(table) = table.get("overlay").and_then(|v| v.as_table()) {
+			if let Some(value) = table.get("status") {
+				if let Some(table) = value.as_table() {
+					let mut status = style::Style::default();
 
-				if let Some(value) = table.get("foreground").and_then(|v| v.as_str()).and_then(|v| to_color(v)) {
-					status.0.foreground = Some(value);
+					if let Some(value) = table.get("foreground").and_then(|v| v.as_str()).and_then(|v| to_color(v)) {
+						status.foreground = Some(value);
+					}
+
+					if let Some(value) = table.get("background").and_then(|v| v.as_str()).and_then(|v| to_color(v)) {
+						status.background = Some(value);
+					}
+
+					if let Some(value) = table.get("attributes").and_then(|v| v.as_str()) {
+						status.attributes = to_attributes(value);
+					}
+
+					self.overlay.status = Some(status);
 				}
-
-				if let Some(value) = table.get("background").and_then(|v| v.as_str()).and_then(|v| to_color(v)) {
-					status.0.background = Some(value);
-				}
-
-				if let Some(value) = table.get("attributes").and_then(|v| v.as_str()) {
-					status.0.attributes = to_attributes(value);
-				}
-
-				self.status = Some(status);
-			}
-			else {
-				self.status = None;
-			}
-		}
-
-		if let Some(value) = table.get("selection") {
-			if let Some(table) = value.as_table() {
-				if let Some(value) = table.get("foreground").and_then(|v| v.as_str()).and_then(|v| to_color(v)) {
-					self.selection.0.foreground = Some(value);
-				}
-
-				if let Some(value) = table.get("background").and_then(|v| v.as_str()).and_then(|v| to_color(v)) {
-					self.selection.0.background = Some(value);
-				}
-
-				if let Some(value) = table.get("attributes").and_then(|v| v.as_str()) {
-					self.selection.0.attributes = to_attributes(value);
+				else {
+					self.overlay.status = None;
 				}
 			}
-		}
 
-		if let Some(value) = table.get("hint") {
-			if let Some(table) = value.as_table() {
-				if let Some(value) = table.get("foreground").and_then(|v| v.as_str()).and_then(|v| to_color(v)) {
-					self.hint.0.foreground = Some(value);
+			if let Some(value) = table.get("selection") {
+				if let Some(table) = value.as_table() {
+					if let Some(value) = table.get("foreground").and_then(|v| v.as_str()).and_then(|v| to_color(v)) {
+						self.overlay.selection.foreground = Some(value);
+					}
+
+					if let Some(value) = table.get("background").and_then(|v| v.as_str()).and_then(|v| to_color(v)) {
+						self.overlay.selection.background = Some(value);
+					}
+
+					if let Some(value) = table.get("attributes").and_then(|v| v.as_str()) {
+						self.overlay.selection.attributes = to_attributes(value);
+					}
 				}
+			}
 
-				if let Some(value) = table.get("background").and_then(|v| v.as_str()).and_then(|v| to_color(v)) {
-					self.hint.0.background = Some(value);
-				}
+			if let Some(value) = table.get("hint") {
+				if let Some(table) = value.as_table() {
+					if let Some(value) = table.get("foreground").and_then(|v| v.as_str()).and_then(|v| to_color(v)) {
+						self.overlay.hint.foreground = Some(value);
+					}
 
-				if let Some(value) = table.get("attributes").and_then(|v| v.as_str()) {
-					self.hint.0.attributes = to_attributes(value);
+					if let Some(value) = table.get("background").and_then(|v| v.as_str()).and_then(|v| to_color(v)) {
+						self.overlay.hint.background = Some(value);
+					}
+
+					if let Some(value) = table.get("attributes").and_then(|v| v.as_str()) {
+						self.overlay.hint.attributes = to_attributes(value);
+					}
 				}
 			}
 		}
@@ -306,16 +328,8 @@ impl Style {
 		&self.cursor
 	}
 
-	pub fn status(&self) -> Option<&Status> {
-		self.status.as_ref()
-	}
-
-	pub fn selection(&self) -> &Selection {
-		&self.selection
-	}
-
-	pub fn hint(&self) -> &Hint {
-		&self.hint
+	pub fn overlay(&self) -> &Overlay {
+		&self.overlay
 	}
 }
 
@@ -355,26 +369,20 @@ impl Cursor {
 	}
 }
 
-impl Deref for Status {
-	type Target = style::Style;
-
-	fn deref(&self) -> &Self::Target {
-		&self.0
+impl Overlay {
+	pub fn cursor(&self) -> &Cursor {
+		&self.cursor
 	}
-}
 
-impl Deref for Selection {
-	type Target = style::Style;
-
-	fn deref(&self) -> &Self::Target {
-		&self.0
+	pub fn status(&self) -> Option<&style::Style> {
+		self.status.as_ref()
 	}
-}
 
-impl Deref for Hint {
-	type Target = style::Style;
+	pub fn selection(&self) -> &style::Style {
+		&self.selection
+	}
 
-	fn deref(&self) -> &Self::Target {
-		&self.0
+	pub fn hint(&self) -> &style::Style {
+		&self.hint
 	}
 }
