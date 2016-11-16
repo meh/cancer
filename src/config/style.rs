@@ -15,6 +15,7 @@
 // You should have received a copy of the GNU General Public License
 // along with cancer.  If not, see <http://www.gnu.org/licenses/>.
 
+use std::ops::Deref;
 use toml::{self, Value};
 use picto::color::Rgba;
 use config::util::{to_color, to_attributes};
@@ -33,6 +34,7 @@ pub struct Style {
 	cursor:    Cursor,
 	status:    Option<Status>,
 	selection: Selection,
+	hint:      Hint,
 }
 
 impl Default for Style {
@@ -49,6 +51,7 @@ impl Default for Style {
 			cursor:    Default::default(),
 			status:    Some(Default::default()),
 			selection: Default::default(),
+			hint:      Default::default(),
 		}
 	}
 }
@@ -125,39 +128,14 @@ impl Default for Cursor {
 	}
 }
 
-#[derive(PartialEq, Clone, Debug)]
-pub struct Status {
-	foreground: Rgba<f64>,
-	background: Rgba<f64>,
-	attributes: style::Attributes,
-}
+#[derive(PartialEq, Clone, Default, Debug)]
+pub struct Status(style::Style);
 
-impl Default for Status {
-	fn default() -> Self {
-		Status {
-			foreground: to_color("#000").unwrap(),
-			background: to_color("#c0c0c0").unwrap(),
-			attributes: style::NONE,
-		}
-	}
-}
+#[derive(PartialEq, Clone, Default, Debug)]
+pub struct Selection(style::Style);
 
-#[derive(PartialEq, Clone, Debug)]
-pub struct Selection {
-	foreground: Rgba<f64>,
-	background: Rgba<f64>,
-	attributes: style::Attributes,
-}
-
-impl Default for Selection {
-	fn default() -> Self {
-		Selection {
-			foreground: to_color("#000").unwrap(),
-			background: to_color("#c0c0c0").unwrap(),
-			attributes: style::NONE,
-		}
-	}
-}
+#[derive(PartialEq, Clone, Default, Debug)]
+pub struct Hint(style::Style);
 
 impl Style {
 	pub fn load(&mut self, table: &toml::Table) {
@@ -249,15 +227,15 @@ impl Style {
 				let mut status = Status::default();
 
 				if let Some(value) = table.get("foreground").and_then(|v| v.as_str()).and_then(|v| to_color(v)) {
-					status.foreground = value;
+					status.0.foreground = Some(value);
 				}
 
 				if let Some(value) = table.get("background").and_then(|v| v.as_str()).and_then(|v| to_color(v)) {
-					status.background = value;
+					status.0.background = Some(value);
 				}
 
 				if let Some(value) = table.get("attributes").and_then(|v| v.as_str()) {
-					status.attributes = to_attributes(value);
+					status.0.attributes = to_attributes(value);
 				}
 
 				self.status = Some(status);
@@ -270,15 +248,31 @@ impl Style {
 		if let Some(value) = table.get("selection") {
 			if let Some(table) = value.as_table() {
 				if let Some(value) = table.get("foreground").and_then(|v| v.as_str()).and_then(|v| to_color(v)) {
-					self.selection.foreground = value;
+					self.selection.0.foreground = Some(value);
 				}
 
 				if let Some(value) = table.get("background").and_then(|v| v.as_str()).and_then(|v| to_color(v)) {
-					self.selection.background = value;
+					self.selection.0.background = Some(value);
 				}
 
 				if let Some(value) = table.get("attributes").and_then(|v| v.as_str()) {
-					self.selection.attributes = to_attributes(value);
+					self.selection.0.attributes = to_attributes(value);
+				}
+			}
+		}
+
+		if let Some(value) = table.get("hint") {
+			if let Some(table) = value.as_table() {
+				if let Some(value) = table.get("foreground").and_then(|v| v.as_str()).and_then(|v| to_color(v)) {
+					self.hint.0.foreground = Some(value);
+				}
+
+				if let Some(value) = table.get("background").and_then(|v| v.as_str()).and_then(|v| to_color(v)) {
+					self.hint.0.background = Some(value);
+				}
+
+				if let Some(value) = table.get("attributes").and_then(|v| v.as_str()) {
+					self.hint.0.attributes = to_attributes(value);
 				}
 			}
 		}
@@ -319,6 +313,10 @@ impl Style {
 	pub fn selection(&self) -> &Selection {
 		&self.selection
 	}
+
+	pub fn hint(&self) -> &Hint {
+		&self.hint
+	}
 }
 
 impl Color {
@@ -357,30 +355,26 @@ impl Cursor {
 	}
 }
 
-impl Status {
-	pub fn foreground(&self) -> &Rgba<f64> {
-		&self.foreground
-	}
+impl Deref for Status {
+	type Target = style::Style;
 
-	pub fn background(&self) -> &Rgba<f64> {
-		&self.background
-	}
-
-	pub fn attributes(&self) -> style::Attributes {
-		self.attributes
+	fn deref(&self) -> &Self::Target {
+		&self.0
 	}
 }
 
-impl Selection {
-	pub fn foreground(&self) -> &Rgba<f64> {
-		&self.foreground
-	}
+impl Deref for Selection {
+	type Target = style::Style;
 
-	pub fn background(&self) -> &Rgba<f64> {
-		&self.background
+	fn deref(&self) -> &Self::Target {
+		&self.0
 	}
+}
 
-	pub fn attributes(&self) -> style::Attributes {
-		self.attributes
+impl Deref for Hint {
+	type Target = style::Style;
+
+	fn deref(&self) -> &Self::Target {
+		&self.0
 	}
 }

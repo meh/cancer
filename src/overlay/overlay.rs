@@ -51,6 +51,7 @@ pub struct Overlay {
 	times:     Option<u32>,
 	selection: Option<Selection>,
 	selected:  Rc<Style>,
+	hint:      Rc<Style>,
 }
 
 #[derive(Eq, PartialEq, Copy, Clone, Debug)]
@@ -148,10 +149,8 @@ impl Overlay {
 			status
 		});
 
-		let mut style = Style::default();
-		style.foreground = Some(*inner.config().style().selection().foreground());
-		style.background = Some(*inner.config().style().selection().background());
-		style.attributes = inner.config().style().selection().attributes();
+		let selected = Rc::new(**inner.config().style().selection());
+		let hint     = Rc::new(**inner.config().style().hint());
 
 		Overlay {
 			inner:   inner,
@@ -167,7 +166,8 @@ impl Overlay {
 			times:  None,
 
 			selection: None,
-			selected:  Rc::new(style),
+			selected:  selected,
+			hint:      hint,
 		}
 	}
 

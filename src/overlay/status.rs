@@ -35,11 +35,7 @@ pub struct Status {
 
 impl Status {
 	pub fn new(config: &config::style::Status, cols: u32) -> Self {
-		let style = Rc::new(Style {
-			foreground: Some(*config.foreground()),
-			background: Some(*config.background()),
-			attributes: config.attributes(),
-		});
+		let style = Rc::new(**config);
 
 		Status {
 			cols:  cols,
