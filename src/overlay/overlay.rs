@@ -103,23 +103,6 @@ macro_rules! overlay {
 		r
 	});
 
-	($term:ident; while $condition:expr => $block:block) => ({
-		let mut before = (overlay!($term; cursor), $term.scroll);
-
-		while $condition {
-			$block;
-
-			let after = (overlay!($term; cursor), $term.scroll);
-
-			if before == after {
-				break;
-			}
-			else {
-				before = after;
-			}
-		}
-	});
-
 	($term:ident; status mode $name:expr) => ({
 		if let Some(status) = $term.status.as_mut() {
 			$term.touched.line($term.inner.rows() - 1);
@@ -666,10 +649,7 @@ impl Overlay {
 							self.command(Command::Scroll(command::Scroll::Down(1)));
 						}
 
-						if self.scroll == 0 && self.cursor.position() !=
-							(self.inner.columns() - 1,
-							 self.inner.rows() - 1 - if self.status.is_some() { 1 } else { 0 })
-						{
+						if !self.at_end() {
 							overlay!(self; cursor Position(Some(0), None));
 						}
 					}
@@ -681,16 +661,16 @@ impl Overlay {
 					let mut c = overlay!(self; cursor);
 
 					if !is_boundary(self.get(c.0, c.1).value()) {
-						overlay!(self; while !is_boundary(self.get(c.0, c.1).value()) => {
+						while !is_boundary(self.get(c.0, c.1).value()) && !self.at_end() {
 							self.command(Command::Move(command::Move::Right(1)));
 							c = overlay!(self; cursor);
-						});
+						}
 					}
 
-					overlay!(self; while is_boundary(self.get(c.0, c.1).value()) => {
+					while is_boundary(self.get(c.0, c.1).value()) && !self.at_end() {
 						self.command(Command::Move(command::Move::Right(1)));
 						c = overlay!(self; cursor);
-					});
+					}
 				}
 			}
 
@@ -699,23 +679,23 @@ impl Overlay {
 					let mut c = overlay!(self; cursor);
 
 					if !is_boundary(self.get(c.0, c.1).value()) {
-						overlay!(self; while !is_boundary(self.get(c.0, c.1).value()) => {
+						while !is_boundary(self.get(c.0, c.1).value()) && !self.at_start() {
 							self.command(Command::Move(command::Move::Left(1)));
 							c = overlay!(self; cursor);
-						});
+						}
 					}
 
-					overlay!(self; while is_boundary(self.get(c.0, c.1).value()) => {
+					while is_boundary(self.get(c.0, c.1).value()) && !self.at_start() {
 						self.command(Command::Move(command::Move::Left(1)));
 						c = overlay!(self; cursor);
-					});
+					}
 
-					overlay!(self; while !is_boundary(self.get(c.0, c.1).value()) => {
+					while !is_boundary(self.get(c.0, c.1).value()) && !self.at_start() {
 						self.command(Command::Move(command::Move::Left(1)));
 						c = overlay!(self; cursor);
-					});
+					}
 
-					if is_boundary(self.get(c.0, c.1).value()) {
+					if is_boundary(self.get(c.0, c.1).value()) && !self.at_start() {
 						self.command(Command::Move(command::Move::Right(1)));
 					}
 				}
@@ -731,18 +711,18 @@ impl Overlay {
 					}
 
 					if is_boundary(self.get(c.0, c.1).value()) {
-						overlay!(self; while is_boundary(self.get(c.0, c.1).value()) => {
+						while is_boundary(self.get(c.0, c.1).value()) && !self.at_end() {
 							self.command(Command::Move(command::Move::Right(1)));
 							c = overlay!(self; cursor);
-						});
+						}
 					}
 
-					overlay!(self; while !is_boundary(self.get(c.0, c.1).value()) => {
+					while !is_boundary(self.get(c.0, c.1).value()) && !self.at_end() {
 						self.command(Command::Move(command::Move::Right(1)));
 						c = overlay!(self; cursor);
-					});
+					}
 
-					if is_boundary(self.get(c.0, c.1).value()) {
+					if is_boundary(self.get(c.0, c.1).value()) && !self.at_end() {
 						self.command(Command::Move(command::Move::Left(1)));
 					}
 				}
@@ -753,16 +733,16 @@ impl Overlay {
 					let mut c = overlay!(self; cursor);
 
 					if !is_boundary(self.get(c.0, c.1).value()) {
-						overlay!(self; while !is_boundary(self.get(c.0, c.1).value()) => {
+						while !is_boundary(self.get(c.0, c.1).value()) && !self.at_start() {
 							self.command(Command::Move(command::Move::Left(1)));
 							c = overlay!(self; cursor);
-						});
+						}
 					}
 
-					overlay!(self; while is_boundary(self.get(c.0, c.1).value()) => {
+					while is_boundary(self.get(c.0, c.1).value()) && !self.at_start() {
 						self.command(Command::Move(command::Move::Left(1)));
 						c = overlay!(self; cursor);
-					});
+					}
 				}
 			}
 
@@ -775,10 +755,10 @@ impl Overlay {
 						c = overlay!(self; cursor);
 					}
 
-					overlay!(self; while self.get(c.0, c.1).value() != ch => {
+					while self.get(c.0, c.1).value() != ch && !self.at_end() {
 						self.command(Command::Move(command::Move::Right(1)));
 						c = overlay!(self; cursor);
-					});
+					}
 				}
 			}
 
@@ -791,10 +771,10 @@ impl Overlay {
 						c = overlay!(self; cursor);
 					}
 
-					overlay!(self; while self.get(c.0, c.1).value() != ch => {
+					while self.get(c.0, c.1).value() != ch && !self.at_start() {
 						self.command(Command::Move(command::Move::Left(1)));
 						c = overlay!(self; cursor);
-					});
+					}
 				}
 			}
 
@@ -807,10 +787,10 @@ impl Overlay {
 						c = overlay!(self; cursor);
 					}
 
-					overlay!(self; while self.get(c.0, c.1).value() != ch => {
+					while self.get(c.0, c.1).value() != ch && !self.at_end() {
 						self.command(Command::Move(command::Move::Right(1)));
 						c = overlay!(self; cursor);
-					});
+					}
 
 					self.command(Command::Move(command::Move::Left(1)));
 				}
@@ -825,10 +805,10 @@ impl Overlay {
 						c = overlay!(self; cursor);
 					}
 
-					overlay!(self; while self.get(c.0, c.1).value() != ch => {
+					while self.get(c.0, c.1).value() != ch && !self.at_start() {
 						self.command(Command::Move(command::Move::Left(1)));
 						c = overlay!(self; cursor);
-					});
+					}
 
 					self.command(Command::Move(command::Move::Right(1)));
 				}
@@ -1229,6 +1209,24 @@ impl Overlay {
 				}
 			}
 		}
+	}
+
+	fn at_start(&self) -> bool {
+		let (x, y) = overlay!(self; cursor);
+		let back   = self.inner.grid().back().len() as u32 +
+			if self.status.is_some() { 1 } else { 0 };
+
+		self.scroll == back &&
+		x == 0 &&
+		y == 0
+	}
+
+	fn at_end(&self) -> bool {
+		let (x, y) = overlay!(self; cursor);
+
+		self.scroll == 0 &&
+		x == self.inner.columns() - 1 &&
+		y == self.inner.rows() - 1 - if self.status.is_some() { 1 } else { 0 }
 	}
 }
 
