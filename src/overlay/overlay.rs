@@ -103,6 +103,23 @@ macro_rules! overlay {
 		r
 	});
 
+	($term:ident; while $condition:expr => $block:block) => ({
+		let mut before = (overlay!($term; cursor), $term.scroll);
+
+		while $condition {
+			$block;
+
+			let after = (overlay!($term; cursor), $term.scroll);
+
+			if before == after {
+				break;
+			}
+			else {
+				before = after;
+			}
+		}
+	});
+
 	($term:ident; status mode $name:expr) => ({
 		if let Some(status) = $term.status.as_mut() {
 			$term.touched.line($term.inner.rows() - 1);
@@ -283,6 +300,18 @@ impl Overlay {
 				"l" if key.modifier().is_empty() =>
 					Command::Move(command::Move::Right(times.unwrap_or(1))),
 
+				"w" if key.modifier().is_empty() =>
+					Command::Move(command::Move::Word(command::Word::Next(times.unwrap_or(1)))),
+
+				"b" if key.modifier().is_empty() =>
+					Command::Move(command::Move::Word(command::Word::Previous(times.unwrap_or(1)))),
+
+				"e" if key.modifier().is_empty() && prefix == Some(b'g') =>
+					Command::Move(command::Move::Word(command::Word::PreviousEnd(times.unwrap_or(1)))),
+
+				"e" if key.modifier().is_empty() =>
+					Command::Move(command::Move::Word(command::Word::NextEnd(times.unwrap_or(1)))),
+
 				"g" if key.modifier().is_empty() && prefix.is_none() => {
 					self.prefix = Some(b'g');
 					Command::None
@@ -461,6 +490,10 @@ impl Overlay {
 	}
 
 	fn command(&mut self, command: Command) -> Vec<Action> {
+		fn is_boundary<T: AsRef<str>>(ch: T) -> bool {
+			!ch.as_ref().chars().any(|c| c.is_alphabetic() || c.is_numeric())
+		}
+
 		let mut actions = Vec::new();
 
 		match command {
@@ -556,13 +589,11 @@ impl Overlay {
 			Command::Move(command::Move::Left(times)) => {
 				for _ in 0 ..times {
 					if overlay!(self; cursor Left(1)).is_some() {
-						if let Some(&Selection::Normal { .. }) = self.selection.as_ref() {
-							if overlay!(self; cursor Up(1)).is_some() {
-								self.command(Command::Scroll(command::Scroll::Up(1)));
-							}
-
-							overlay!(self; cursor Position(Some(self.inner.columns() - 1), None));
+						if overlay!(self; cursor Up(1)).is_some() {
+							self.command(Command::Scroll(command::Scroll::Up(1)));
 						}
+
+						overlay!(self; cursor Position(Some(self.inner.columns() - 1), None));
 					}
 				}
 			}
@@ -586,13 +617,104 @@ impl Overlay {
 			Command::Move(command::Move::Right(times)) => {
 				for _ in 0 .. times {
 					if overlay!(self; cursor Right(1)).is_some() {
-						if let Some(&Selection::Normal { .. }) = self.selection.as_ref() {
-							if overlay!(self; cursor Down(1)).is_some() {
-								self.command(Command::Scroll(command::Scroll::Down(1)));
-							}
-
+						if overlay!(self; cursor Down(1)).is_some() && self.scroll != 0 {
+							self.command(Command::Scroll(command::Scroll::Down(1)));
 							overlay!(self; cursor Position(Some(0), None));
 						}
+					}
+				}
+			}
+
+			Command::Move(command::Move::Word(command::Word::Next(times))) => {
+				for _ in 0 .. times {
+					let mut c = overlay!(self; cursor);
+
+					if !is_boundary(self.get(c.0, c.1).value()) {
+						overlay!(self; while !is_boundary(self.get(c.0, c.1).value()) => {
+							self.command(Command::Move(command::Move::Right(1)));
+							c = overlay!(self; cursor);
+						});
+					}
+
+					overlay!(self; while is_boundary(self.get(c.0, c.1).value()) => {
+						self.command(Command::Move(command::Move::Right(1)));
+						c = overlay!(self; cursor);
+					});
+				}
+			}
+
+			Command::Move(command::Move::Word(command::Word::Previous(times))) => {
+				for _ in 0 .. times {
+					let mut c = overlay!(self; cursor);
+
+					if !is_boundary(self.get(c.0, c.1).value()) {
+						overlay!(self; while !is_boundary(self.get(c.0, c.1).value()) => {
+							self.command(Command::Move(command::Move::Left(1)));
+							c = overlay!(self; cursor);
+						});
+					}
+
+					overlay!(self; while is_boundary(self.get(c.0, c.1).value()) => {
+						self.command(Command::Move(command::Move::Left(1)));
+						c = overlay!(self; cursor);
+					});
+
+					overlay!(self; while !is_boundary(self.get(c.0, c.1).value()) => {
+						self.command(Command::Move(command::Move::Left(1)));
+						c = overlay!(self; cursor);
+					});
+
+					if is_boundary(self.get(c.0, c.1).value()) {
+						self.command(Command::Move(command::Move::Right(1)));
+					}
+				}
+			}
+
+			Command::Move(command::Move::Word(command::Word::NextEnd(times))) => {
+				for _ in 0 .. times {
+					let mut c = overlay!(self; cursor);
+
+					if !is_boundary(self.get(c.0, c.1).value()) {
+						self.command(Command::Move(command::Move::Right(1)));
+						c = overlay!(self; cursor);
+					}
+
+					if is_boundary(self.get(c.0, c.1).value()) {
+						overlay!(self; while is_boundary(self.get(c.0, c.1).value()) => {
+							self.command(Command::Move(command::Move::Right(1)));
+							c = overlay!(self; cursor);
+						});
+					}
+
+					overlay!(self; while !is_boundary(self.get(c.0, c.1).value()) => {
+						self.command(Command::Move(command::Move::Right(1)));
+						c = overlay!(self; cursor);
+					});
+
+					if is_boundary(self.get(c.0, c.1).value()) {
+						self.command(Command::Move(command::Move::Left(1)));
+					}
+				}
+			}
+
+			Command::Move(command::Move::Word(command::Word::PreviousEnd(times))) => {
+				for _ in 0 .. times {
+					let (mut x, mut y) = overlay!(self; cursor);
+
+					if !is_boundary(self.get(x, y).value()) {
+						while !is_boundary(self.get(x, y).value()) {
+							self.command(Command::Move(command::Move::Left(1)));
+
+							let (nx, ny) = overlay!(self; cursor);
+							x = nx; y = ny;
+						}
+					}
+
+					while is_boundary(self.get(x, y).value()) {
+						self.command(Command::Move(command::Move::Left(1)));
+
+						let (nx, ny) = overlay!(self; cursor);
+						x = nx; y = ny;
 					}
 				}
 			}

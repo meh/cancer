@@ -46,6 +46,15 @@ pub enum Move {
 	Start,
 	End,
 	To(u32, u32),
+	Word(Word),
+}
+
+#[derive(Eq, PartialEq, Copy, Clone, Debug)]
+pub enum Word {
+	Next(u32),
+	Previous(u32),
+	NextEnd(u32),
+	PreviousEnd(u32),
 }
 
 #[derive(Eq, PartialEq, Copy, Clone, Debug)]
