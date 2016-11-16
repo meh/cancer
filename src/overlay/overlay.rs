@@ -724,23 +724,19 @@ impl Overlay {
 
 			Command::Move(command::Move::Word(command::Word::PreviousEnd(times))) => {
 				for _ in 0 .. times {
-					let (mut x, mut y) = overlay!(self; cursor);
+					let mut c = overlay!(self; cursor);
 
-					if !is_boundary(self.get(x, y).value()) {
-						while !is_boundary(self.get(x, y).value()) {
+					if !is_boundary(self.get(c.0, c.1).value()) {
+						overlay!(self; while !is_boundary(self.get(c.0, c.1).value()) => {
 							self.command(Command::Move(command::Move::Left(1)));
-
-							let (nx, ny) = overlay!(self; cursor);
-							x = nx; y = ny;
-						}
+							c = overlay!(self; cursor);
+						});
 					}
 
-					while is_boundary(self.get(x, y).value()) {
+					overlay!(self; while is_boundary(self.get(c.0, c.1).value()) => {
 						self.command(Command::Move(command::Move::Left(1)));
-
-						let (nx, ny) = overlay!(self; cursor);
-						x = nx; y = ny;
-					}
+						c = overlay!(self; cursor);
+					});
 				}
 			}
 
