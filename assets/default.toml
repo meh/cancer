@@ -6,6 +6,7 @@ batch  = 30
 
 [input]
 prefix = "L-a"
+mouse  = true
 
 [style]
 blink = 500

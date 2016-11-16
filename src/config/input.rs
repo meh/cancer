@@ -21,12 +21,14 @@ use platform::{Key, key};
 #[derive(PartialEq, Clone, Debug)]
 pub struct Input {
 	prefix: Key,
+	mouse:  bool,
 }
 
 impl Default for Input {
 	fn default() -> Self {
 		Input {
 			prefix: Key::new("a".to_string().into(), key::LOGO, Default::default()),
+			mouse:  true,
 		}
 	}
 }
@@ -36,10 +38,18 @@ impl Input {
 		if let Some(value) = table.get("prefix").and_then(|v| v.as_str()) {
 			self.prefix = to_key(value);
 		}
+
+		if let Some(value) = table.get("mouse").and_then(|v| v.as_bool()) {
+			self.mouse = value;
+		}
 	}
 
 	pub fn prefix(&self) -> &Key {
 		&self.prefix
+	}
+
+	pub fn mouse(&self) -> bool {
+		self.mouse
 	}
 }
 

@@ -184,6 +184,10 @@ impl Interface {
 	}
 
 	pub fn mouse<O: Write>(&mut self, mouse: Mouse, output: O) -> error::Result<(vec::IntoIter<Action>, touched::Iter)> {
+		if !self.config().input().mouse() {
+			return Ok((Vec::new().into_iter(), touched::Iter::empty()));
+		}
+
 		match *self {
 			Interface::Terminal(ref mut terminal) => {
 				try!(terminal.mouse(mouse, output));
