@@ -29,9 +29,9 @@ pub struct Style {
 	margin:  u8,
 	spacing: u8,
 
-	color:     Color,
-	cursor:    Cursor,
-	overlay:   Overlay,
+	color:   Color,
+	cursor:  Cursor,
+	overlay: Overlay,
 }
 
 impl Default for Style {
@@ -243,6 +243,35 @@ impl Style {
 		}
 
 		if let Some(table) = table.get("overlay").and_then(|v| v.as_table()) {
+			if let Some(table) = table.get("cursor").and_then(|v| v.as_table()) {
+				if let Some(value) = table.get("shape").and_then(|v| v.as_str()) {
+					match &*value.to_lowercase() {
+						"block" =>
+							self.overlay.cursor.shape = Shape::Block,
+
+						"beam" | "ibeam" =>
+							self.overlay.cursor.shape = Shape::Beam,
+
+						"underline" | "line" =>
+							self.overlay.cursor.shape = Shape::Line,
+
+						_ => ()
+					}
+				}
+
+				if let Some(true) = table.get("blink").and_then(|v| v.as_bool()) {
+					self.overlay.cursor.blink = true;
+				}
+
+				if let Some(value) = table.get("foreground").and_then(|v| v.as_str()).and_then(|v| to_color(v)) {
+					self.overlay.cursor.foreground = value;
+				}
+
+				if let Some(value) = table.get("background").and_then(|v| v.as_str()).and_then(|v| to_color(v)) {
+					self.overlay.cursor.background = value;
+				}
+			}
+
 			if let Some(value) = table.get("status") {
 				if let Some(table) = value.as_table() {
 					let mut status = style::Style::default();
