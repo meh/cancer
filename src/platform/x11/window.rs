@@ -463,7 +463,7 @@ impl Window {
 
 	/// Open the given item.
 	pub fn open<T: AsRef<str>>(&self, value: T) -> io::Result<process::Child> {
-		Command::new(self.config.environment().opener().unwrap_or("xdg-open"))
+		Command::new(self.config.environment().hinter().opener().unwrap_or("xdg-open"))
 			.arg(value.as_ref())
 			.spawn()
 	}

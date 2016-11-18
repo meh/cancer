@@ -1,10 +1,12 @@
 [environment]
-bell    = 0
-matcher = '\b(https?|ftp)://(-\.)?([^\s/?\.#-]+\.?)+(/[^\s]*)?\b'
-
+bell   = 0
 cache  = 4096
 scroll = 4096
 batch  = 30
+
+[environment.hinter]
+label   = "ghfjdkslavncmxz"
+matcher = '\b(https?|ftp)://(-\.)?([^\s/?\.#-]+\.?)+(/[^\s]*)?\b'
 
 [input]
 prefix = "L-a"

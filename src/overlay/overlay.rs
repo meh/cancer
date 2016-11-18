@@ -1010,13 +1010,13 @@ impl Overlay {
 			Command::Hint(command::Hint::Start) => {
 				let top     = self.inner.rows() - 1 - if self.status.is_some() { 1 } else { 0 };
 				let content = self.selection(&Selection::Line { start: top, end: 0 });
-				let urls    = self.inner.config().environment().matcher()
+				let urls    = self.inner.config().environment().hinter().matcher()
 					.find_iter(&content).collect::<Vec<_>>();
 
 				if !urls.is_empty() {
 					overlay!(self; status mode "HINT");
 
-					self.hints = Some(Hints::new(urls.len()));
+					self.hints = Some(Hints::new(self.inner.config().environment().hinter().label().to_vec(), urls.len()));
 
 					for url in urls {
 						self.hint(url, &content);

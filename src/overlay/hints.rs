@@ -20,12 +20,11 @@ use std::collections::HashMap;
 use std::hash::BuildHasherDefault;
 use fnv::FnvHasher;
 
-const TABLE: [char; 15] = ['g', 'h', 'f', 'j', 'd', 'k', 's', 'l', 'a', 'v', 'n', 'c', 'm', 'x', 'z'];
-
 #[derive(Eq, PartialEq, Clone, Debug)]
 pub struct Hints {
 	inner:   HashMap<String, Hint, BuildHasherDefault<FnvHasher>>,
 	current: usize,
+	table:   Vec<char>,
 }
 
 #[derive(Eq, PartialEq, Clone, Debug)]
@@ -36,15 +35,16 @@ pub struct Hint {
 }
 
 impl Hints {
-	pub fn new(length: usize) -> Self {
+	pub fn new(table: Vec<char>, length: usize) -> Self {
 		Hints {
 			inner:   Default::default(),
-			current: (length / TABLE.len()) * TABLE.len(),
+			current: (length / table.len()) * table.len(),
+			table:   table,
 		}
 	}
 
 	pub fn put<T: Into<String>>(&mut self, position: ((u32, u32), (u32, u32)), content: T) -> &Hint {
-		let name      = name_for(self.current);
+		let name      = self.name_for(self.current);
 		self.current += 1;
 
 		self.inner.entry(name.clone()).or_insert(Hint {
@@ -57,6 +57,19 @@ impl Hints {
 	pub fn into_inner(self) -> HashMap<String, Hint, BuildHasherDefault<FnvHasher>> {
 		self.inner
 	}
+
+	fn name_for(&self, index: usize) -> String {
+		let mut result = String::new();
+		let mut index  = index;
+
+		while index >= self.table.len() {
+			result.push(self.table[index % self.table.len()]);
+			index /= self.table.len();
+		}
+
+		result.push(self.table[index]);
+		result
+	}
 }
 
 impl Deref for Hints {
@@ -65,17 +78,4 @@ impl Deref for Hints {
 	fn deref(&self) -> &Self::Target {
 		&self.inner
 	}
-}
-
-fn name_for(index: usize) -> String {
-	let mut result = String::new();
-	let mut index  = index;
-
-	while index >= TABLE.len() {
-		result.push(TABLE[index % TABLE.len()]);
-		index /= TABLE.len();
-	}
-
-	result.push(TABLE[index]);
-	result
 }

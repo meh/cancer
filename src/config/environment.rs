@@ -24,9 +24,7 @@ pub struct Environment {
 	program: Option<String>,
 	term:    Option<String>,
 	bell:    i8,
-
-	matcher: Regex,
-	opener:  Option<String>,
+	hinter:  Hinter,
 
 	cache:  usize,
 	scroll: usize,
@@ -40,13 +38,28 @@ impl Default for Environment {
 			program: None,
 			term:    None,
 			bell:    0,
-
-			matcher: Regex::new(r"\b(https?|ftp)://(-\.)?([^\s/?\.#-]+\.?)+(/[^\s]*)?\b").unwrap(),
-			opener:  None,
+			hinter:  Default::default(),
 
 			cache:  4096,
 			scroll: 4096,
 			batch:  30,
+		}
+	}
+}
+
+#[derive(Eq, PartialEq, Clone, Debug)]
+pub struct Hinter {
+	label:   Vec<char>,
+	matcher: Regex,
+	opener:  Option<String>,
+}
+
+impl Default for Hinter {
+	fn default() -> Self {
+		Hinter {
+			label:   vec!['g', 'h', 'f', 'j', 'd', 'k', 's', 'l', 'a', 'v', 'n', 'c', 'm', 'x', 'z'],
+			matcher: Regex::new(r"\b(https?|ftp)://(-\.)?([^\s/?\.#-]+\.?)+(/[^\s]*)?\b").unwrap(),
+			opener:  None,
 		}
 	}
 }
@@ -69,14 +82,20 @@ impl Environment {
 			self.bell = value as i8;
 		}
 
-		if let Some(value) = table.get("matcher").and_then(|v| v.as_str()) {
-			if let Ok(value) = Regex::new(value) {
-				self.matcher = value;
+		if let Some(table) = table.get("hint").and_then(|v| v.as_table()) {
+			if let Some(value) = table.get("label").and_then(|v| v.as_str()) {
+				self.hinter.label = value.chars().collect();
 			}
-		}
 
-		if let Some(value) = table.get("opener").and_then(|v| v.as_str()) {
-			self.opener = Some(value.into());
+			if let Some(value) = table.get("matcher").and_then(|v| v.as_str()) {
+				if let Ok(value) = Regex::new(value) {
+					self.hinter.matcher = value;
+				}
+			}
+
+			if let Some(value) = table.get("opener").and_then(|v| v.as_str()) {
+				self.hinter.opener = Some(value.into());
+			}
 		}
 
 		if let Some(value) = table.get("cache") {
@@ -124,12 +143,8 @@ impl Environment {
 		self.bell
 	}
 
-	pub fn matcher(&self) -> &Regex {
-		&self.matcher
-	}
-
-	pub fn opener(&self) -> Option<&str> {
-		self.opener.as_ref().map(AsRef::as_ref)
+	pub fn hinter(&self) -> &Hinter {
+		&self.hinter
 	}
 
 	pub fn cache(&self) -> usize {
@@ -142,5 +157,19 @@ impl Environment {
 
 	pub fn batch(&self) -> u32 {
 		self.batch
+	}
+}
+
+impl Hinter {
+	pub fn label(&self) -> &[char] {
+		&self.label
+	}
+
+	pub fn matcher(&self) -> &Regex {
+		&self.matcher
+	}
+
+	pub fn opener(&self) -> Option<&str> {
+		self.opener.as_ref().map(AsRef::as_ref)
 	}
 }
