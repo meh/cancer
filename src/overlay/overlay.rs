@@ -1353,11 +1353,13 @@ impl Overlay {
 				offset  += ch.len();
 				x       += 1;
 
+				// Avoid offsetting multiple times because of a completely filled row.
 				if x >= self.inner.columns() && ch != "\n" && graphemes.peek() == Some(&"\n") {
 					offset += 1;
 					graphemes.next();
 				}
 
+				// If it's a newline or we're beyond a wrapped line.
 				if ch == "\n" || x >= self.inner.columns() {
 					x  = 0;
 					y -= 1;
