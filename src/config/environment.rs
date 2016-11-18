@@ -82,7 +82,7 @@ impl Environment {
 			self.bell = value as i8;
 		}
 
-		if let Some(table) = table.get("hint").and_then(|v| v.as_table()) {
+		if let Some(table) = table.get("hinter").and_then(|v| v.as_table()) {
 			if let Some(value) = table.get("label").and_then(|v| v.as_str()) {
 				self.hinter.label = value.chars().collect();
 			}
