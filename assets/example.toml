@@ -2,8 +2,11 @@
 display = ":0.0"
 program = "zsh"
 term    = "cancer-256color"
+bell    = 100
 
-bell   = 100
+matcher = '\b(https?|ftp)://(-\.)?([^\s/?\.#-]+\.?)+(/[^\s]*)?\b'
+opener  = "firefox"
+
 cache  = 2048
 scroll = 2048
 batch  = 30
@@ -32,9 +35,14 @@ blink = false
 foreground = "#fff"
 background = "#b21818"
 
-[style.status]
+[style.overlay.status]
 background = "#b21818"
 foreground = "#fff"
+attributes = "bold"
+
+[style.overlay.hint]
+foreground = "#ffffff"
+background = "#b21818"
 attributes = "bold"
 
 [color]

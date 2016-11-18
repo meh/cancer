@@ -39,6 +39,7 @@ extern crate control_code as control;
 extern crate unicode_segmentation;
 extern crate unicode_width;
 
+extern crate regex;
 extern crate app_dirs;
 extern crate toml;
 extern crate clap;
@@ -142,7 +143,7 @@ fn main() {
 	let     blink     = timer::periodic_ms(config.style().blink());
 	let mut blinking  = true;
 	let mut batched   = false;
-	let mut window    = Window::open(matches.value_of("name"), &config, &font).unwrap();
+	let mut window    = Window::new(matches.value_of("name"), config.clone(), &font).unwrap();
 	let mut surface   = window.surface();
 	let mut renderer  = Renderer::new(config.clone(), font.clone(), &surface, window.width(), window.height());
 	let mut interface = Interface::from(Terminal::open(config.clone(), renderer.columns(), renderer.rows()).unwrap());
@@ -245,6 +246,10 @@ fn main() {
 
 					Action::Paste(name) => {
 						window.paste(name)
+					}
+
+					Action::Open(what) => {
+						window.open(what).unwrap();
 					}
 				}
 			}

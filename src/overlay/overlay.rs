@@ -23,8 +23,9 @@ use std::collections::HashMap;
 use std::hash::BuildHasherDefault;
 use fnv::FnvHasher;
 
+use unicode_segmentation::UnicodeSegmentation;
 use error;
-use style::Style;
+use style::{self, Style};
 use platform::key::{self, Key};
 use platform::mouse::{self, Mouse};
 use terminal::{Access, Terminal, Cursor, Iter, Row};
@@ -33,6 +34,7 @@ use terminal::cell::{self, Cell};
 use terminal::cursor;
 use overlay::Status;
 use overlay::command::{self, Command};
+use overlay::hints::{Hint, Hints};
 use interface::Action;
 
 #[derive(Debug)]
@@ -46,11 +48,18 @@ pub struct Overlay {
 	view:   HashMap<(u32, u32), Cell, BuildHasherDefault<FnvHasher>>,
 	status: Option<Status>,
 
-	prefix:    Option<u8>,
-	times:     Option<u32>,
+	prefix: Option<u8>,
+	times:  Option<u32>,
+
 	selection: Option<Selection>,
 	selected:  Rc<Style>,
-	hint:      Rc<Style>,
+
+	hint:       Option<String>,
+	level:      usize,
+	hints:      Option<Hints>,
+	label:      Rc<Style>,
+	hinted:     Rc<Style>,
+	underlined: Rc<Style>,
 }
 
 #[derive(Eq, PartialEq, Copy, Clone, Debug)]
@@ -69,6 +78,12 @@ enum Selection {
 		start: u32,
 		end:   u32,
 	},
+}
+
+#[derive(Eq, PartialEq, Copy, Clone, Debug)]
+enum Highlight<'a> {
+	Selection(&'a Selection),
+	Hint(&'a Hint, usize, bool),
 }
 
 macro_rules! overlay {
@@ -145,7 +160,8 @@ impl Overlay {
 		});
 
 		let selected = Rc::new(*inner.config().style().overlay().selection());
-		let hint     = Rc::new(*inner.config().style().overlay().hint());
+		let label    = Rc::new(*inner.config().style().overlay().hint());
+		let hinted   = Rc::new(Style { attributes: label.attributes ^ style::REVERSE, .. *label });
 
 		Overlay {
 			inner:   inner,
@@ -162,7 +178,13 @@ impl Overlay {
 
 			selection: None,
 			selected:  selected,
-			hint:      hint,
+
+			hint:       None,
+			level:      0,
+			hints:      None,
+			label:      label,
+			hinted:     hinted,
+			underlined: Rc::new(Style { attributes: style::UNDERLINE, .. Default::default() }),
 		}
 	}
 
@@ -227,6 +249,26 @@ impl Overlay {
 		Iter::new(self, iter)
 	}
 
+	/// Check if the cursor is at the beginning.
+	fn at_start(&self) -> bool {
+		let (x, y) = overlay!(self; cursor);
+		let back   = self.inner.grid().back().len() as u32 +
+			if self.status.is_some() { 1 } else { 0 };
+
+		self.scroll == back &&
+		x == 0 &&
+		y == 0
+	}
+
+	/// Check if the cursor is at the end.
+	fn at_end(&self) -> bool {
+		let (x, y) = overlay!(self; cursor);
+
+		self.scroll == 0 &&
+		x == self.inner.columns() - 1 &&
+		y == self.inner.rows() - 1 - if self.status.is_some() { 1 } else { 0 }
+	}
+
 	/// Handle key input.
 	pub fn key(&mut self, key: Key) -> (vec::IntoIter<Action>, touched::Iter) {
 		use platform::key::{Value, Button, Keypad};
@@ -255,6 +297,22 @@ impl Overlay {
 
 		let command = match *key.value() {
 			Value::Char(ref ch) => match &**ch {
+				"u" if self.hint.is_none() =>
+					Command::Hint(command::Hint::Start),
+
+				"o" if self.hint.is_some() =>
+					Command::Hint(command::Hint::Open),
+
+				"y" if self.hint.is_some() =>
+					Command::Hint(command::Hint::Copy(match times {
+						Some(1) => "PRIMARY",
+						Some(2) => "SECONDARY",
+						_       => "CLIPBOARD",
+					}.into())),
+
+				ch if self.hints.is_some() =>
+					Command::Hint(command::Hint::Pick(ch.chars().next().unwrap())),
+
 				"e" if key.modifier().is_empty() && prefix == Some(b'g') =>
 					Command::Move(command::Move::Word(command::Word::PreviousEnd(times.unwrap_or(1)))),
 
@@ -330,31 +388,6 @@ impl Overlay {
 					}
 				}
 
-				"g" if key.modifier().is_empty() && prefix.is_none() => {
-					self.prefix = Some(b'g');
-					Command::None
-				}
-
-				"f" if key.modifier().is_empty() && prefix.is_none() => {
-					self.prefix = Some(b'f');
-					Command::None
-				}
-
-				"F" if key.modifier() == key::SHIFT && prefix.is_none() => {
-					self.prefix = Some(b'F');
-					Command::None
-				}
-
-				"t" if key.modifier().is_empty() && prefix.is_none() => {
-					self.prefix = Some(b't');
-					Command::None
-				}
-
-				"T" if key.modifier() == key::SHIFT && prefix.is_none() => {
-					self.prefix = Some(b'T');
-					Command::None
-				}
-
 				"v" if key.modifier().is_empty() =>
 					Command::Select(command::Select::Normal),
 
@@ -377,6 +410,31 @@ impl Overlay {
 						Some(2) => "SECONDARY",
 						_       => "CLIPBOARD",
 					}.into()),
+
+				"g" if key.modifier().is_empty() => {
+					self.prefix = Some(b'g');
+					Command::None
+				}
+
+				"f" if key.modifier().is_empty() => {
+					self.prefix = Some(b'f');
+					Command::None
+				}
+
+				"F" if key.modifier() == key::SHIFT => {
+					self.prefix = Some(b'F');
+					Command::None
+				}
+
+				"t" if key.modifier().is_empty() => {
+					self.prefix = Some(b't');
+					Command::None
+				}
+
+				"T" if key.modifier() == key::SHIFT => {
+					self.prefix = Some(b'T');
+					Command::None
+				}
 
 				_ => {
 					debug!(target: "cancer::overlay::unhandled", "key {:?}", key);
@@ -491,10 +549,10 @@ impl Overlay {
 		if after != before {
 			if self.selection.is_some() {
 				let s = self.selection.unwrap();
-				self.highlight(&s, false);
+				self.highlight(Highlight::Selection(&s), false);
 				self.select(before, after);
 				let s = self.selection.unwrap();
-				self.highlight(&s, true);
+				self.highlight(Highlight::Selection(&s), true);
 				self.touched.all();
 			}
 
@@ -530,7 +588,18 @@ impl Overlay {
 				if let Some(selection) = self.selection.take() {
 					overlay!(self; status mode "NORMAL");
 
-					self.highlight(&selection, false);
+					self.highlight(Highlight::Selection(&selection), false);
+					self.touched.all();
+				}
+				else if let Some(hints) = self.hints.take() {
+					overlay!(self; status mode "NORMAL");
+
+					for (_, hint) in &*hints {
+						self.highlight(Highlight::Hint(hint, 0, false), false);
+					}
+
+					self.hint.take();
+					self.level = 0;
 					self.touched.all();
 				}
 				else {
@@ -906,12 +975,12 @@ impl Overlay {
 				overlay!(self; status mode name);
 
 				if let Some(old) = old {
-					self.highlight(&old, false);
+					self.highlight(Highlight::Selection(&old), false);
 				}
 
 				if let Some(new) = new {
 					self.selection = Some(new);
-					self.highlight(&new, true);
+					self.highlight(Highlight::Selection(&new), true);
 				}
 
 				self.touched.all();
@@ -919,11 +988,6 @@ impl Overlay {
 
 			Command::Copy(name) => {
 				if let Some(selection) = self.selection.take() {
-					overlay!(self; status mode "NORMAL");
-
-					self.highlight(&selection, false);
-					self.touched.all();
-
 					actions.push(Action::Overlay(false));
 					actions.push(Action::Copy(name, self.selection(&selection)));
 				}
@@ -932,6 +996,83 @@ impl Overlay {
 			Command::Paste(name) => {
 				actions.push(Action::Overlay(false));
 				actions.push(Action::Paste(name));
+			}
+
+			Command::Hint(command::Hint::Start) => {
+				let top     = self.inner.rows() - 1 - if self.status.is_some() { 1 } else { 0 };
+				let content = self.selection(&Selection::Line { start: top, end: 0 });
+				let urls    = self.inner.config().environment().matcher()
+					.find_iter(&content).collect::<Vec<_>>();
+
+				if !urls.is_empty() {
+					overlay!(self; status mode "HINT");
+
+					self.hints = Some(Hints::new(urls.len()));
+
+					for url in urls {
+						self.hint(url, &content);
+					}
+
+					self.touched.all();
+				}
+				else {
+					overlay!(self; status mode "NORMAL");
+				}
+			}
+
+			Command::Hint(command::Hint::Pick(code)) => {
+				self.hint = Some(if let Some(mut hint) = self.hint.take() {
+					hint.push(code);
+					hint
+				}
+				else {
+					let mut string = String::new();
+					string.push(code);
+					string
+				});
+
+				let selected = self.hint.clone().unwrap();
+				let level    = self.level + 1;
+				self.level  += 1;
+
+				if self.hints.as_ref().unwrap().contains_key(&selected) {
+					for (name, hint) in self.hints.clone().unwrap().into_inner() {
+						if selected == name {
+							self.highlight(Highlight::Hint(&hint, level, true), true);
+						}
+						else {
+							self.highlight(Highlight::Hint(&hint, level, false), false);
+						}
+					}
+				}
+				else {
+					for (name, hint) in self.hints.clone().unwrap().into_inner() {
+						if name.starts_with(&selected) {
+							self.highlight(Highlight::Hint(&hint, level, false), true);
+						}
+						else {
+							self.highlight(Highlight::Hint(&hint, level, false), false);
+						}
+					}
+				}
+
+				self.touched.all();
+			}
+
+			Command::Hint(command::Hint::Open) => {
+				actions.push(Action::Overlay(false));
+
+				if let Some(hint) = self.hints.as_ref().unwrap().get(self.hint.as_ref().unwrap()) {
+					actions.push(Action::Open(hint.content.clone()));
+				}
+			}
+
+			Command::Hint(command::Hint::Copy(name)) => {
+				actions.push(Action::Overlay(false));
+
+				if let Some(hint) = self.hints.as_ref().unwrap().get(self.hint.as_ref().unwrap()) {
+					actions.push(Action::Copy(name, hint.content.clone()));
+				}
 			}
 		}
 
@@ -1152,10 +1293,50 @@ impl Overlay {
 		}
 	}
 
+	/// Mark cells in a terminal as a hint.
+	fn hint<T: AsRef<str>>(&mut self, (start, end): (usize, usize), content: T) {
+		let content = content.as_ref();
+		let url     = &content[start .. end];
+		let hint    = if let Some(hints) = self.hints.as_mut() {
+			let mut position = (None::<(u32, u32)>, None::<(u32, u32)>);
+			let mut offset   = 0;
+			let mut x        = 0;
+			let mut y        = self.inner.rows() - 1 - if self.status.is_some() { 1 } else { 0 };
+
+			for ch in content.graphemes(true) {
+				if position.0.is_none() && offset == start {
+					position.0 = Some((x, y));
+				}
+
+				if position.1.is_none() && offset == end {
+					position.1 = Some((x, y));
+					break;
+				}
+
+				offset += ch.len();
+				x      += 1;
+
+				if x >= self.inner.columns() || ch == "\n" {
+					x  = 0;
+					y -= 1;
+				}
+			}
+
+			Some(hints.put((position.0.unwrap(), position.1.unwrap()), url).clone())
+		}
+		else {
+			None
+		};
+
+		if let Some(hint) = hint {
+			self.highlight(Highlight::Hint(&hint, 0, false), true);
+		}
+	}
+
 	/// Enable or disable highlighting of the given selection.
-	fn highlight(&mut self, selection: &Selection, flag: bool) {
-		match *selection {
-			Selection::Normal { start, end } => {
+	fn highlight(&mut self, what: Highlight, flag: bool) {
+		match what {
+			Highlight::Selection(&Selection::Normal { start, end }) => {
 				for y in end.1 ... start.1 {
 					let (start, end) = if start.1 == end.1 {
 						(start.0, end.0)
@@ -1183,7 +1364,7 @@ impl Overlay {
 				}
 			}
 
-			Selection::Block { start, end } => {
+			Highlight::Selection(&Selection::Block { start, end }) => {
 				for y in end.1 ... start.1 {
 					for x in start.0 ... end.0 {
 						if flag {
@@ -1198,7 +1379,7 @@ impl Overlay {
 				}
 			}
 
-			Selection::Line { start, end } => {
+			Highlight::Selection(&Selection::Line { start, end }) => {
 				for y in end ... start {
 					for x in 0 .. self.inner.columns() {
 						if flag {
@@ -1212,25 +1393,52 @@ impl Overlay {
 					}
 				}
 			}
+
+			Highlight::Hint(hint, level, selected) => {
+				let (mut x, mut y) = hint.position.0;
+
+				// Add the label.
+				for ch in hint.name.graphemes(true).skip(level) {
+					if flag {
+						self.view.insert((x, y), Cell::occupied(ch.into(), self.label.clone()));
+					}
+					else {
+						self.view.remove(&(x, y));
+					}
+
+					x += 1;
+					if x >= self.inner.columns() {
+						x  = 0;
+						y -= 1;
+					}
+				}
+
+				// Make the URL underscored.
+				while (x, y) != hint.position.1 {
+					if flag {
+						let mut cell = self.row(y)[x as usize].clone();
+
+						if selected {
+							cell.set_style(self.hinted.clone());
+						}
+						else {
+							cell.set_style(self.underlined.clone());
+						}
+
+						self.view.insert((x, y), cell);
+					}
+					else {
+						self.view.remove(&(x, y));
+					}
+
+					x += 1;
+					if x >= self.inner.columns() {
+						x  = 0;
+						y -= 1;
+					}
+				}
+			}
 		}
-	}
-
-	fn at_start(&self) -> bool {
-		let (x, y) = overlay!(self; cursor);
-		let back   = self.inner.grid().back().len() as u32 +
-			if self.status.is_some() { 1 } else { 0 };
-
-		self.scroll == back &&
-		x == 0 &&
-		y == 0
-	}
-
-	fn at_end(&self) -> bool {
-		let (x, y) = overlay!(self; cursor);
-
-		self.scroll == 0 &&
-		x == self.inner.columns() - 1 &&
-		y == self.inner.rows() - 1 - if self.status.is_some() { 1 } else { 0 }
 	}
 }
 

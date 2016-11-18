@@ -16,14 +16,17 @@
 // along with cancer.  If not, see <http://www.gnu.org/licenses/>.
 
 use toml::{self, Value};
+use regex::Regex;
 
 #[derive(PartialEq, Clone, Debug)]
 pub struct Environment {
 	display: Option<String>,
 	program: Option<String>,
 	term:    Option<String>,
+	bell:    i8,
 
-	bell: i8,
+	matcher: Regex,
+	opener:  Option<String>,
 
 	cache:  usize,
 	scroll: usize,
@@ -36,8 +39,10 @@ impl Default for Environment {
 			display: None,
 			program: None,
 			term:    None,
+			bell:    0,
 
-			bell: 0,
+			matcher: Regex::new(r"\b(https?|ftp)://(-\.)?([^\s/?\.#-]+\.?)+(/[^\s]*)?\b").unwrap(),
+			opener:  None,
 
 			cache:  4096,
 			scroll: 4096,
@@ -62,6 +67,16 @@ impl Environment {
 
 		if let Some(value) = table.get("bell").and_then(|v| v.as_integer()) {
 			self.bell = value as i8;
+		}
+
+		if let Some(value) = table.get("matcher").and_then(|v| v.as_str()) {
+			if let Ok(value) = Regex::new(value) {
+				self.matcher = value;
+			}
+		}
+
+		if let Some(value) = table.get("opener").and_then(|v| v.as_str()) {
+			self.opener = Some(value.into());
 		}
 
 		if let Some(value) = table.get("cache") {
@@ -107,6 +122,14 @@ impl Environment {
 
 	pub fn bell(&self) -> i8 {
 		self.bell
+	}
+
+	pub fn matcher(&self) -> &Regex {
+		&self.matcher
+	}
+
+	pub fn opener(&self) -> Option<&str> {
+		self.opener.as_ref().map(AsRef::as_ref)
 	}
 
 	pub fn cache(&self) -> usize {

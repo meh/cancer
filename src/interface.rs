@@ -40,6 +40,7 @@ pub enum Action {
 	Resize(u32, u32),
 	Copy(String, String),
 	Paste(String),
+	Open(String),
 }
 
 impl Interface {

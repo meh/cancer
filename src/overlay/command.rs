@@ -24,6 +24,7 @@ pub enum Command {
 	Select(Select),
 	Copy(String),
 	Paste(String),
+	Hint(Hint),
 }
 
 #[derive(Eq, PartialEq, Copy, Clone, Debug)]
@@ -72,4 +73,12 @@ pub enum Select {
 	Normal,
 	Block,
 	Line,
+}
+
+#[derive(Eq, PartialEq, Clone, Debug)]
+pub enum Hint {
+	Start,
+	Pick(char),
+	Open,
+	Copy(String),
 }

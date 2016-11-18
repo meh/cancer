@@ -15,6 +15,8 @@
 // You should have received a copy of the GNU General Public License
 // along with cancer.  If not, see <http://www.gnu.org/licenses/>.
 
+use std::io;
+use std::process::{self, Command};
 use std::collections::HashMap;
 use std::thread;
 use std::sync::Arc;
@@ -36,6 +38,7 @@ use picto::Region;
 
 /// X11 window.
 pub struct Window {
+	config:     Arc<Config>,
 	connection: Arc<ewmh::Connection>,
 	window:     xcb::Window,
 	surface:    Option<Surface>,
@@ -59,7 +62,7 @@ pub enum Request {
 
 impl Window {
 	/// Create the window.
-	pub fn open(name: Option<&str>, config: &Config, font: &Font) -> error::Result<Self> {
+	pub fn new(name: Option<&str>, config: Arc<Config>, font: &Font) -> error::Result<Self> {
 		let margin  = config.style().margin();
 		let spacing = config.style().spacing();
 		let bell    = config.environment().bell();
@@ -389,6 +392,7 @@ impl Window {
 		}
 
 		Ok(Window {
+			config:     config.clone(),
 			connection: connection,
 			window:     window,
 			surface:    Some(surface),
@@ -455,6 +459,13 @@ impl Window {
 	/// Flush the surface and connection.
 	pub fn flush(&self) {
 		self.connection.flush();
+	}
+
+	/// Open the given item.
+	pub fn open<T: AsRef<str>>(&self, value: T) -> io::Result<process::Child> {
+		Command::new(self.config.environment().opener().unwrap_or("xdg-open"))
+			.arg(value.as_ref())
+			.spawn()
 	}
 }
 

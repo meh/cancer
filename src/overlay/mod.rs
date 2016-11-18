@@ -23,3 +23,6 @@ pub use self::status::Status;
 
 mod overlay;
 pub use self::overlay::Overlay;
+
+mod hints;
+pub use self::hints::{Hint, Hints};

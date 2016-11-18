@@ -1,5 +1,7 @@
 [environment]
-bell   = 0
+bell    = 0
+matcher = '\b(https?|ftp)://(-\.)?([^\s/?\.#-]+\.?)+(/[^\s]*)?\b'
+
 cache  = 4096
 scroll = 4096
 batch  = 30

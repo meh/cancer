@@ -32,6 +32,7 @@ clap     = "2"
 app_dirs = "1.1"
 toml     = "0.1"
 picto    = "0.4"
+regex    = "0.1"
 
 unicode-segmentation = "0.1"
 unicode-width        = "0.1"
