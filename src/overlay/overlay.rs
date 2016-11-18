@@ -1335,11 +1335,12 @@ impl Overlay {
 		let url     = &content[start .. end];
 		let hint    = if let Some(hints) = self.hinter.hints.as_mut() {
 			let mut position = (None::<(u32, u32)>, None::<(u32, u32)>);
-			let mut offset   = 0;
-			let mut x        = 0;
-			let mut y        = self.inner.rows() - 1 - if self.status.is_some() { 1 } else { 0 };
+			let mut offset    = 0;
+			let mut x         = 0;
+			let mut y         = self.inner.rows() - 1 - if self.status.is_some() { 1 } else { 0 };
+			let mut graphemes = content.graphemes(true).peekable();
 
-			for ch in content.graphemes(true) {
+			while let Some(ch) = graphemes.next() {
 				if position.0.is_none() && offset == start {
 					position.0 = Some((x, y));
 				}
@@ -1349,10 +1350,15 @@ impl Overlay {
 					break;
 				}
 
-				offset += ch.len();
-				x      += 1;
+				offset  += ch.len();
+				x       += 1;
 
-				if x >= self.inner.columns() || ch == "\n" {
+				if x >= self.inner.columns() && ch != "\n" && graphemes.peek() == Some(&"\n") {
+					offset += 1;
+					graphemes.next();
+				}
+
+				if ch == "\n" || x >= self.inner.columns() {
 					x  = 0;
 					y -= 1;
 				}
