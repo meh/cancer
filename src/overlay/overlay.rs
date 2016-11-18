@@ -1021,42 +1021,39 @@ impl Overlay {
 			}
 
 			Command::Hint(command::Hint::Pick(code)) => {
-				self.hint = Some(if let Some(mut hint) = self.hint.take() {
-					hint.push(code);
-					hint
-				}
-				else {
-					let mut string = String::new();
-					string.push(code);
-					string
-				});
+				let mut hint = self.hint.clone().unwrap_or("".into());
+				hint.push(code);
 
-				let selected = self.hint.clone().unwrap();
-				let level    = self.level + 1;
-				self.level  += 1;
+				if self.hints.as_ref().unwrap().iter().any(|(name, _)| name.starts_with(&hint)) {
+					self.hint   = Some(hint.clone());
+					self.level += 1;
 
-				if self.hints.as_ref().unwrap().contains_key(&selected) {
-					for (name, hint) in self.hints.clone().unwrap().into_inner() {
-						if selected == name {
-							self.highlight(Highlight::Hint(&hint, level, true), true);
-						}
-						else {
-							self.highlight(Highlight::Hint(&hint, level, false), false);
+					let selected = hint;
+					let level    = self.level;
+
+					if self.hints.as_ref().unwrap().contains_key(&selected) {
+						for (name, hint) in self.hints.clone().unwrap().into_inner() {
+							if selected == name {
+								self.highlight(Highlight::Hint(&hint, level, true), true);
+							}
+							else {
+								self.highlight(Highlight::Hint(&hint, level, false), false);
+							}
 						}
 					}
-				}
-				else {
-					for (name, hint) in self.hints.clone().unwrap().into_inner() {
-						if name.starts_with(&selected) {
-							self.highlight(Highlight::Hint(&hint, level, false), true);
-						}
-						else {
-							self.highlight(Highlight::Hint(&hint, level, false), false);
+					else {
+						for (name, hint) in self.hints.clone().unwrap().into_inner() {
+							if name.starts_with(&selected) {
+								self.highlight(Highlight::Hint(&hint, level, false), true);
+							}
+							else {
+								self.highlight(Highlight::Hint(&hint, level, false), false);
+							}
 						}
 					}
-				}
 
-				self.touched.all();
+					self.touched.all();
+				}
 			}
 
 			Command::Hint(command::Hint::Open) => {
