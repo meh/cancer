@@ -1021,17 +1021,16 @@ impl Overlay {
 			}
 
 			Command::Hint(command::Hint::Pick(code)) => {
-				let mut hint = self.hint.clone().unwrap_or("".into());
-				hint.push(code);
+				let mut selected = self.hint.clone().unwrap_or("".into());
+				selected.push(code);
 
-				if self.hints.as_ref().unwrap().iter().any(|(name, _)| name.starts_with(&hint)) {
-					self.hint   = Some(hint.clone());
+				if self.hints.as_ref().unwrap().iter().any(|(name, _)| name.starts_with(&selected)) {
+					self.hint   = Some(selected.clone());
 					self.level += 1;
 
-					let selected = hint;
-					let level    = self.level;
-
 					if self.hints.as_ref().unwrap().contains_key(&selected) {
+						let level = self.level;
+
 						for (name, hint) in self.hints.clone().unwrap().into_inner() {
 							if selected == name {
 								self.highlight(Highlight::Hint(&hint, level, true), true);
@@ -1043,6 +1042,8 @@ impl Overlay {
 					}
 					else {
 						for (name, hint) in self.hints.clone().unwrap().into_inner() {
+							let level = self.level;
+
 							if name.starts_with(&selected) {
 								self.highlight(Highlight::Hint(&hint, level, false), true);
 							}
