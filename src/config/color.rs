@@ -312,6 +312,6 @@ impl Color {
 	}
 
 	pub fn get(&self, index: u8) -> &Rgba<f64> {
-		self.table.get(&index).unwrap()
+		&self.table[&index]
 	}
 }

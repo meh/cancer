@@ -603,7 +603,7 @@ impl Overlay {
 				else if let Some(hints) = self.hints.take() {
 					overlay!(self; status mode "NORMAL");
 
-					for (_, hint) in &*hints {
+					for hint in hints.values() {
 						self.highlight(Highlight::Hint(hint, 0, false), false);
 					}
 
