@@ -297,20 +297,20 @@ impl Overlay {
 
 		let command = match *key.value() {
 			Value::Char(ref ch) => match &**ch {
-				"u" if self.hint.is_none() =>
+				"u" if key.modifier().is_empty() && self.hint.is_none() =>
 					Command::Hint(command::Hint::Start),
 
-				"o" if self.hint.is_some() =>
+				"o" if key.modifier().is_empty() && self.hint.is_some() =>
 					Command::Hint(command::Hint::Open),
 
-				"y" if self.hint.is_some() =>
+				"y" if key.modifier().is_empty() && self.hint.is_some() =>
 					Command::Hint(command::Hint::Copy(match times {
 						Some(1) => "PRIMARY",
 						Some(2) => "SECONDARY",
 						_       => "CLIPBOARD",
 					}.into())),
 
-				ch if self.hints.is_some() =>
+				ch if key.modifier().is_empty() && self.hints.is_some() =>
 					Command::Hint(command::Hint::Pick(ch.chars().next().unwrap())),
 
 				"e" if key.modifier().is_empty() && prefix == Some(b'g') =>
@@ -446,6 +446,9 @@ impl Overlay {
 				Button::Escape if key.modifier().is_empty() =>
 					Command::Exit,
 
+				_ if self.hints.is_some() =>
+					Command::None,
+
 				Button::PageUp =>
 					Command::Scroll(command::Scroll::PageUp(times.unwrap_or(1))),
 
@@ -480,6 +483,9 @@ impl Overlay {
 			},
 
 			Value::Keypad(button) => match button {
+				_ if self.hints.is_some() =>
+					Command::None,
+
 				Keypad::Home =>
 					Command::Move(command::Move::Start),
 
@@ -514,6 +520,9 @@ impl Overlay {
 		debug!(target: "cancer::overlay::input", "mouse {:?}", mouse);
 
 		let command = match mouse {
+			_ if self.hints.is_some() =>
+				Command::None,
+
 			Mouse::Click(mouse::Click { button: mouse::Button::Left, press: false, position, .. }) =>
 				Command::Move(command::Move::To(position.x, position.y)),
 
