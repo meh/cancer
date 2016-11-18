@@ -1024,13 +1024,16 @@ impl Overlay {
 				let mut selected = self.hint.clone().unwrap_or("".into());
 				selected.push(code);
 
+				// If no hints match, ignore the pick.
 				if self.hints.as_ref().unwrap().iter().any(|(name, _)| name.starts_with(&selected)) {
 					self.hint   = Some(selected.clone());
 					self.level += 1;
 
+					// If the wanted hint has been found.
 					if self.hints.as_ref().unwrap().contains_key(&selected) {
 						let level = self.level;
 
+						// De-highlight every other hint and select the matching one.
 						for (name, hint) in self.hints.clone().unwrap().into_inner() {
 							if selected == name {
 								self.highlight(Highlight::Hint(&hint, level, true), true);
@@ -1041,6 +1044,7 @@ impl Overlay {
 						}
 					}
 					else {
+						// De-highlight non-matching hints, and highlight matching ones.
 						for (name, hint) in self.hints.clone().unwrap().into_inner() {
 							let level = self.level;
 
@@ -1395,7 +1399,7 @@ impl Overlay {
 			Highlight::Hint(hint, level, selected) => {
 				let (mut x, mut y) = hint.position.0;
 
-				// Add the label.
+				// Add the label, if the level permits.
 				for ch in hint.name.graphemes(true).skip(level) {
 					if flag {
 						self.view.insert((x, y), Cell::occupied(ch.into(), self.label.clone()));
@@ -1411,7 +1415,7 @@ impl Overlay {
 					}
 				}
 
-				// Make the URL underscored.
+				// Make the URL underscored or selected.
 				while (x, y) != hint.position.1 {
 					if flag {
 						let mut cell = self.row(y)[x as usize].clone();
