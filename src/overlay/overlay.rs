@@ -73,6 +73,17 @@ struct Hinter {
 	hinted:     Rc<Style>,
 }
 
+impl Hinter {
+	pub fn get(&self) -> Option<&str> {
+		if let (Some(hints), Some(selected)) = (self.hints.as_ref(), self.selected.as_ref()) {
+			hints.get(selected).map(|v| &*v.content)
+		}
+		else {
+			None
+		}
+	}
+}
+
 #[derive(Eq, PartialEq, Copy, Clone, Debug)]
 enum Selection {
 	Normal {
@@ -1076,6 +1087,7 @@ impl Overlay {
 						}
 
 						self.hinter.selected = Some(selected);
+						actions.push(Action::Copy("PRIMARY".into(), self.hinter.get().unwrap().into()));
 					}
 					else {
 						// De-highlight non-matching hints, and highlight matching ones.
@@ -1098,16 +1110,16 @@ impl Overlay {
 			Command::Hint(command::Hint::Open) => {
 				actions.push(Action::Overlay(false));
 
-				if let Some(hint) = self.hinter.hints.as_ref().unwrap().get(self.hinter.selected.as_ref().unwrap()) {
-					actions.push(Action::Open(hint.content.clone()));
+				if let Some(hint) = self.hinter.get() {
+					actions.push(Action::Open(hint.into()));
 				}
 			}
 
 			Command::Hint(command::Hint::Copy(name)) => {
 				actions.push(Action::Overlay(false));
 
-				if let Some(hint) = self.hinter.hints.as_ref().unwrap().get(self.hinter.selected.as_ref().unwrap()) {
-					actions.push(Action::Copy(name, hint.content.clone()));
+				if let Some(hint) = self.hinter.get() {
+					actions.push(Action::Copy(name, hint.into()));
 				}
 			}
 		}
