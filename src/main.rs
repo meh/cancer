@@ -138,12 +138,9 @@ fn main() {
 		return;
 	}
 
-	let     config    = Arc::new(Config::load(matches.value_of("config")).unwrap());
-	let     font      = Arc::new(Font::load(matches.value_of("font").unwrap_or(config.style().font())).unwrap());
-	let     batch     = timer::periodic_ms(((1.0 / config.environment().batch() as f32) * 1000.0).round() as u32);
-	let     blink     = timer::periodic_ms(config.style().blink());
-	let mut blinking  = true;
-	let mut batched   = false;
+	let config = Arc::new(Config::load(matches.value_of("config")).unwrap());
+	let font   = Arc::new(Font::load(matches.value_of("font").unwrap_or(config.style().font())).unwrap());
+
 	let mut window    = Window::new(matches.value_of("name"), config.clone(), &font).unwrap();
 	let mut surface   = window.surface();
 	let mut renderer  = Renderer::new(config.clone(), font.clone(), &surface, window.width(), window.height());
@@ -151,6 +148,9 @@ fn main() {
 	let mut tty       = Tty::spawn(renderer.columns(), renderer.rows(),
 	                               matches.value_of("term").or_else(|| config.environment().term()),
 	                               matches.value_of("execute").or_else(|| config.environment().program())).unwrap();
+
+	let     blink    = timer::periodic_ms(config.style().blink());
+	let mut blinking = true;
 
 	let input  = tty.output();
 	let events = window.events();
@@ -188,14 +188,7 @@ fn main() {
 		(handle $what:expr) => ({
 			let actions = {
 				let (actions, touched) = try!(continue $what);
-
-				if touched.all() {
-					batched = true;
-				}
-				else if !batched {
-					render!(touched);
-				}
-				
+				render!(touched);
 				actions
 			};
 
@@ -261,13 +254,10 @@ fn main() {
 		select! {
 			_ = blink.recv() => {
 				blinking = !blinking;
-				render!(interface.blinking(blinking));
-			},
 
-			_ = batch.recv() => {
-				if batched {
-					render!(interface.region().absolute());
-					batched = false;
+				let blinked = interface.blinking(blinking);
+				if !blinked.is_empty() || interface.cursor().blink() {
+					render!(blinked);
 				}
 			},
 

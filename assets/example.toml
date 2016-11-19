@@ -6,7 +6,6 @@ bell    = 100
 
 cache  = 2048
 scroll = 2048
-batch  = 30
 
 [environment.hinter]
 label   = "1234567890"

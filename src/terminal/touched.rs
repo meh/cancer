@@ -109,6 +109,10 @@ impl Iter {
 		}
 	}
 
+	pub fn is_empty(&self) -> bool {
+		!self.all && self.line.is_none() && self.position.is_none()
+	}
+
 	pub fn all(&self) -> bool {
 		self.all
 	}

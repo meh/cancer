@@ -1,8 +1,8 @@
 [environment]
-bell   = 0
+bell = 0
+
 cache  = 4096
 scroll = 4096
-batch  = 30
 
 [environment.hinter]
 label   = "ghfjdkslavncmxz"
