@@ -909,8 +909,10 @@ impl Terminal {
 						DEC::Mode::AutoWrap =>
 							self.mode.insert(mode::WRAP),
 
-						DEC::Mode::CursorVisible =>
-							self.cursor.state.insert(cursor::VISIBLE),
+						DEC::Mode::CursorVisible => {
+							self.cursor.state.insert(cursor::VISIBLE);
+							self.touched.push(term!(self; cursor));
+						}
 
 						DEC::Mode::SmallFont =>
 							actions.push(Action::Resize(132, 24)),
@@ -988,14 +990,18 @@ impl Terminal {
 							self.touched.all();
 						}
 
-						DEC::Mode::Origin =>
-							self.cursor.state.remove(cursor::ORIGIN),
+						DEC::Mode::Origin => {
+							self.cursor.state.remove(cursor::ORIGIN);
+							self.touched.push(term!(self; cursor));
+						}
 
 						DEC::Mode::AutoWrap =>
 							self.mode.remove(mode::WRAP),
 
-						DEC::Mode::CursorVisible =>
-							self.cursor.state.remove(cursor::VISIBLE),
+						DEC::Mode::CursorVisible => {
+							self.cursor.state.remove(cursor::VISIBLE);
+							self.touched.push(term!(self; cursor));
+						}
 
 						DEC::Mode::SmallFont =>
 							actions.push(Action::Resize(80, 24)),
@@ -1045,7 +1051,9 @@ impl Terminal {
 			Control::C1(C1::ControlSequence(CSI::RestoreCursor)) |
 			Control::DEC(DEC::RestoreCursor) => {
 				if let Some(saved) = self.saved.clone() {
+					self.touched.push(term!(self; cursor));
 					self.cursor = saved;
+					self.touched.push(term!(self; cursor));
 				}
 			}
 
@@ -1487,6 +1495,8 @@ impl Terminal {
 
 					_ => ()
 				}
+
+				self.touched.push(term!(self; cursor));
 			}
 
 			// Secret control codes.
@@ -1525,6 +1535,8 @@ impl Terminal {
 
 					_ => ()
 				}
+
+				self.touched.push(term!(self; cursor));
 			}
 
 			Control::C1(C1::OperatingSystemCommand(cmd)) if cmd.starts_with("clipboard:") => {
