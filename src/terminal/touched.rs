@@ -22,6 +22,7 @@ use fnv::FnvHasher;
 use picto::Region;
 use picto::iter::Coordinates;
 
+/// Object to handle cells being touched.
 #[derive(Eq, PartialEq, Clone, Default, Debug)]
 pub struct Touched {
 	all:      bool,
@@ -30,11 +31,13 @@ pub struct Touched {
 }
 
 impl Touched {
+	/// Mark everything as touched.
 	pub fn all(&mut self) -> &mut Self {
 		self.all = true;
 		self
 	}
 
+	/// Mark the given line as touched.
 	pub fn line(&mut self, line: u32) -> &mut Self {
 		if !self.all {
 			self.line.insert(line);
@@ -43,6 +46,7 @@ impl Touched {
 		self
 	}
 
+	/// Mark the given coordinates as touched.
 	pub fn mark(&mut self, x: u32, y: u32) -> &mut Self {
 		if !self.all {
 			self.position.insert((x, y));
@@ -51,6 +55,7 @@ impl Touched {
 		self
 	}
 
+	/// Mark the given coordinates as touched.
 	pub fn push(&mut self, pair: (u32, u32)) -> &mut Self {
 		if !self.all {
 			self.position.insert(pair);
@@ -59,6 +64,7 @@ impl Touched {
 		self
 	}
 
+	/// Create an iterator out of the touched markers.
 	pub fn iter(&mut self, region: Region) -> Iter {
 		Iter::new(region,
 			mem::replace(&mut self.all, false),
@@ -67,6 +73,7 @@ impl Touched {
 	}
 }
 
+/// Iterator over touched cells.
 pub struct Iter {
 	region: Region,
 	state:  State,
@@ -87,16 +94,20 @@ enum State {
 }
 
 impl Iter {
+	/// Create a new empty touched iterator.
 	pub fn empty() -> Self {
 		Iter::new(Region::from(0, 0, 0, 0), false, Default::default(), Default::default())
 	}
 
+	/// Create a new touched iterator.
 	pub fn new(region:   Region,
 	           all:      bool,
 	           line:     HashSet<u32, BuildHasherDefault<FnvHasher>>,
 	           position: HashSet<(u32, u32), BuildHasherDefault<FnvHasher>>)
 	-> Self {
-		let all = all || line.len() == region.height as usize || position.len() == (region.width * region.height) as usize;
+		let all = all ||
+			line.len() == region.height as usize ||
+			position.len() == (region.width * region.height) as usize;
 
 		Iter {
 			region: region,
@@ -109,11 +120,13 @@ impl Iter {
 		}
 	}
 
+	/// Check if the iterator is for no cells in the view.
 	pub fn is_empty(&self) -> bool {
 		!self.all && self.line.is_none() && self.position.is_none()
 	}
 
-	pub fn all(&self) -> bool {
+	/// Check if the iterator is for every cell in the view.
+	pub fn is_total(&self) -> bool {
 		self.all
 	}
 }
