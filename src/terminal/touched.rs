@@ -96,7 +96,15 @@ enum State {
 impl Iter {
 	/// Create a new empty touched iterator.
 	pub fn empty() -> Self {
-		Iter::new(Region::from(0, 0, 0, 0), false, Default::default(), Default::default())
+		Iter {
+			region: Region::from(0, 0, 0, 0),
+			state:  State::Done,
+			lines:  Default::default(),
+
+			all:      false,
+			line:     None,
+			position: None,
+		}
 	}
 
 	/// Create a new touched iterator.
@@ -116,7 +124,7 @@ impl Iter {
 
 			all:      all,
 			line:     if all || line.is_empty() { None } else { Some(line) },
-			position: if all | position.is_empty() { None } else { Some(position) },
+			position: if all || position.is_empty() { None } else { Some(position) },
 		}
 	}
 
@@ -138,8 +146,6 @@ impl Iterator for Iter {
 		loop {
 			match mem::replace(&mut self.state, State::None) {
 				State::Done => {
-					self.state = State::Done;
-
 					return None;
 				}
 

@@ -28,6 +28,7 @@ pub struct Environment {
 
 	cache:  usize,
 	scroll: usize,
+	batch:  Option<u32>,
 }
 
 impl Default for Environment {
@@ -41,6 +42,7 @@ impl Default for Environment {
 
 			cache:  4096,
 			scroll: 4096,
+			batch:  Some(16),
 		}
 	}
 }
@@ -119,6 +121,18 @@ impl Environment {
 				_ => ()
 			}
 		}
+
+		if let Some(value) = table.get("batch") {
+			match *value {
+				Value::Boolean(false) =>
+					self.batch = None,
+
+				Value::Integer(value) =>
+					self.batch = Some(value as u32),
+
+				_ => ()
+			}
+		}
 	}
 
 	pub fn display(&self) -> Option<&str> {
@@ -147,6 +161,10 @@ impl Environment {
 
 	pub fn scroll(&self) -> usize {
 		self.scroll
+	}
+
+	pub fn batch(&self) -> Option<u32> {
+		self.batch
 	}
 }
 

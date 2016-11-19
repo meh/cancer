@@ -4,6 +4,7 @@ program = "zsh"
 term    = "cancer-256color"
 bell    = 100
 
+batch  = 33
 cache  = 2048
 scroll = 2048
 

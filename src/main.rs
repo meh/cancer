@@ -87,6 +87,8 @@ use platform::mouse::{self, Mouse};
 mod renderer;
 use renderer::Renderer;
 
+use std::mem;
+use std::sync::mpsc::channel;
 use std::sync::Arc;
 use std::io::Write;
 use std::iter;
@@ -144,13 +146,17 @@ fn main() {
 	let mut window    = Window::new(matches.value_of("name"), config.clone(), &font).unwrap();
 	let mut surface   = window.surface();
 	let mut renderer  = Renderer::new(config.clone(), font.clone(), &surface, window.width(), window.height());
-	let mut interface = Interface::from(Terminal::open(config.clone(), renderer.columns(), renderer.rows()).unwrap());
+	let mut interface = Interface::from(Terminal::new(config.clone(), renderer.columns(), renderer.rows()).unwrap());
 	let mut tty       = Tty::spawn(renderer.columns(), renderer.rows(),
 	                               matches.value_of("term").or_else(|| config.environment().term()),
 	                               matches.value_of("execute").or_else(|| config.environment().program())).unwrap();
 
 	let     blink    = timer::periodic_ms(config.style().blink());
 	let mut blinking = true;
+
+	let (_k, mut batch) = channel();
+	let mut batching    = None;
+	let mut batched     = None;
 
 	let input  = tty.output();
 	let events = window.events();
@@ -187,7 +193,13 @@ fn main() {
 
 		(handle $what:expr) => ({
 			let (actions, touched) = try!(continue $what);
-			render!(touched);
+
+			if touched.is_total() && batched.is_none() && config.environment().batch().is_some() {
+				batching = Some(true);
+			}
+			else if batched.is_none() && !touched.is_empty() {
+				render!(touched);
+			}
 
 			for action in actions {
 				match action {
@@ -248,12 +260,30 @@ fn main() {
 	}
 
 	loop {
+		match batching.take() {
+			Some(true) => {
+				batched = Some(mem::replace(&mut batch,
+					timer::oneshot_ms(config.environment().batch().unwrap())));
+			}
+
+			Some(false) => {
+				batch = batched.take().unwrap();
+				render!(interface.region().absolute());
+			}
+
+			None => ()
+		}
+
 		select! {
+			_ = batch.recv() => {
+				batching = Some(false);
+			},
+
 			_ = blink.recv() => {
 				blinking = !blinking;
 
 				let blinked = interface.blinking(blinking);
-				if !blinked.is_empty() || interface.cursor().blink() {
+				if (!blinked.is_empty() || interface.cursor().blink()) && batched.is_none() {
 					render!(blinked);
 				}
 			},
