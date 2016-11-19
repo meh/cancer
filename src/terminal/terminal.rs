@@ -1441,6 +1441,9 @@ impl Terminal {
 						if self.config.style().cursor().blink() {
 							self.cursor.state.insert(cursor::BLINK);
 						}
+						else {
+							self.cursor.state.remove(cursor::BLINK);
+						}
 
 						self.cursor.shape = self.config.style().cursor().shape();
 					}
