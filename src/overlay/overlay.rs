@@ -17,7 +17,7 @@
 
 use std::rc::Rc;
 use std::io::Write;
-use std::ops::{Deref, DerefMut};
+use std::ops::{Index, Deref, DerefMut};
 use std::vec;
 use std::collections::HashMap;
 use std::hash::BuildHasherDefault;
@@ -28,7 +28,7 @@ use error;
 use style::{self, Style};
 use platform::key::{self, Key};
 use platform::mouse::{self, Mouse};
-use terminal::{Access, Terminal, Cursor, Iter, Row};
+use terminal::{Terminal, Cursor, Iter, Row};
 use terminal::touched::{self, Touched};
 use terminal::cell::{self, Cell};
 use terminal::cursor;
@@ -113,7 +113,7 @@ macro_rules! overlay {
 		let x = $term.cursor.x();
 		let y = $term.cursor.y();
 
-		if let Cell::Reference(offset) = *$term.get(x, y) {
+		if let Cell::Reference(offset) = $term[(x, y)] {
 			(x - offset as u32, y)
 		}
 		else {
@@ -226,53 +226,10 @@ impl Overlay {
 		Ok(self.inner)
 	}
 
-	/// Get the cell at the given coordinates taking scrolling and status bar
-	/// into consideration.
-	fn get(&self, x: u32, y: u32) -> &Cell {
-		if let Some(status) = self.status.as_ref() {
-			if y == self.inner.rows() - 1 {
-				return &status[x as usize];
-			}
-		}
-
-		let     back   = self.inner.grid().back();
-		let     view   = self.inner.grid().view();
-		let mut offset = (view.len() as u32 - 1 - y) + self.scroll;
-
-		if self.status.is_some() {
-			offset -= 1;
-		}
-
-		if let Some(cell) = self.view.get(&(x, offset)) {
-			return cell;
-		}
-
-		if offset as usize >= view.len() {
-			&back[back.len() - 1 - (offset as usize - view.len())][x as usize]
-		}
-		else {
-			&view[view.len() - 1 - offset as usize][x as usize]
-		}
-	}
-
-	/// Fetch the underlying row at the given index based on the current
-	/// scrolling.
-	fn row(&self, y: u32) -> &Row {
-		let back = self.inner.grid().back();
-		let view = self.inner.grid().view();
-
-		if y as usize >= view.len() {
-			&back[back.len() - 1 - (y as usize - view.len())]
-		}
-		else {
-			&view[view.len() - 1 - y as usize]
-		}
-	}
-
 	/// Get the current cursor position.
 	pub fn cursor(&self) -> cursor::Cell {
 		let (x, y) = overlay!(self; cursor);
-		cursor::Cell::new(&self.cursor, cell::Position::new(x, y, self.get(x, y)))
+		cursor::Cell::new(&self.cursor, cell::Position::new(x, y, &self[(x, y)]))
 	}
 
 	/// Get an iterator over positioned cells.
@@ -772,14 +729,14 @@ impl Overlay {
 				for _ in 0 .. times {
 					let mut c = overlay!(self; cursor);
 
-					if !is_boundary(self.get(c.0, c.1).value()) {
-						while !is_boundary(self.get(c.0, c.1).value()) && !self.at_end() {
+					if !is_boundary(self[(c.0, c.1)].value()) {
+						while !is_boundary(self[(c.0, c.1)].value()) && !self.at_end() {
 							self.command(Command::Move(command::Move::Right(1)));
 							c = overlay!(self; cursor);
 						}
 					}
 
-					while is_boundary(self.get(c.0, c.1).value()) && !self.at_end() {
+					while is_boundary(self[(c.0, c.1)].value()) && !self.at_end() {
 						self.command(Command::Move(command::Move::Right(1)));
 						c = overlay!(self; cursor);
 					}
@@ -790,24 +747,24 @@ impl Overlay {
 				for _ in 0 .. times {
 					let mut c = overlay!(self; cursor);
 
-					if !is_boundary(self.get(c.0, c.1).value()) {
-						while !is_boundary(self.get(c.0, c.1).value()) && !self.at_start() {
+					if !is_boundary(self[(c.0, c.1)].value()) {
+						while !is_boundary(self[(c.0, c.1)].value()) && !self.at_start() {
 							self.command(Command::Move(command::Move::Left(1)));
 							c = overlay!(self; cursor);
 						}
 					}
 
-					while is_boundary(self.get(c.0, c.1).value()) && !self.at_start() {
+					while is_boundary(self[(c.0, c.1)].value()) && !self.at_start() {
 						self.command(Command::Move(command::Move::Left(1)));
 						c = overlay!(self; cursor);
 					}
 
-					while !is_boundary(self.get(c.0, c.1).value()) && !self.at_start() {
+					while !is_boundary(self[(c.0, c.1)].value()) && !self.at_start() {
 						self.command(Command::Move(command::Move::Left(1)));
 						c = overlay!(self; cursor);
 					}
 
-					if is_boundary(self.get(c.0, c.1).value()) && !self.at_start() {
+					if is_boundary(self[(c.0, c.1)].value()) && !self.at_start() {
 						self.command(Command::Move(command::Move::Right(1)));
 					}
 				}
@@ -817,24 +774,24 @@ impl Overlay {
 				for _ in 0 .. times {
 					let mut c = overlay!(self; cursor);
 
-					if !is_boundary(self.get(c.0, c.1).value()) {
+					if !is_boundary(self[(c.0, c.1)].value()) {
 						self.command(Command::Move(command::Move::Right(1)));
 						c = overlay!(self; cursor);
 					}
 
-					if is_boundary(self.get(c.0, c.1).value()) {
-						while is_boundary(self.get(c.0, c.1).value()) && !self.at_end() {
+					if is_boundary(self[(c.0, c.1)].value()) {
+						while is_boundary(self[(c.0, c.1)].value()) && !self.at_end() {
 							self.command(Command::Move(command::Move::Right(1)));
 							c = overlay!(self; cursor);
 						}
 					}
 
-					while !is_boundary(self.get(c.0, c.1).value()) && !self.at_end() {
+					while !is_boundary(self[(c.0, c.1)].value()) && !self.at_end() {
 						self.command(Command::Move(command::Move::Right(1)));
 						c = overlay!(self; cursor);
 					}
 
-					if is_boundary(self.get(c.0, c.1).value()) && !self.at_end() {
+					if is_boundary(self[(c.0, c.1)].value()) && !self.at_end() {
 						self.command(Command::Move(command::Move::Left(1)));
 					}
 				}
@@ -844,14 +801,14 @@ impl Overlay {
 				for _ in 0 .. times {
 					let mut c = overlay!(self; cursor);
 
-					if !is_boundary(self.get(c.0, c.1).value()) {
-						while !is_boundary(self.get(c.0, c.1).value()) && !self.at_start() {
+					if !is_boundary(self[(c.0, c.1)].value()) {
+						while !is_boundary(self[(c.0, c.1)].value()) && !self.at_start() {
 							self.command(Command::Move(command::Move::Left(1)));
 							c = overlay!(self; cursor);
 						}
 					}
 
-					while is_boundary(self.get(c.0, c.1).value()) && !self.at_start() {
+					while is_boundary(self[(c.0, c.1)].value()) && !self.at_start() {
 						self.command(Command::Move(command::Move::Left(1)));
 						c = overlay!(self; cursor);
 					}
@@ -862,12 +819,12 @@ impl Overlay {
 				for _ in 0 .. times {
 					let mut c = overlay!(self; cursor);
 
-					if self.get(c.0, c.1).value() == ch {
+					if self[(c.0, c.1)].value() == ch {
 						self.command(Command::Move(command::Move::Right(1)));
 						c = overlay!(self; cursor);
 					}
 
-					while self.get(c.0, c.1).value() != ch && !self.at_end() {
+					while self[(c.0, c.1)].value() != ch && !self.at_end() {
 						self.command(Command::Move(command::Move::Right(1)));
 						c = overlay!(self; cursor);
 					}
@@ -878,12 +835,12 @@ impl Overlay {
 				for _ in 0 .. times {
 					let mut c = overlay!(self; cursor);
 
-					if self.get(c.0, c.1).value() == ch {
+					if self[(c.0, c.1)].value() == ch {
 						self.command(Command::Move(command::Move::Left(1)));
 						c = overlay!(self; cursor);
 					}
 
-					while self.get(c.0, c.1).value() != ch && !self.at_start() {
+					while self[(c.0, c.1)].value() != ch && !self.at_start() {
 						self.command(Command::Move(command::Move::Left(1)));
 						c = overlay!(self; cursor);
 					}
@@ -894,12 +851,12 @@ impl Overlay {
 				for _ in 0 .. times {
 					let mut c = overlay!(self; cursor);
 
-					if self.get(c.0, c.1).value() == ch {
+					if self[(c.0, c.1)].value() == ch {
 						self.command(Command::Move(command::Move::Right(1)));
 						c = overlay!(self; cursor);
 					}
 
-					while self.get(c.0, c.1).value() != ch && !self.at_end() {
+					while self[(c.0, c.1)].value() != ch && !self.at_end() {
 						self.command(Command::Move(command::Move::Right(1)));
 						c = overlay!(self; cursor);
 					}
@@ -914,12 +871,12 @@ impl Overlay {
 				for _ in 0 .. times {
 					let mut c = overlay!(self; cursor);
 
-					if self.get(c.0, c.1).value() == ch {
+					if self[(c.0, c.1)].value() == ch {
 						self.command(Command::Move(command::Move::Left(1)));
 						c = overlay!(self; cursor);
 					}
 
-					while self.get(c.0, c.1).value() != ch && !self.at_start() {
+					while self[(c.0, c.1)].value() != ch && !self.at_start() {
 						self.command(Command::Move(command::Move::Left(1)));
 						c = overlay!(self; cursor);
 					}
@@ -1167,7 +1124,7 @@ impl Overlay {
 						(0, self.inner.columns() - 1)
 					};
 
-					let     row  = self.row(y);
+					let     row  = &self[y];
 					let mut line = String::new();
 
 					for x in start ... edge(row, start, end) {
@@ -1210,7 +1167,7 @@ impl Overlay {
 				let mut result = String::new();
 
 				for y in (end.1 ... start.1).rev() {
-					let row = self.row(y);
+					let row = &self[y];
 
 					for x in start.0 ... edge(row, start.0, end.0) {
 						result.push_str(row[x as usize].value());
@@ -1409,7 +1366,7 @@ impl Overlay {
 
 					for x in start ... end {
 						if flag {
-							let mut cell = self.row(y)[x as usize].clone();
+							let mut cell = self[y][x as usize].clone();
 							cell.set_style(self.selector.style.clone());
 							self.view.insert((x, y), cell);
 						}
@@ -1424,7 +1381,7 @@ impl Overlay {
 				for y in end.1 ... start.1 {
 					for x in start.0 ... end.0 {
 						if flag {
-							let mut cell = self.row(y)[x as usize].clone();
+							let mut cell = self[y][x as usize].clone();
 							cell.set_style(self.selector.style.clone());
 							self.view.insert((x, y), cell);
 						}
@@ -1439,7 +1396,7 @@ impl Overlay {
 				for y in end ... start {
 					for x in 0 .. self.inner.columns() {
 						if flag {
-							let mut cell = self.row(y)[x as usize].clone();
+							let mut cell = self[y][x as usize].clone();
 							cell.set_style(self.selector.style.clone());
 							self.view.insert((x, y), cell);
 						}
@@ -1472,7 +1429,7 @@ impl Overlay {
 				// Make the URL underscored or selected.
 				while (x, y) != hint.position.1 {
 					if flag {
-						let mut cell = self.row(y)[x as usize].clone();
+						let mut cell = self[y][x as usize].clone();
 
 						if selected {
 							cell.set_style(self.hinter.hinted.clone());
@@ -1498,9 +1455,50 @@ impl Overlay {
 	}
 }
 
-impl Access for Overlay {
-	fn access(&self, x: u32, y: u32) -> &Cell {
-		self.get(x, y)
+impl Index<(u32, u32)> for Overlay {
+	type Output = Cell;
+
+	fn index(&self, (x, y): (u32, u32)) -> &Cell {
+		if let Some(status) = self.status.as_ref() {
+			if y == self.inner.rows() - 1 {
+				return &status[x as usize];
+			}
+		}
+
+		let     back   = self.inner.grid().back();
+		let     view   = self.inner.grid().view();
+		let mut offset = (view.len() as u32 - 1 - y) + self.scroll;
+
+		if self.status.is_some() {
+			offset -= 1;
+		}
+
+		if let Some(cell) = self.view.get(&(x, offset)) {
+			return cell;
+		}
+
+		if offset as usize >= view.len() {
+			&back[back.len() - 1 - (offset as usize - view.len())][x as usize]
+		}
+		else {
+			&view[view.len() - 1 - offset as usize][x as usize]
+		}
+	}
+}
+
+impl Index<u32> for Overlay {
+	type Output = Row;
+
+	fn index(&self, y: u32) -> &Row {
+		let back = self.inner.grid().back();
+		let view = self.inner.grid().view();
+
+		if y as usize >= view.len() {
+			&back[back.len() - 1 - (y as usize - view.len())]
+		}
+		else {
+			&view[view.len() - 1 - y as usize]
+		}
 	}
 }
 

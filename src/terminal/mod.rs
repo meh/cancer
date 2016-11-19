@@ -15,10 +15,6 @@
 // You should have received a copy of the GNU General Public License
 // along with cancer.  If not, see <http://www.gnu.org/licenses/>.
 
-pub trait Access {
-	fn access(&self, x: u32, y: u32) -> &Cell;
-}
-
 mod iter;
 pub use self::iter::Iter;
 

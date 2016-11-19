@@ -15,6 +15,7 @@
 // You should have received a copy of the GNU General Public License
 // along with cancer.  If not, see <http://www.gnu.org/licenses/>.
 
+use std::ops::Index;
 use std::io::Write;
 use std::vec;
 
@@ -22,7 +23,7 @@ use picto::Region;
 use error;
 use config::Config;
 use platform::{Key, Mouse};
-use terminal::{Access, Terminal, Mode, Iter, Cell};
+use terminal::{Terminal, Mode, Iter, Cell};
 use terminal::{cursor, touched};
 use overlay::Overlay;
 
@@ -215,14 +216,16 @@ impl Interface {
 	}
 }
 
-impl Access for Interface {
-	fn access(&self, x: u32, y: u32) -> &Cell {
+impl Index<(u32, u32)> for Interface {
+	type Output = Cell;
+
+	fn index(&self, (x, y): (u32, u32)) -> &Cell {
 		match *self {
 			Interface::Terminal(ref terminal) =>
-				terminal.access(x, y),
+				&terminal[(x, y)],
 
 			Interface::Overlay(ref overlay) =>
-				overlay.access(x, y),
+				&overlay[(x, y)],
 		}
 	}
 }

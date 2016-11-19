@@ -15,6 +15,7 @@
 // You should have received a copy of the GNU General Public License
 // along with cancer.  If not, see <http://www.gnu.org/licenses/>.
 
+use std::ops::Index;
 use std::sync::Arc;
 use std::io::{self, Write};
 use std::mem;
@@ -33,7 +34,7 @@ use config::style::Shape;
 use style::{self, Style};
 use platform::key::{self, Key};
 use platform::mouse::{self, Mouse};
-use terminal::{Access, Iter, Touched, Cell, Tabs, Grid, cell};
+use terminal::{Iter, Touched, Cell, Tabs, Grid, cell};
 use terminal::mode::{self, Mode};
 use terminal::cursor::{self, Cursor};
 use terminal::touched;
@@ -100,7 +101,7 @@ macro_rules! term {
 		let x = $term.cursor.x();
 		let y = $term.cursor.y();
 
-		if let Cell::Reference(offset) = *$term.grid.get(x, y) {
+		if let Cell::Reference(offset) = $term.grid[(x, y)] {
 			(x - offset as u32, y)
 		}
 		else {
@@ -128,7 +129,8 @@ macro_rules! term {
 }
 
 impl Terminal {
-	pub fn open(config: Arc<Config>, width: u32, height: u32) -> error::Result<Self> {
+	/// Create a new terminal.
+	pub fn new(config: Arc<Config>, width: u32, height: u32) -> error::Result<Self> {
 		let region = Region::from(0, 0, width, height);
 		let grid   = Grid::new(width, height, config.environment().scroll());
 		let tabs   = Tabs::new(width, height);
@@ -173,7 +175,7 @@ impl Terminal {
 	/// Get the cursor.
 	pub fn cursor(&self) -> cursor::Cell {
 		let (x, y) = term!(self; cursor);
-		cursor::Cell::new(&self.cursor, cell::Position::new(x, y, self.grid.get(x, y)))
+		cursor::Cell::new(&self.cursor, cell::Position::new(x, y, &self.grid[(x, y)]))
 	}
 
 	/// Get the region of the terminal.
@@ -219,7 +221,7 @@ impl Terminal {
 		}
 
 		for (x, y) in self.region.absolute() {
-			match *self.grid.get(x, y) {
+			match self.grid[(x, y)] {
 				Cell::Empty { ref style, .. } |
 				Cell::Occupied { ref style, .. } if style.attributes().contains(style::BLINK) => {
 					self.touched.mark(x, y);
@@ -1152,13 +1154,13 @@ impl Terminal {
 				let (x, y) = term!(self; cursor);
 
 				for x in x .. self.region.width {
-					self.grid.get_mut(x, y).make_empty(self.cursor.style().clone());
+					self.grid[(x, y)].make_empty(self.cursor.style().clone());
 					self.touched.mark(x, y);
 				}
 
 				for y in y + 1 .. self.region.height {
 					for x in 0 .. self.region.width {
-						self.grid.get_mut(x, y).make_empty(self.cursor.style().clone());
+						self.grid[(x, y)].make_empty(self.cursor.style().clone());
 					}
 
 					self.touched.line(y);
@@ -1169,13 +1171,13 @@ impl Terminal {
 				let (x, y) = term!(self; cursor);
 
 				for x in 0 ... x {
-					self.grid.get_mut(x, y).make_empty(self.cursor.style().clone());
+					self.grid[(x, y)].make_empty(self.cursor.style().clone());
 					self.touched.mark(x, y);
 				}
 
 				for y in 0 .. y {
 					for x in 0 .. self.region.width {
-						self.grid.get_mut(x, y).make_empty(self.cursor.style().clone());
+						self.grid[(x, y)].make_empty(self.cursor.style().clone());
 					}
 
 					self.touched.line(y);
@@ -1185,7 +1187,7 @@ impl Terminal {
 			Control::C1(C1::ControlSequence(CSI::EraseDisplay(CSI::Erase::All))) => {
 				for y in 0 .. self.region.height {
 					for x in 0 .. self.region.width {
-						self.grid.get_mut(x, y).make_empty(self.cursor.style().clone());
+						self.grid[(x, y)].make_empty(self.cursor.style().clone());
 					}
 				}
 
@@ -1196,7 +1198,7 @@ impl Terminal {
 				let (x, y) = term!(self; cursor);
 
 				for x in x .. self.region.width {
-					self.grid.get_mut(x, y).make_empty(self.cursor.style().clone());
+					self.grid[(x, y)].make_empty(self.cursor.style().clone());
 					self.touched.mark(x, y);
 				}
 			}
@@ -1205,7 +1207,7 @@ impl Terminal {
 				let (x, y) = term!(self; cursor);
 
 				for x in 0 ... x {
-					self.grid.get_mut(x, y).make_empty(self.cursor.style().clone());
+					self.grid[(x, y)].make_empty(self.cursor.style().clone());
 					self.touched.mark(x, y);
 				}
 			}
@@ -1214,7 +1216,7 @@ impl Terminal {
 				let y = self.cursor.y();
 
 				for x in 0 .. self.region.width {
-					self.grid.get_mut(x, y).make_empty(self.cursor.style().clone());
+					self.grid[(x, y)].make_empty(self.cursor.style().clone());
 				}
 
 				self.touched.line(y);
@@ -1224,7 +1226,7 @@ impl Terminal {
 				let (x, y) = term!(self; cursor);
 
 				for x in x .. x + n {
-					self.grid.get_mut(x, y).make_empty(self.cursor.style().clone());
+					self.grid[(x, y)].make_empty(self.cursor.style().clone());
 					self.touched.mark(x, y);
 				}
 
@@ -1247,7 +1249,7 @@ impl Terminal {
 			// Insertion functions.
 			Control::DEC(DEC::AlignmentTest) => {
 				for (x, y) in self.region.absolute() {
-					self.grid.get_mut(x, y).make_occupied("E", self.cursor.style().clone());
+					self.grid[(x, y)].make_occupied("E", self.cursor.style().clone());
 				}
 
 				self.touched.all();
@@ -1616,18 +1618,18 @@ impl Terminal {
 		// otherwise make it occupied.
 		if ch.chars().all(char::is_whitespace) {
 			for x in x .. x + width {
-				self.grid.get_mut(x, y).make_empty(self.cursor.style().clone());
+				self.grid[(x, y)].make_empty(self.cursor.style().clone());
 				self.touched.mark(x, y);
 			}
 
 			term!(self; clean references (x + width, y));
 		}
 		else {
-			self.grid.get_mut(x, y).make_occupied(ch, self.cursor.style().clone());
+			self.grid[(x, y)].make_occupied(ch, self.cursor.style().clone());
 			self.touched.mark(x, y);
 
 			for (i, x) in (x + 1 .. x + width).enumerate() {
-				self.grid.get_mut(x, y).make_reference(i as u8 + 1);
+				self.grid[(x, y)].make_reference(i as u8 + 1);
 			}
 
 			term!(self; clean references (x + width, y));
@@ -1643,8 +1645,10 @@ impl Terminal {
 	}
 }
 
-impl Access for Terminal {
-	fn access(&self, x: u32, y: u32) -> &Cell {
-		self.grid.get(x, y)
+impl Index<(u32, u32)> for Terminal {
+	type Output = Cell;
+
+	fn index(&self, (x, y): (u32, u32)) -> &Self::Output {
+		&self.grid[(x, y)]
 	}
 }

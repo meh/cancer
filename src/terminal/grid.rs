@@ -15,12 +15,13 @@
 // You should have received a copy of the GNU General Public License
 // along with cancer.  If not, see <http://www.gnu.org/licenses/>.
 
+use std::ops::{Index, IndexMut};
 use std::mem;
 use std::collections::VecDeque;
 
 use itertools::Itertools;
 use util::clamp;
-use terminal::{Access, Cell, Row, Free};
+use terminal::{Cell, Row, Free};
 
 #[derive(Debug)]
 pub struct Grid {
@@ -48,14 +49,6 @@ impl Grid {
 
 		value.resize(cols, rows);
 		value
-	}
-
-	pub fn get(&self, x: u32, y: u32) -> &Cell {
-		&self.view[y as usize][x as usize]
-	}
-
-	pub fn get_mut(&mut self, x: u32, y: u32) -> &mut Cell {
-		&mut self.view[y as usize][x as usize]
 	}
 
 	/// Get the scroll back.
@@ -342,8 +335,16 @@ impl Grid {
 	}
 }
 
-impl Access for Grid {
-	fn access(&self, x: u32, y: u32) -> &Cell {
-		self.get(x, y)
+impl Index<(u32, u32)> for Grid {
+	type Output = Cell;
+
+	fn index(&self, (x, y): (u32, u32)) -> &Self::Output {
+		&self.view[y as usize][x as usize]
+	}
+}
+
+impl IndexMut<(u32, u32)> for Grid {
+	fn index_mut(&mut self, (x, y): (u32, u32)) -> &mut Self::Output {
+		&mut self.view[y as usize][x as usize]
 	}
 }
