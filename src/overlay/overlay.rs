@@ -68,9 +68,8 @@ struct Hinter {
 	level:    usize,
 	hints:    Option<Hints>,
 
-	label:      Rc<Style>,
-	underlined: Rc<Style>,
-	hinted:     Rc<Style>,
+	label:  Rc<Style>,
+	hinted: Rc<Style>,
 }
 
 impl Hinter {
@@ -105,7 +104,7 @@ enum Selection {
 #[derive(Eq, PartialEq, Copy, Clone, Debug)]
 enum Highlight<'a> {
 	Selection(&'a Selection),
-	Hint(&'a Hint, usize, bool),
+	Hint(&'a Hint, usize),
 }
 
 macro_rules! overlay {
@@ -192,9 +191,8 @@ impl Overlay {
 			level:    0,
 			hints:    None,
 
-			label:      Rc::new(*inner.config().style().overlay().hint()),
-			underlined: Rc::new(Style { attributes: style::UNDERLINE, .. Default::default() }),
-			hinted:     Rc::new(Style {
+			label:  Rc::new(*inner.config().style().overlay().hint()),
+			hinted: Rc::new(Style {
 				foreground: inner.config().style().overlay().hint().foreground,
 				background: inner.config().style().overlay().hint().background,
 				attributes: inner.config().style().overlay().hint().attributes ^ style::REVERSE,
@@ -593,7 +591,7 @@ impl Overlay {
 				}
 				else if let Some(hints) = self.hinter.hints.take() {
 					for hint in hints.values() {
-						self.highlight(Highlight::Hint(hint, 0, false), false);
+						self.highlight(Highlight::Hint(hint, 0), false);
 					}
 
 					self.hinter.current.take();
@@ -1002,8 +1000,8 @@ impl Overlay {
 			}
 
 			Command::Hint(command::Hint::Start) => {
-				let bottom  = self.scroll;
-				let top     = self.inner.rows() - 1
+				let bottom = self.scroll;
+				let top    = self.inner.rows() - 1
 					- if self.status.is_some() { 1 } else { 0 }
 					+ self.scroll;
 
@@ -1043,10 +1041,10 @@ impl Overlay {
 						// De-highlight every other hint and select the matching one.
 						for (name, hint) in self.hinter.hints.clone().unwrap().into_inner() {
 							if selected == name {
-								self.highlight(Highlight::Hint(&hint, level, true), true);
+								self.highlight(Highlight::Hint(&hint, level), true);
 							}
 							else {
-								self.highlight(Highlight::Hint(&hint, level, false), false);
+								self.highlight(Highlight::Hint(&hint, level), false);
 							}
 						}
 
@@ -1059,10 +1057,10 @@ impl Overlay {
 							let level = self.hinter.level;
 
 							if name.starts_with(&selected) {
-								self.highlight(Highlight::Hint(&hint, level, false), true);
+								self.highlight(Highlight::Hint(&hint, level), true);
 							}
 							else {
-								self.highlight(Highlight::Hint(&hint, level, false), false);
+								self.highlight(Highlight::Hint(&hint, level), false);
 							}
 						}
 					}
@@ -1351,7 +1349,7 @@ impl Overlay {
 		};
 
 		if let Some(hint) = hint {
-			self.highlight(Highlight::Hint(&hint, 0, false), true);
+			self.highlight(Highlight::Hint(&hint, 0), true);
 		}
 	}
 
@@ -1416,7 +1414,7 @@ impl Overlay {
 				}
 			}
 
-			Highlight::Hint(hint, level, selected) => {
+			Highlight::Hint(hint, level) => {
 				let (mut x, mut y) = hint.position.0;
 
 				// Add the label, if the level permits.
@@ -1439,14 +1437,7 @@ impl Overlay {
 				while (x, y) != hint.position.1 {
 					if flag {
 						let mut cell = self[y][x as usize].clone();
-
-						if selected {
-							cell.set_style(self.hinter.hinted.clone());
-						}
-						else {
-							cell.set_style(self.hinter.underlined.clone());
-						}
-
+						cell.set_style(self.hinter.hinted.clone());
 						self.view.insert((x, y), cell);
 					}
 					else {

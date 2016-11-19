@@ -37,10 +37,8 @@ blink = false
 foreground = "#fff"
 background = "#b21818"
 
-[style.overlay.status]
-background = "#b21818"
-foreground = "#fff"
-attributes = "bold"
+[style.overlay]
+status = false
 
 [style.overlay.hint]
 foreground = "#ffffff"
