@@ -1002,8 +1002,12 @@ impl Overlay {
 			}
 
 			Command::Hint(command::Hint::Start) => {
-				let top     = self.inner.rows() - 1 - if self.status.is_some() { 1 } else { 0 };
-				let content = self.selection(&Selection::Line { start: top, end: 0 });
+				let bottom  = self.scroll;
+				let top     = self.inner.rows() - 1
+					- if self.status.is_some() { 1 } else { 0 }
+					+ self.scroll;
+
+				let content = self.selection(&Selection::Line { start: top, end: bottom });
 				let urls    = self.inner.config().environment().hinter().matcher()
 					.find_iter(&content).collect::<Vec<_>>();
 
@@ -1306,11 +1310,13 @@ impl Overlay {
 		let content = content.as_ref();
 		let url     = &content[start .. end];
 		let hint    = if let Some(hints) = self.hinter.hints.as_mut() {
-			let mut position = (None::<(u32, u32)>, None::<(u32, u32)>);
+			let mut graphemes = content.graphemes(true).peekable();
+			let mut position  = (None::<(u32, u32)>, None::<(u32, u32)>);
 			let mut offset    = 0;
 			let mut x         = 0;
-			let mut y         = self.inner.rows() - 1 - if self.status.is_some() { 1 } else { 0 };
-			let mut graphemes = content.graphemes(true).peekable();
+			let mut y         = self.inner.rows() - 1
+				- if self.status.is_some() { 1 } else { 0 }
+				+ self.scroll;
 
 			while let Some(ch) = graphemes.next() {
 				if position.0.is_none() && offset == start {
@@ -1338,7 +1344,7 @@ impl Overlay {
 				}
 			}
 
-			Some(hints.put((position.0.unwrap(), position.1.unwrap()), url).clone())
+			Some(hints.put((position.0.unwrap(), position.1.unwrap_or((x, y))), url).clone())
 		}
 		else {
 			None
