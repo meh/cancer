@@ -242,15 +242,18 @@ fn main() {
 		});
 
 		($iter:expr) => ({
-			let iter    = $iter;
-			let options = render!(options);
+			let iter = $iter;
 
-			renderer.batch(|mut o| {
-				o.update(&interface, iter, options);
-			});
+			if window.is_visible() {
+				let options = render!(options);
 
-			surface.flush();
-			window.flush();
+				renderer.batch(|mut o| {
+					o.update(&interface, iter, options);
+				});
+
+				surface.flush();
+				window.flush();
+			}
 		});
 	}
 
@@ -270,6 +273,8 @@ fn main() {
 
 			event = events.recv() => {
 				match try!(return event) {
+					Event::Show(_) => (),
+
 					Event::Redraw(region) => {
 						let options = render!(options!);
 

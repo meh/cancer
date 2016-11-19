@@ -46,9 +46,10 @@ pub struct Window {
 	receiver: Option<Receiver<Event>>,
 	sender:   Sender<Request>,
 
-	width:  Arc<AtomicU32>,
-	height: Arc<AtomicU32>,
-	focus:  Arc<AtomicBool>,
+	width:   Arc<AtomicU32>,
+	height:  Arc<AtomicU32>,
+	focus:   Arc<AtomicBool>,
+	visible: Arc<AtomicBool>,
 }
 
 #[derive(Eq, PartialEq, Clone, Debug)]
@@ -135,15 +136,17 @@ impl Window {
 		let (sender, i_receiver) = channel();
 		let (i_sender, receiver) = channel();
 
-		let width  = Arc::new(AtomicU32::new(width));
-		let height = Arc::new(AtomicU32::new(height));
-		let focus  = Arc::new(AtomicBool::new(true));
+		let width   = Arc::new(AtomicU32::new(width));
+		let height  = Arc::new(AtomicU32::new(height));
+		let focus   = Arc::new(AtomicBool::new(true));
+		let visible = Arc::new(AtomicBool::new(true));
 
 		{
 			let connection = connection.clone();
 			let width      = width.clone();
 			let height     = height.clone();
 			let focus      = focus.clone();
+			let visible    = visible.clone();
 
 			fn sink(connection: Arc<ewmh::Connection>) -> Receiver<xcb::GenericEvent> {
 				let (sender, receiver) = sync_channel(16);
@@ -248,9 +251,11 @@ impl Window {
 									try!(return sender.send(Event::Redraw(Region::from(x, y, w, h))));
 								}
 
-								xcb::MAP_NOTIFY => {
-									try!(return sender.send(Event::Redraw(Region::from(0, 0,
-										width.load(Ordering::Relaxed), height.load(Ordering::Relaxed)))));
+								xcb::MAP_NOTIFY | xcb::UNMAP_NOTIFY => {
+									let value = event.response_type() == xcb::MAP_NOTIFY;
+
+									visible.store(value, Ordering::Relaxed);
+									try!(return sender.send(Event::Show(value)));
 								}
 
 								xcb::FOCUS_IN | xcb::FOCUS_OUT => {
@@ -400,9 +405,10 @@ impl Window {
 			receiver: Some(receiver),
 			sender:   sender,
 
-			width:  width,
-			height: height,
-			focus:  focus,
+			width:   width,
+			height:  height,
+			focus:   focus,
+			visible: visible,
 		})
 	}
 
@@ -419,6 +425,10 @@ impl Window {
 	/// Check if the window has focus.
 	pub fn has_focus(&self) -> bool {
 		self.focus.load(Ordering::Relaxed)
+	}
+
+	pub fn is_visible(&self) -> bool {
+		self.visible.load(Ordering::Relaxed)
 	}
 
 	/// Take the events sink.

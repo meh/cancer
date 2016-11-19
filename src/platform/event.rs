@@ -20,6 +20,9 @@ use platform::{Key, Mouse};
 
 #[derive(Eq, PartialEq, Clone, Debug)]
 pub enum Event {
+	/// The window is being shown or hidden.
+	Show(bool),
+
 	/// Redraw the specified region.
 	Redraw(Region),
 
