@@ -635,10 +635,8 @@ impl Terminal {
 				_ => b"\x1B[23;5~",
 			},
 
-			Value::Button(Button::F(_)) =>
-				unreachable!(),
-
-			_ => Ok(())
+			_ =>
+				Ok(())
 		}
 	}
 
