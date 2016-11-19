@@ -1154,16 +1154,16 @@ impl Terminal {
 				let (x, y) = term!(self; cursor);
 
 				for x in x .. self.region.width {
-					self.touched.mark(x, y);
 					self.grid.get_mut(x, y).make_empty(self.cursor.style().clone());
+					self.touched.mark(x, y);
 				}
 
 				for y in y + 1 .. self.region.height {
-					self.touched.line(y);
-
 					for x in 0 .. self.region.width {
 						self.grid.get_mut(x, y).make_empty(self.cursor.style().clone());
 					}
+
+					self.touched.line(y);
 				}
 			}
 
@@ -1171,35 +1171,35 @@ impl Terminal {
 				let (x, y) = term!(self; cursor);
 
 				for x in 0 ... x {
-					self.touched.mark(x, y);
 					self.grid.get_mut(x, y).make_empty(self.cursor.style().clone());
+					self.touched.mark(x, y);
 				}
 
 				for y in 0 .. y {
-					self.touched.line(y);
-
 					for x in 0 .. self.region.width {
 						self.grid.get_mut(x, y).make_empty(self.cursor.style().clone());
 					}
+
+					self.touched.line(y);
 				}
 			}
 
 			Control::C1(C1::ControlSequence(CSI::EraseDisplay(CSI::Erase::All))) => {
-				self.touched.all();
-
 				for y in 0 .. self.region.height {
 					for x in 0 .. self.region.width {
 						self.grid.get_mut(x, y).make_empty(self.cursor.style().clone());
 					}
 				}
+
+				self.touched.all();
 			}
 
 			Control::C1(C1::ControlSequence(CSI::EraseLine(CSI::Erase::ToEnd))) => {
 				let (x, y) = term!(self; cursor);
 
 				for x in x .. self.region.width {
-					self.touched.mark(x, y);
 					self.grid.get_mut(x, y).make_empty(self.cursor.style().clone());
+					self.touched.mark(x, y);
 				}
 			}
 
@@ -1207,18 +1207,19 @@ impl Terminal {
 				let (x, y) = term!(self; cursor);
 
 				for x in 0 ... x {
-					self.touched.mark(x, y);
 					self.grid.get_mut(x, y).make_empty(self.cursor.style().clone());
+					self.touched.mark(x, y);
 				}
 			}
 
 			Control::C1(C1::ControlSequence(CSI::EraseLine(CSI::Erase::All))) => {
 				let y = self.cursor.y();
-				self.touched.line(y);
 
 				for x in 0 .. self.region.width {
 					self.grid.get_mut(x, y).make_empty(self.cursor.style().clone());
 				}
+
+				self.touched.line(y);
 			}
 
 			Control::C1(C1::ControlSequence(CSI::EraseCharacter(n))) => {
