@@ -608,12 +608,15 @@ impl Overlay {
 			}
 
 			Command::Scroll(command::Scroll::Begin) => {
-				self.scroll = self.inner.grid().back().len() as u32;
+				self.scroll = self.inner.grid().back().len() as u32
+					+ if self.status.is_some() { 1 } else { 0 };
+
 				self.touched.all();
 			}
 
 			Command::Scroll(command::Scroll::End) => {
 				self.scroll = 0;
+
 				self.touched.all();
 			}
 
