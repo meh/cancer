@@ -28,6 +28,7 @@ use font::Font;
 use style;
 use util::clamp;
 use terminal::{cell, cursor};
+use interface::Interface;
 use renderer::{Cache, Glyphs, Options};
 
 /// Renderer for a `cairo::Surface`.
@@ -151,8 +152,6 @@ impl Renderer {
 	}
 
 	/// Turn the damaged region to cell-space.
-	///
-	/// FIXME(meh): this is kinda approximate, should find a proper algorithm.
 	pub fn damaged(&mut self, region: &Region) -> Region {
 		let (f, h, v, s) = (&self.font, self.margin.horizontal, self.margin.vertical, self.spacing);
 
@@ -200,7 +199,7 @@ impl Renderer {
 	}
 
 	/// Batch the drawing operations within the closure.
-	pub fn update<T, F: FnOnce(&mut Self) -> T>(&mut self, func: F) -> T {
+	pub fn batch<T, F: FnOnce(&mut Self) -> T>(&mut self, func: F) -> T {
 		self.push();
 		let out = func(self);
 		self.pop();
@@ -251,8 +250,23 @@ impl Renderer {
 		o.restore();
 	}
 
+	pub fn update<I>(&mut self, interface: &Interface, iter: I, options: Options)
+		where I: Iterator<Item = (u32, u32)>
+	{
+		for cell in interface.iter(iter) {
+			self.cell(&cell, options);
+		}
+
+		if options.cursor() {
+			self.cursor(&interface.cursor(), options);
+		}
+		else {
+			self.cell(&interface.cursor().cell(), options);
+		}
+	}
+
 	/// Draw the cursor.
-	pub fn cursor(&mut self, cursor: &cursor::Cell, options: Options) {
+	fn cursor(&mut self, cursor: &cursor::Cell, options: Options) {
 		self.cache.invalidate(&cursor.cell());
 
 		let (c, o, f) = (&self.config, &mut self.context, &self.font);
@@ -349,7 +363,7 @@ impl Renderer {
 	}
 
 	/// Draw the given cell.
-	pub fn cell(&mut self, cell: &cell::Position, options: Options) -> bool {
+	fn cell(&mut self, cell: &cell::Position, options: Options) -> bool {
 		// Bail out if the cell is up to date.
 		if !self.cache.update(cell, options) && !options.damage() {
 			return false;

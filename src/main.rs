@@ -89,6 +89,7 @@ use renderer::Renderer;
 
 use std::sync::Arc;
 use std::io::Write;
+use std::iter;
 
 fn main() {
 	env_logger::init().unwrap();
@@ -184,23 +185,6 @@ fn main() {
 			options
 		});
 
-		(cursor) => ({
-			let options = render!(options!);
-
-			// Redraw the cursor.
-			renderer.update(|mut o| {
-				if options.cursor() {
-					o.cursor(&interface.cursor(), options);
-				}
-				else {
-					o.cell(&interface.cursor().cell(), options);
-				}
-			});
-
-			surface.flush();
-			window.flush();
-		});
-
 		(handle $what:expr) => ({
 			let actions = {
 				let (actions, touched) = try!(continue $what);
@@ -261,14 +245,8 @@ fn main() {
 			let iter    = $iter;
 			let options = render!(options);
 
-			renderer.update(|mut o| {
-				for cell in interface.iter(iter) {
-					o.cell(&cell, options);
-				}
-
-				if options.cursor() {
-					o.cursor(&interface.cursor(), options);
-				}
+			renderer.batch(|mut o| {
+				o.update(&interface, iter, options);
 			});
 
 			surface.flush();
@@ -294,23 +272,14 @@ fn main() {
 				match try!(return event) {
 					Event::Redraw(region) => {
 						let options = render!(options!);
-			
-						renderer.update(|mut o| {
+
+						renderer.batch(|mut o| {
 							// Redraw margins.
 							o.margin(&region);
 			
 							// Redraw the cells that fall within the damaged region.
-							for cell in interface.iter(o.damaged(&region).relative()) {
-								o.cell(&cell, options);
-							}
-			
-							// Redraw the cursor.
-							if options.cursor() {
-								o.cursor(&interface.cursor(), options);
-							}
-							else {
-								o.cell(&interface.cursor().cell(), options);
-							}
+							let damaged = o.damaged(&region).relative();
+							o.update(&interface, damaged, options);
 						});
 			
 						surface.flush();
@@ -319,7 +288,7 @@ fn main() {
 
 					Event::Focus(focus) => {
 						try!(return interface.focus(focus, tty.by_ref()));
-						render!(cursor);
+						render!(iter::empty());
 					}
 
 					Event::Resize(width, height) => {
@@ -368,8 +337,7 @@ fn main() {
 			},
 
 			input = input.recv() => {
-				let input = try!(return input);
-				render!(handle interface.input(&input, tty.by_ref()));
+				render!(handle interface.input(&try!(return input), tty.by_ref()));
 			}
 		}
 	}
