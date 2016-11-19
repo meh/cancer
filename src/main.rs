@@ -186,11 +186,8 @@ fn main() {
 		});
 
 		(handle $what:expr) => ({
-			let actions = {
-				let (actions, touched) = try!(continue $what);
-				render!(touched);
-				actions
-			};
+			let (actions, touched) = try!(continue $what);
+			render!(touched);
 
 			for action in actions {
 				match action {
