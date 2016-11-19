@@ -73,6 +73,7 @@ impl Cell {
 		Cell::Reference(offset)
 	}
 
+	/// Check if the cell is in its default state.
 	pub fn is_default(&self) -> bool {
 		if let Cell::Empty { ref style, .. } = *self {
 			style.foreground.is_none() &&
@@ -223,10 +224,12 @@ impl<'a> Position<'a> {
 		}
 	}
 
+	/// Get the X.
 	pub fn x(&self) -> u32 {
 		self.x
 	}
 
+	/// Get the Y.
 	pub fn y(&self) -> u32 {
 		self.y
 	}

@@ -75,6 +75,7 @@ impl Default for State {
 pub use self::Travel::*;
 
 impl Cursor {
+	/// Create a new cursor.
 	pub fn new(config: Arc<Config>, width: u32, height: u32) -> Self {
 		let mut state = State::default();
 		if config.style().cursor().blink() {
@@ -102,6 +103,7 @@ impl Cursor {
 		}
 	}
 
+	/// Adapt the cursor to a new size.
 	pub fn resize(&mut self, width: u32, height: u32) {
 		if self.scroll == (0, self.height - 1) {
 			self.scroll = (0, height - 1);
@@ -119,56 +121,69 @@ impl Cursor {
 		self.height = height;
 	}
 
+	/// Get the position.
 	pub fn position(&self) -> (u32, u32) {
 		(self.x, self.y)
 	}
 
+	/// Get the X.
 	pub fn x(&self) -> u32 {
 		self.x
 	}
 
+	/// Get the Y.
 	pub fn y(&self) -> u32 {
 		self.y
 	}
 
+	/// Get the current style.
 	pub fn style(&self) -> &Rc<Style> {
 		&self.style
 	}
 
+	/// Get the cursor foreground color.
 	pub fn foreground(&self) -> &Rgba<f64> {
 		&self.foreground
 	}
 
+	/// Get the cursor background color.
 	pub fn background(&self) -> &Rgba<f64> {
 		&self.background
 	}
 
+	/// Get the cursor shape.
 	pub fn shape(&self) -> Shape {
 		self.shape
 	}
 
+	/// Get whether the cursor should blink or not.
 	pub fn blink(&self) -> bool {
 		self.state.contains(BLINK)
 	}
 
+	/// Check if the cursor is visible.
 	pub fn is_visible(&self) -> bool {
 		self.state.contains(VISIBLE)
 	}
 
+	/// Check if the next insertion should wrap.
 	pub fn wrap(&self) -> bool {
 		self.state.contains(WRAP)
 	}
 
+	/// Get the scrolling region.
 	pub fn scroll(&self) -> (u32, u32) {
 		self.scroll
 	}
 
+	/// Update the current style if needed.
 	pub fn update(&mut self, style: Style) {
 		if &*self.style != &style {
 			self.style = Rc::new(style);
 		}
 	}
 
+	/// Move the cursor, returns the amount of cells it overflows if any.
 	pub fn travel(&mut self, value: Travel) -> Option<i32> {
 		if self.state.contains(WRAP) {
 			self.state.remove(WRAP);

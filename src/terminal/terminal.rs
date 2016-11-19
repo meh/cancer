@@ -152,22 +152,27 @@ impl Terminal {
 		})
 	}
 
+	/// Get the internal configuration.
 	pub fn config(&self) -> &Config {
 		&self.config
 	}
 
+	/// Get the number of columns.
 	pub fn columns(&self) -> u32 {
 		self.region.width
 	}
 
+	/// Get the number of rows.
 	pub fn rows(&self) -> u32 {
 		self.region.height
 	}
 
+	/// Get the terminal mode.
 	pub fn mode(&self) -> Mode {
 		self.mode
 	}
 
+	/// Get the internal grid.
 	pub fn grid(&self) -> &Grid {
 		&self.grid
 	}
@@ -248,6 +253,7 @@ impl Terminal {
 		Ok(())
 	}
 
+	/// Paste something to the terminal.
 	pub fn paste<O: Write>(&mut self, value: &[u8], mut output: O) -> io::Result<()> {
 		if self.mode.contains(mode::BRACKETED_PASTE) {
 			try!(output.write_all(b"\x1B[200~"));
@@ -1550,6 +1556,8 @@ impl Terminal {
 	fn insert<T: AsRef<str>>(&mut self, ch: T) {
 		let mut ch = ch.as_ref();
 
+		// Convert from normal characters to graphical characters if the charset is
+		// enabled.
 		if term!(self; charset) == DEC::Charset::DEC(DEC::charset::DEC::Graphic) {
 			ch = match ch {
 				"A" => "↑",
@@ -1602,6 +1610,7 @@ impl Terminal {
 			return;
 		}
 
+		// Wrap to the next line if needed.
 		if self.mode.contains(mode::WRAP) && self.cursor.wrap() {
 			if term!(self; cursor Down(1)).is_some() {
 				term!(self; scroll! up 1);
