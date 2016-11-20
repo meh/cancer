@@ -174,6 +174,8 @@ impl Keyboard {
 		let symbol = self.symbol(code);
 		self.compose.feed(symbol);
 
+		debug!(target: "cancer::platform::key", "compose status: {:?}", self.compose.status());
+
 		match self.compose.status() {
 			Status::NOTHING => (),
 			Status::COMPOSING =>
