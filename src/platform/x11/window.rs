@@ -72,7 +72,7 @@ impl Window {
 
 		let (connection, screen) = xcb::Connection::connect(config.environment().display())?;
 		let connection           = Arc::new(ewmh::Connection::connect(connection).map_err(|(e, _)| e)?);
-		let keyboard             = Keyboard::new(connection.clone())?;
+		let keyboard             = Keyboard::new(connection.clone(), config.input().locale())?;
 		let (window, surface)    = {
 			let window = connection.generate_id();
 			let screen = connection.get_setup().roots().nth(screen as usize).unwrap();

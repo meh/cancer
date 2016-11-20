@@ -22,6 +22,7 @@ use platform::{Key, key};
 pub struct Input {
 	prefix: Key,
 	mouse:  bool,
+	locale: Option<String>,
 }
 
 impl Default for Input {
@@ -29,6 +30,7 @@ impl Default for Input {
 		Input {
 			prefix: Key::new("a".to_string().into(), key::LOGO, Default::default()),
 			mouse:  true,
+			locale: None,
 		}
 	}
 }
@@ -42,6 +44,10 @@ impl Input {
 		if let Some(value) = table.get("mouse").and_then(|v| v.as_bool()) {
 			self.mouse = value;
 		}
+
+		if let Some(value) = table.get("locale").and_then(|v| v.as_str()) {
+			self.locale = Some(value.into());
+		}
 	}
 
 	pub fn prefix(&self) -> &Key {
@@ -50,6 +56,10 @@ impl Input {
 
 	pub fn mouse(&self) -> bool {
 		self.mouse
+	}
+
+	pub fn locale(&self) -> Option<&str> {
+		self.locale.as_ref().map(AsRef::as_ref)
 	}
 }
 

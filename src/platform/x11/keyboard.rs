@@ -16,10 +16,12 @@
 // along with cancer.  If not, see <http://www.gnu.org/licenses/>.
 
 use std::sync::Arc;
+use std::env;
 
 use xcb;
 use xcbu::ewmh;
 use xkbcommon::xkb::{self, keysyms};
+use xkbcommon::xkb::compose::Status;
 
 use error;
 use platform::key::{self, Key, Button, Keypad, Modifier, Lock};
@@ -30,13 +32,16 @@ pub struct Keyboard {
 	device:     i32,
 	keymap:     xkb::Keymap,
 	state:      xkb::State,
+
+	table:   xkb::compose::Table,
+	compose: xkb::compose::State,
 }
 
 unsafe impl Send for Keyboard { }
 
 impl Keyboard {
 	/// Create a keyboard for the given connection.
-	pub fn new(connection: Arc<ewmh::Connection>) -> error::Result<Self> {
+	pub fn new(connection: Arc<ewmh::Connection>, locale: Option<&str>) -> error::Result<Self> {
 		connection.get_extension_data(xcb::xkb::id())
 			.ok_or(error::X::MissingExtension)?;
 
@@ -79,12 +84,18 @@ impl Keyboard {
 		let keymap  = xkb::x11::keymap_new_from_device(&context, &connection, device, xkb::KEYMAP_COMPILE_NO_FLAGS);
 		let state   = xkb::x11::state_new_from_device(&keymap, &connection, device);
 
+		let mut table   = xkb::compose::Table::new(&context, &locale.map(String::from).or(env::var("LANG").ok()).unwrap_or("C".into()), 0);
+		let     compose = table.state(0);
+
 		Ok(Keyboard {
 			connection: connection,
-			context: context,
-			device:  device,
-			keymap:  keymap,
-			state:   state,
+			context:    context,
+			device:     device,
+			keymap:     keymap,
+			state:      state,
+
+			table:   table,
+			compose: compose,
 		})
 	}
 
@@ -133,16 +144,12 @@ impl Keyboard {
 		self.state.key_get_utf8(code as xkb::Keycode)
 	}
 
-	pub fn key(&self, code: u8) -> Option<Key> {
+	pub fn key(&mut self, code: u8) -> Option<Key> {
 		const MODIFIERS: &[(&str, Modifier)] = &[
 			(xkb::MOD_NAME_ALT,   key::ALT),
 			(xkb::MOD_NAME_CTRL,  key::CTRL),
 			(xkb::MOD_NAME_LOGO,  key::LOGO),
 			(xkb::MOD_NAME_SHIFT, key::SHIFT)];
-
-		const LOCKS: &[(&str, Lock)] = &[
-			(xkb::MOD_NAME_CAPS, key::CAPS),
-			(xkb::MOD_NAME_NUM,  key::NUM)];
 
 		let modifier = MODIFIERS.iter().fold(Modifier::empty(), |modifier, &(n, m)|
 			if self.state.mod_name_is_active(&n, xkb::STATE_MODS_EFFECTIVE) {
@@ -151,6 +158,10 @@ impl Keyboard {
 			else {
 				modifier
 			});
+
+		const LOCKS: &[(&str, Lock)] = &[
+			(xkb::MOD_NAME_CAPS, key::CAPS),
+			(xkb::MOD_NAME_NUM,  key::NUM)];
 
 		let lock = LOCKS.iter().fold(Lock::empty(), |lock, &(n, m)|
 			if self.state.mod_name_is_active(&n, xkb::STATE_MODS_EFFECTIVE) {
@@ -161,6 +172,25 @@ impl Keyboard {
 			});
 
 		let symbol = self.symbol(code);
+		self.compose.feed(symbol);
+
+		match self.compose.status() {
+			Status::NOTHING => (),
+			Status::COMPOSING =>
+				return None,
+
+			Status::COMPOSED => {
+				if let Some(string) = self.compose.utf8() {
+					self.compose.reset();
+					return Some(Key::new(string.into(), modifier, lock));
+				}
+			}
+
+			Status::CANCELLED => {
+				self.compose.reset();
+				return None;
+			}
+		}
 
 		Some(Key::new(match symbol {
 			keysyms::KEY_Tab | keysyms::KEY_ISO_Left_Tab =>
@@ -265,10 +295,13 @@ impl Keyboard {
 			_ => {
 				let mut string = self.string(code);
 
+				// If the string is empty, it means it's a function key which we don't
+				// support, so just ignore it.
 				if string.is_empty() {
 					return None;
 				}
 
+				// Convert from the control code representation to the real letter.
 				if modifier.contains(key::CTRL) && string.len() == 1 {
 					let ch = string.as_bytes()[0];
 

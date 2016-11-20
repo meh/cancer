@@ -40,7 +40,7 @@ unicode-width        = "0.1"
 [target.'cfg(target_os = "linux")'.dependencies]
 xcb       = { version = "0.7.6", features = ["thread"] }
 xcb-util  = { version = "0.1.5", features = ["icccm", "ewmh", "thread"] }
-xkbcommon = { version = "0.2",   features = ["x11"] }
+xkbcommon = { version = "0.2",   features = ["x11", "compose"], git = "https://github.com/meh/xkbcommon-rs" }
 
 [target.'cfg(target_os = "macos")'.dependencies]
 cocoa = "0.5"
