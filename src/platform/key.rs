@@ -22,6 +22,7 @@ pub struct Key {
 	lock:     Lock,
 }
 
+/// Implementation to ignore locks, they're just informational.
 impl PartialEq for Key {
 	fn eq(&self, other: &Key) -> bool {
 		self.modifier == other.modifier && self.value == other.value
@@ -147,14 +148,17 @@ impl Key {
 		}
 	}
 
+	/// Get the value.
 	pub fn value(&self) -> &Value {
 		&self.value
 	}
 
+	/// Get the active modifiers.
 	pub fn modifier(&self) -> Modifier {
 		self.modifier
 	}
 
+	/// Get the active locks.
 	pub fn lock(&self) -> Lock {
 		self.lock
 	}
