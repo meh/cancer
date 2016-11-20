@@ -72,6 +72,7 @@ impl Tty {
 					dup2(slave, 1);
 					dup2(slave, 2);
 
+					// Set up the tty.
 					if ioctl(slave, TIOCSCTTY as _, ptr::null::<c_void>()) < 0 {
 						panic!("ioctl TIOCSCTTY failed");
 					}
@@ -86,6 +87,7 @@ impl Tty {
 
 				// From our process.
 				id => {
+					// Free the slaves.
 					close(slave);
 
 					let (i_sender, i_receiver) = sync_channel::<Vec<u8>>(16);
@@ -205,6 +207,8 @@ impl Write for Tty {
 	}
 }
 
+/// Execute the program, this calls `exec` so it will never return, unless
+/// something went very wrong, then we're doomed.
 unsafe fn execute(term: Option<&str>, program: Option<&str>) -> ! {
 	use std::env;
 	use std::ffi::{CString, CStr};
