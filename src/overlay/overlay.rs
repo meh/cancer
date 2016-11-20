@@ -1342,7 +1342,8 @@ impl Overlay {
 				}
 			}
 
-			Some(hints.put((position.0.unwrap(), position.1.unwrap_or((x, y))), url).clone())
+			Some(hints.put((position.0.unwrap(), position.1.unwrap_or((x, y))),
+				url.replace('\n', "")).clone())
 		}
 		else {
 			None
