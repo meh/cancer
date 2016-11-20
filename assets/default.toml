@@ -7,7 +7,7 @@ scroll = 4096
 
 [environment.hinter]
 label   = "ghfjdkslavncmxz"
-matcher = '\b(https?|ftp)://(-\.)?([^\s/?#]+\.?)+(/[^\s]*)?\b'
+matcher = '(https?|ftp)://(-\.)?([^\s/?#]+\.?)+(/[^\s]*)?'
 
 [input]
 prefix = "L-a"
