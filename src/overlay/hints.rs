@@ -20,6 +20,9 @@ use std::collections::HashMap;
 use std::hash::BuildHasherDefault;
 use fnv::FnvHasher;
 
+/// Hinter to handle hints.
+///
+/// Its job is to manage and generate labels for hints.
 #[derive(Eq, PartialEq, Clone, Debug)]
 pub struct Hints {
 	inner:   HashMap<String, Hint, BuildHasherDefault<FnvHasher>>,
@@ -27,14 +30,24 @@ pub struct Hints {
 	table:   Vec<char>,
 }
 
+/// A hint.
 #[derive(Eq, PartialEq, Clone, Debug)]
 pub struct Hint {
-	pub name:     String,
+	/// The generated label which serves as ID.
+	pub label: String,
+
+	/// The cell position the hint was generated from.
 	pub position: ((u32, u32), (u32, u32)),
-	pub content:  String,
+
+	/// The content of the hint, typically an URL.
+	pub content: String,
 }
 
 impl Hints {
+	/// Create a new hinter with the given table to generate labels with and a
+	/// given maximum length of hints.
+	///
+	/// The length is needed to process the amount of characters in labels.
 	pub fn new(table: Vec<char>, length: usize) -> Self {
 		Hints {
 			inner:   Default::default(),
@@ -43,6 +56,7 @@ impl Hints {
 		}
 	}
 
+	/// Add a hint.
 	pub fn put<T: Into<String>>(&mut self, position: ((u32, u32), (u32, u32)), content: T) -> &Hint {
 		let name      = self.name_for(self.current);
 		self.current += 1;
@@ -54,10 +68,12 @@ impl Hints {
 		})
 	}
 
+	/// Consume to get the internal `HashMap`.
 	pub fn into_inner(self) -> HashMap<String, Hint, BuildHasherDefault<FnvHasher>> {
 		self.inner
 	}
 
+	/// Generate the label for the given index.
 	fn name_for(&self, index: usize) -> String {
 		let mut result = String::new();
 		let mut index  = index;
