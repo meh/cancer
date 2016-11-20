@@ -22,6 +22,7 @@ use unicode_segmentation::UnicodeSegmentation;
 use style::Style;
 use terminal::Cell;
 
+/// Status bar.
 #[derive(Debug)]
 pub struct Status {
 	cols:  u32,
@@ -33,6 +34,7 @@ pub struct Status {
 }
 
 impl Status {
+	/// Create a new status bar with the given style and columns.
 	pub fn new(style: Style, cols: u32) -> Self {
 		let style = Rc::new(style);
 
@@ -46,6 +48,7 @@ impl Status {
 		}
 	}
 
+	/// Change the mode shown in the status bar.
 	pub fn mode<T: Into<String>>(&mut self, string: T) {
 		let string = string.into();
 
@@ -60,6 +63,7 @@ impl Status {
 		self.mode = string;
 	}
 
+	/// Change the cursor position shown in the status bar.
 	pub fn position(&mut self, (x, y): (u32, u32)) {
 		let format = format!("{}:{}", y, x);
 
