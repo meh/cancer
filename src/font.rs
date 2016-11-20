@@ -55,33 +55,6 @@ impl Font {
 		})
 	}
 
-	/// Load the proper font for the given attributes.
-	pub fn font(&self, ch: char, style: style::Attributes) -> pango::Font {
-		let font = self.set.font(ch);
-
-		if !style.intersects(style::BOLD | style::FAINT | style::ITALIC) {
-			return font;
-		}
-
-		let mut desc = font.description();
-
-		if style.contains(style::BOLD) {
-			desc.weight(pango::Weight::Bold);
-		}
-		else if style.contains(style::FAINT) {
-			desc.weight(pango::Weight::Light);
-		}
-		else {
-			desc.weight(pango::Weight::Normal);
-		}
-
-		if style.contains(style::ITALIC) {
-			desc.style(pango::Style::Italic);
-		}
-
-		self.context.font(&desc).unwrap_or(font)
-	}
-
 	/// Shape the string.
 	pub fn shape<T: AsRef<str>>(&self, text: T, style: style::Attributes) -> pango::GlyphItem {
 		let text = text.as_ref();

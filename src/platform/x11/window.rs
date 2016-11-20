@@ -40,7 +40,6 @@ use picto::Region;
 pub struct Window {
 	config:     Arc<Config>,
 	connection: Arc<ewmh::Connection>,
-	window:     xcb::Window,
 	surface:    Option<Surface>,
 
 	receiver: Option<Receiver<Event>>,
@@ -399,7 +398,6 @@ impl Window {
 		Ok(Window {
 			config:     config.clone(),
 			connection: connection,
-			window:     window,
 			surface:    Some(surface),
 
 			receiver: Some(receiver),
