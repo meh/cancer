@@ -1462,7 +1462,7 @@ impl Overlay {
 				let (mut x, mut y) = hint.position.0;
 
 				// Add the label, if the level permits.
-				for ch in hint.name.graphemes(true).skip(level) {
+				for ch in hint.label.graphemes(true).skip(level) {
 					if flag {
 						self.view.insert((x, y), Cell::occupied(ch.into(), self.hinter.label.clone()));
 					}

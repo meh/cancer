@@ -58,11 +58,11 @@ impl Hints {
 
 	/// Add a hint.
 	pub fn put<T: Into<String>>(&mut self, position: ((u32, u32), (u32, u32)), content: T) -> &Hint {
-		let name      = self.name_for(self.current);
+		let label     = self.label_for(self.current);
 		self.current += 1;
 
-		self.inner.entry(name.clone()).or_insert(Hint {
-			name:     name.clone(),
+		self.inner.entry(label.clone()).or_insert(Hint {
+			label:    label.clone(),
 			position: position,
 			content:  content.into(),
 		})
@@ -74,7 +74,7 @@ impl Hints {
 	}
 
 	/// Generate the label for the given index.
-	fn name_for(&self, index: usize) -> String {
+	fn label_for(&self, index: usize) -> String {
 		let mut result = String::new();
 		let mut index  = index;
 
