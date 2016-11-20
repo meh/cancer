@@ -287,6 +287,7 @@ impl Overlay {
 
 		let command = match *key.value() {
 			Value::Char(ref ch) => match &**ch {
+				// Hint handling.
 				"u" if key.modifier().is_empty() && self.hinter.hints.is_none() =>
 					Command::Hint(command::Hint::Start),
 
@@ -303,6 +304,7 @@ impl Overlay {
 				ch if key.modifier().is_empty() && self.hinter.hints.is_some() && self.hinter.selected.is_none() =>
 					Command::Hint(command::Hint::Pick(ch.chars().next().unwrap())),
 
+				// Prefix based operations.
 				"e" if key.modifier().is_empty() && prefix == Some(b'g') =>
 					Command::Move(command::Move::Word(command::Word::PreviousEnd(times.unwrap_or(1)))),
 
@@ -321,6 +323,7 @@ impl Overlay {
 				ch if prefix == Some(b'T') =>
 					Command::Move(command::Move::Until(command::Until::PreviousBefore(times.unwrap_or(1), ch.into()))),
 
+				// Keys for exits.
 				"c" if key.modifier() == key::CTRL =>
 					Command::Exit,
 
@@ -330,6 +333,7 @@ impl Overlay {
 				"q" if key.modifier().is_empty() =>
 					Command::Exit,
 
+				// Scrolling commands.
 				"y" if key.modifier() == key::CTRL =>
 					Command::Scroll(command::Scroll::Up(times.unwrap_or(1))),
 
@@ -342,6 +346,16 @@ impl Overlay {
 				"d" if key.modifier() == key::CTRL =>
 					Command::Scroll(command::Scroll::PageDown(times.unwrap_or(1))),
 
+				"G" if key.modifier() == key::SHIFT => {
+					if let Some(times) = times {
+						Command::Scroll(command::Scroll::To(times))
+					}
+					else {
+						Command::Scroll(command::Scroll::End)
+					}
+				}
+
+				// Cursor movement commands.
 				"$" =>
 					Command::Move(command::Move::End),
 
@@ -369,15 +383,7 @@ impl Overlay {
 				"e" if key.modifier().is_empty() =>
 					Command::Move(command::Move::Word(command::Word::NextEnd(times.unwrap_or(1)))),
 
-				"G" if key.modifier() == key::SHIFT => {
-					if let Some(times) = times {
-						Command::Scroll(command::Scroll::To(times))
-					}
-					else {
-						Command::Scroll(command::Scroll::End)
-					}
-				}
-
+				// Selection commands.
 				"v" if key.modifier().is_empty() =>
 					Command::Select(command::Select::Normal),
 
@@ -401,6 +407,7 @@ impl Overlay {
 						_       => "CLIPBOARD",
 					}.into()),
 
+				// Prefix setters.
 				"g" if key.modifier().is_empty() => {
 					self.prefix = Some(b'g');
 					Command::None
@@ -433,18 +440,22 @@ impl Overlay {
 			},
 
 			Value::Button(button) => match button {
+				// Exit commands.
 				Button::Escape if key.modifier().is_empty() =>
 					Command::Exit,
 
+				// Ignore keys while in hint mode.
 				_ if self.hinter.hints.is_some() =>
 					Command::None,
 
+				// Scrolling commands.
 				Button::PageUp =>
 					Command::Scroll(command::Scroll::PageUp(times.unwrap_or(1))),
 
 				Button::PageDown =>
 					Command::Scroll(command::Scroll::PageDown(times.unwrap_or(1))),
 
+				// Cursor movement commands.
 				Button::Left =>
 					Command::Move(command::Move::Left(times.unwrap_or(1))),
 
@@ -463,6 +474,7 @@ impl Overlay {
 				Button::End =>
 					Command::Move(command::Move::End),
 
+				// Selection commands.
 				Button::Insert if key.modifier() == key::SHIFT =>
 					Command::Paste("PRIMARY".into()),
 
@@ -473,9 +485,11 @@ impl Overlay {
 			},
 
 			Value::Keypad(button) => match button {
+				// Ignore keys while in hint mode.
 				_ if self.hinter.hints.is_some() =>
 					Command::None,
 
+				// Cursor movement commands.
 				Keypad::Home =>
 					Command::Move(command::Move::Start),
 
@@ -510,20 +524,24 @@ impl Overlay {
 		debug!(target: "cancer::overlay::input", "mouse {:?}", mouse);
 
 		let command = match mouse {
+			// Ignore mouse events while in hint mode.
 			_ if self.hinter.hints.is_some() =>
 				Command::None,
 
-			Mouse::Click(mouse::Click { button: mouse::Button::Left, press: false, position, .. }) =>
-				Command::Move(command::Move::To(position.x, position.y)),
-
-			Mouse::Click(mouse::Click { button: mouse::Button::Middle, press: false, .. }) =>
-				Command::Paste("PRIMARY".into()),
-
+			// Scrolling commands.
 			Mouse::Click(mouse::Click { button: mouse::Button::Up, .. }) =>
 				Command::Scroll(command::Scroll::Up(1)),
 
 			Mouse::Click(mouse::Click { button: mouse::Button::Down, .. }) =>
 				Command::Scroll(command::Scroll::Down(1)),
+
+			// Cursor movement commands.
+			Mouse::Click(mouse::Click { button: mouse::Button::Left, press: false, position, .. }) =>
+				Command::Move(command::Move::To(position.x, position.y)),
+
+			// Selection commands.
+			Mouse::Click(mouse::Click { button: mouse::Button::Middle, press: false, .. }) =>
+				Command::Paste("PRIMARY".into()),
 
 			_ =>
 				Command::None,
@@ -583,6 +601,9 @@ impl Overlay {
 
 		match command {
 			Command::None => (),
+
+			// Handle exit, exit the overlay if there's no current mode, otherwise
+			// exit the mode.
 			Command::Exit => {
 				overlay!(self; status mode "NORMAL");
 
@@ -605,6 +626,7 @@ impl Overlay {
 				self.touched.all();
 			}
 
+			// Scrolling commands.
 			Command::Scroll(command::Scroll::Begin) => {
 				self.scroll = self.inner.grid().back().len() as u32
 					+ if self.status.is_some() { 1 } else { 0 };
@@ -670,6 +692,7 @@ impl Overlay {
 				self.touched.all();
 			}
 
+			// Cursor movement commands.
 			Command::Move(command::Move::To(x, y)) => {
 				if self.status.is_none() || y != self.inner.rows() - 1 {
 					overlay!(self; cursor Position(Some(x), Some(y)));
@@ -888,6 +911,7 @@ impl Overlay {
 				}
 			}
 
+			// Selection commands.
 			Command::Select(mode) => {
 				let (name, old, new) = match (mode, self.selector.current.take()) {
 					(command::Select::Normal, Some(Selection::Normal { start, end })) => {
@@ -999,6 +1023,7 @@ impl Overlay {
 				actions.push(Action::Paste(name));
 			}
 
+			// Hint handling.
 			Command::Hint(command::Hint::Start) => {
 				let bottom = self.scroll;
 				let top    = self.inner.rows() - 1
@@ -1115,7 +1140,9 @@ impl Overlay {
 				let mut lines  = vec![];
 				let mut unwrap = None::<Vec<String>>;
 
+				// Iterate in reverse on the rows, so wrapped lines can be unwrapped.
 				for y in end.1 ... start.1 {
+					// Adapt the horizontal edges based on the vertical position.
 					let (start, end) = if start.1 == end.1 {
 						(start.0, end.0)
 					}
@@ -1132,10 +1159,12 @@ impl Overlay {
 					let     row  = &self[y];
 					let mut line = String::new();
 
+					// Fill the current line.
 					for x in start ... edge(row, start, end) {
 						line.push_str(row[x as usize].value());
 					}
 
+					// If the row is wrapped, push it up.
 					if row.wrap() {
 						if let Some(mut unwrapped) = unwrap.take() {
 							unwrapped.push(line);
@@ -1145,10 +1174,13 @@ impl Overlay {
 							unwrap = Some(vec![line]);
 						}
 					}
+					// If the row is not wrapped and we have unwrapped rows, it means
+					// it's the original row which had been wrapped.
 					else if let Some(mut unwrapped) = unwrap.take() {
 						unwrapped.push(line);
 						lines.push(unwrapped);
 					}
+					// Otherwise it's just a line.
 					else {
 						lines.push(vec![line]);
 					}
@@ -1156,7 +1188,11 @@ impl Overlay {
 
 				let mut result = String::new();
 
+				// Collect up the lines in reverse order, which happens to be the
+				// original order.
 				for lines in lines.into_iter().rev() {
+					// Collect up any wrapped lines, in reverse order, which again is the
+					// original order.
 					for line in lines.into_iter().rev() {
 						result.push_str(&line);
 					}
@@ -1171,9 +1207,11 @@ impl Overlay {
 			Selection::Block { start, end } => {
 				let mut result = String::new();
 
+				// Iterate in proper order.
 				for y in (end.1 ... start.1).rev() {
 					let row = &self[y];
 
+					// Collect up from edge to edge.
 					for x in start.0 ... edge(row, start.0, end.0) {
 						result.push_str(row[x as usize].value());
 					}
@@ -1195,6 +1233,8 @@ impl Overlay {
 	}
 
 	/// Update the current selection based on the cursor movement.
+	///
+	/// TODO(meh): simplify this, if at all possible.
 	fn select(&mut self, before: (u32, u32), after: (u32, u32)) {
 		match *try!(return option self.selector.current.as_mut()) {
 			Selection::Normal { ref mut start, ref mut end } => {
@@ -1342,6 +1382,8 @@ impl Overlay {
 				}
 			}
 
+			// If no final position was reached, it means it goes to the end of the
+			// input.
 			Some(hints.put((position.0.unwrap(), position.1.unwrap_or((x, y))),
 				url.replace('\n', "")).clone())
 		}
@@ -1358,6 +1400,7 @@ impl Overlay {
 	fn highlight(&mut self, what: Highlight, flag: bool) {
 		match what {
 			Highlight::Selection(&Selection::Normal { start, end }) => {
+				// Adapt the horizontal edges based on the vertical position.
 				for y in end.1 ... start.1 {
 					let (start, end) = if start.1 == end.1 {
 						(start.0, end.0)
@@ -1460,24 +1503,33 @@ impl Index<(u32, u32)> for Overlay {
 	type Output = Cell;
 
 	fn index(&self, (x, y): (u32, u32)) -> &Cell {
+		// If there's a status bar and the requested row is the last one, return
+		// the cell from the status.
 		if let Some(status) = self.status.as_ref() {
 			if y == self.inner.rows() - 1 {
 				return &status[x as usize];
 			}
 		}
 
-		let     back   = self.inner.grid().back();
-		let     view   = self.inner.grid().view();
+		let back = self.inner.grid().back();
+		let view = self.inner.grid().view();
+
+		// The internal Y coordinate starts from the bottom, as 0, and increases
+		// going up.
 		let mut offset = (view.len() as u32 - 1 - y) + self.scroll;
 
+		// If there's a status bar, the actual offset has to be adapted to ignore
+		// the last line.
 		if self.status.is_some() {
 			offset -= 1;
 		}
 
+		// If the cell was changed within the overlay, return that.
 		if let Some(cell) = self.view.get(&(x, offset)) {
 			return cell;
 		}
 
+		// Get the proper cell between the current view and the scroll back.
 		if offset as usize >= view.len() {
 			&back[back.len() - 1 - (offset as usize - view.len())][x as usize]
 		}
