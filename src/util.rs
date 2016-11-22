@@ -52,6 +52,15 @@ macro_rules! try {
 		}
 	);
 
+	(ok $body:expr) => (
+		if let Ok(value) = $body {
+			value
+		}
+		else {
+			return Ok(());
+		}
+	);
+
 	(option $body:expr) => (
 		if let Some(value) = $body {
 			value

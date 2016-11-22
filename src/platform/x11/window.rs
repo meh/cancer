@@ -15,8 +15,6 @@
 // You should have received a copy of the GNU General Public License
 // along with cancer.  If not, see <http://www.gnu.org/licenses/>.
 
-use std::io;
-use std::process::{self, Command};
 use std::collections::HashMap;
 use std::thread;
 use std::sync::Arc;
@@ -33,17 +31,17 @@ use font::Font;
 use platform::Event;
 use platform::key;
 use platform::mouse::{self, Mouse};
-use platform::x11::Keyboard;
+use platform::x11::{Keyboard, Proxy};
 use picto::Region;
 
 /// X11 window.
 pub struct Window {
 	config:     Arc<Config>,
 	connection: Arc<ewmh::Connection>,
-	surface:    Option<Surface>,
-
-	receiver: Option<Receiver<Event>>,
-	sender:   Sender<Request>,
+	window:     xcb::Window,
+	keyboard:   Keyboard,
+	receiver:   Option<Receiver<Request>>,
+	proxy:      Option<Proxy>,
 
 	width:   Arc<AtomicU32>,
 	height:  Arc<AtomicU32>,
@@ -53,6 +51,7 @@ pub struct Window {
 
 #[derive(Eq, PartialEq, Clone, Debug)]
 pub enum Request {
+	Flush,
 	Urgent,
 	Title(String),
 	Resize(u32, u32),
@@ -62,14 +61,14 @@ pub enum Request {
 
 impl Window {
 	/// Create the window.
-	pub fn new(name: Option<&str>, config: Arc<Config>, font: &Font) -> error::Result<Self> {
+	pub fn new(name: Option<&str>, config: Arc<Config>, font: Arc<Font>) -> error::Result<Self> {
 		let margin  = config.style().margin();
 		let spacing = config.style().spacing();
-		let bell    = config.environment().bell();
 
 		let mut width  = (80 * font.width()) + (margin * 2);
 		let mut height = (24 * (font.height() + spacing)) + (margin * 2);
 
+		let (proxy, requests)    = channel();
 		let (connection, screen) = xcb::Connection::connect(config.environment().display())?;
 		let connection           = Arc::new(ewmh::Connection::connect(connection).map_err(|(e, _)| e)?);
 		let keyboard             = Keyboard::new(connection.clone(), config.input().locale())?;
@@ -132,276 +131,21 @@ impl Window {
 			(window, create(&connection, &screen, window, width, height)?)
 		};
 
-		let (sender, i_receiver) = channel();
-		let (i_sender, receiver) = channel();
-
 		let width   = Arc::new(AtomicU32::new(width));
 		let height  = Arc::new(AtomicU32::new(height));
 		let focus   = Arc::new(AtomicBool::new(true));
 		let visible = Arc::new(AtomicBool::new(true));
 
-		{
-			let connection = connection.clone();
-			let width      = width.clone();
-			let height     = height.clone();
-			let focus      = focus.clone();
-			let visible    = visible.clone();
-
-			fn sink(connection: Arc<ewmh::Connection>) -> Receiver<xcb::GenericEvent> {
-				let (sender, receiver) = sync_channel(16);
-
-				// Drain events into a channel.
-				thread::spawn(move || {
-					while let Some(event) = connection.wait_for_event() {
-						try!(return sender.send(event));
-					}
-				});
-
-				receiver
-			}
-
-			#[allow(non_snake_case)]
-			thread::spawn(move || {
-				let     sender     = i_sender;
-				let     receiver   = i_receiver;
-				let     connection = connection.clone();
-				let     events     = sink(connection.clone());
-				let mut keyboard   = keyboard;
-				let mut clipboard  = HashMap::new();
-
-				let PRIMARY     = xcb::ATOM_PRIMARY;
-				let SECONDARY   = xcb::ATOM_SECONDARY;
-				let CLIPBOARD   = xcb::intern_atom(&connection, false, "CLIPBOARD").get_reply().unwrap().atom();
-				let UTF8_STRING = xcb::intern_atom(&connection, false, "UTF8_STRING").get_reply().unwrap().atom();
-				let STRING      = xcb::ATOM_STRING;
-				let TARGETS     = xcb::intern_atom(&connection, false, "TARGETS").get_reply().unwrap().atom();
-				let SELECTION   = xcb::intern_atom(&connection, false, "CANCER_CLIPBOARD").get_reply().unwrap().atom();
-
-				loop {
-					select! {
-						request = receiver.recv() => {
-							match try!(return request) {
-								Request::Urgent => {
-									if !focus.load(Ordering::Relaxed) {
-										icccm::set_wm_hints(&connection, window, &icccm::WmHints::empty().is_urgent().build());
-									}
-
-									xcb::bell(&connection, bell);
-									connection.flush();
-								}
-
-								Request::Title(ref title) => {
-									icccm::set_wm_name(&connection, window, title);
-									ewmh::set_wm_name(&connection, window, title);
-								}
-
-								Request::Resize(w, h) => {
-									xcb::configure_window(&connection, window, &[
-										(xcb::CONFIG_WINDOW_WIDTH as u16, w),
-										(xcb::CONFIG_WINDOW_HEIGHT as u16, h)]);
-								}
-
-								Request::Copy(name, value) => {
-									let atom = match &*name.to_uppercase() {
-										"PRIMARY"   => Some(PRIMARY),
-										"SECONDARY" => Some(SECONDARY),
-										"CLIPBOARD" => Some(CLIPBOARD),
-										_           => None,
-									};
-
-									debug!(target: "cancer::platform::clipboard", "set clipboard: {:?}({:?}) = {:?}", name, atom, value);
-
-									if let Some(atom) = atom {
-										clipboard.insert(atom, value);
-										xcb::set_selection_owner(&connection, window, atom, xcb::CURRENT_TIME);
-										connection.flush();
-									}
-								}
-
-								Request::Paste(name) => {
-									let atom = match &*name.to_uppercase() {
-										"PRIMARY"   => Some(PRIMARY),
-										"SECONDARY" => Some(SECONDARY),
-										"CLIPBOARD" => Some(CLIPBOARD),
-										_           => None,
-									};
-
-									debug!(target: "cancer::platform::clipboard", "get clipboard: {:?}({:?})", name, atom);
-
-									if let Some(atom) = atom {
-										xcb::convert_selection(&connection, window, atom, UTF8_STRING, SELECTION, xcb::CURRENT_TIME);
-										connection.flush();
-									}
-								}
-							}
-						},
-
-						event = events.recv() => {
-							let event = try!(return event);
-
-							match event.response_type() {
-								xcb::EXPOSE => {
-									let event = xcb::cast_event::<xcb::ExposeEvent>(&event);
-									let x     = event.x() as u32;
-									let y     = event.y() as u32;
-									let w     = event.width() as u32;
-									let h     = event.height() as u32;
-
-									try!(return sender.send(Event::Redraw(Region::from(x, y, w, h))));
-								}
-
-								xcb::MAP_NOTIFY | xcb::UNMAP_NOTIFY => {
-									let value = event.response_type() == xcb::MAP_NOTIFY;
-
-									visible.store(value, Ordering::Relaxed);
-									try!(return sender.send(Event::Show(value)));
-								}
-
-								xcb::FOCUS_IN | xcb::FOCUS_OUT => {
-									let value = event.response_type() == xcb::FOCUS_IN;
-
-									focus.store(value, Ordering::Relaxed);
-									try!(return sender.send(Event::Focus(value)));
-								}
-
-								xcb::CONFIGURE_NOTIFY => {
-									let event = xcb::cast_event::<xcb::ConfigureNotifyEvent>(&event);
-									let w     = event.width() as u32;
-									let h     = event.height() as u32;
-
-									if width.load(Ordering::Relaxed) != w || height.load(Ordering::Relaxed) != h {
-										width.store(w, Ordering::Relaxed);
-										height.store(h, Ordering::Relaxed);
-
-										try!(return sender.send(Event::Resize(w, h)));
-									}
-								}
-
-								xcb::SELECTION_CLEAR => {
-									let event = xcb::cast_event::<xcb::SelectionClearEvent>(&event);
-									clipboard.remove(&event.selection());
-								}
-
-								xcb::SELECTION_REQUEST => {
-									let event = xcb::cast_event::<xcb::SelectionRequestEvent>(&event);
-									let reply = try!(continue xcb::get_atom_name(&connection, event.target()).get_reply());
-
-									debug!(target: "cancer::platform::clipboard", "request clipboard: {:?}", reply.name());
-
-									match reply.name() {
-										"TARGETS" => {
-											xcb::change_property(&connection, xcb::PROP_MODE_REPLACE as u8,
-												event.requestor(), event.property(), xcb::ATOM_ATOM, 32, &[
-													TARGETS, STRING, UTF8_STRING]);
-
-											xcb::send_event(&connection, false, event.requestor(), 0, &xcb::SelectionNotifyEvent::new(
-												event.time(), event.requestor(), event.selection(), event.target(), event.property()));
-										}
-
-										"UTF8_STRING" => {
-											if let Some(value) = clipboard.get(&event.selection()) {
-												xcb::change_property(&connection, xcb::PROP_MODE_REPLACE as u8,
-													event.requestor(), event.property(), UTF8_STRING, 8, value.as_bytes());
-
-												xcb::send_event(&connection, false, event.requestor(), 0, &xcb::SelectionNotifyEvent::new(
-													event.time(), event.requestor(), event.selection(), event.target(), event.property()));
-											}
-										}
-
-										"STRING" => {
-											if let Some(value) = clipboard.get(&event.selection()) {
-												xcb::change_property(&connection, xcb::PROP_MODE_REPLACE as u8,
-													event.requestor(), event.property(), STRING, 8, value.as_bytes());
-
-												xcb::send_event(&connection, false, event.requestor(), 0, &xcb::SelectionNotifyEvent::new(
-													event.time(), event.requestor(), event.selection(), event.target(), event.property()));
-											}
-										}
-
-										_ => ()
-									}
-
-									connection.flush();
-								}
-
-								xcb::PROPERTY_NOTIFY => {
-									let event = xcb::cast_event::<xcb::PropertyNotifyEvent>(&event);
-
-									if event.atom() == SELECTION {
-										let reply = try!(continue icccm::get_text_property(&connection, window, SELECTION).get_reply());
-										xcb::delete_property(&connection, window, SELECTION);
-
-										if !reply.name().is_empty() {
-											try!(return sender.send(Event::Paste(reply.name().as_bytes().to_vec())));
-										}
-									}
-								}
-
-								xcb::BUTTON_PRESS | xcb::BUTTON_RELEASE => {
-									let press = event.response_type() == xcb::BUTTON_PRESS;
-									let event = xcb::cast_event::<xcb::ButtonPressEvent>(&event);
-
-									let button = match event.detail() {
-										1 => mouse::Button::Left,
-										2 => mouse::Button::Middle,
-										3 => mouse::Button::Right,
-										4 => mouse::Button::Up,
-										5 => mouse::Button::Down,
-										_ => continue,
-									};
-
-									try!(return sender.send(Event::Mouse(Mouse::Click(mouse::Click {
-										press:    press,
-										button:   button,
-										modifier: key::Modifier::from(event.state()),
-										position: mouse::Position {
-											x: event.event_x() as u32,
-											y: event.event_y() as u32,
-										}
-									}))));
-								}
-
-								xcb::MOTION_NOTIFY => {
-									let event = xcb::cast_event::<xcb::MotionNotifyEvent>(&event);
-
-									try!(return sender.send(Event::Mouse(Mouse::Motion(mouse::Motion {
-										modifier: key::Modifier::from(event.state()),
-										position: mouse::Position {
-											x: event.event_x() as u32,
-											y: event.event_y() as u32,
-										}
-									}))));
-								}
-
-								e if keyboard.owns_event(e) => {
-									keyboard.handle(&event);
-								}
-
-								xcb::KEY_PRESS => {
-									let event = xcb::cast_event::<xcb::KeyPressEvent>(&event);
-
-									if let Some(key) = keyboard.key(event.detail()) {
-										try!(return sender.send(Event::Key(key)));
-									}
-								}
-
-								e => {
-									debug!(target: "cancer::platform::x11", "unhandled X event: {:?}", e);
-								}
-							}
-						}
-					}
-				}
-			});
-		}
+		let proxy = Proxy::new(config.clone(), proxy, surface,
+			width.clone(), height.clone(), focus.clone(), visible.clone());
 
 		Ok(Window {
 			config:     config.clone(),
 			connection: connection,
-			surface:    Some(surface),
-
-			receiver: Some(receiver),
-			sender:   sender,
+			window:     window,
+			keyboard:   keyboard,
+			receiver:   Some(requests),
+			proxy:      Some(proxy),
 
 			width:   width,
 			height:  height,
@@ -410,70 +154,256 @@ impl Window {
 		})
 	}
 
-	/// Get the width.
-	pub fn width(&self) -> u32 {
-		self.width.load(Ordering::Relaxed)
+	pub fn proxy(&mut self) -> Proxy {
+		self.proxy.take().unwrap()
 	}
 
-	/// Get the height.
-	pub fn height(&self) -> u32 {
-		self.height.load(Ordering::Relaxed)
-	}
+	#[allow(non_snake_case)]
+	pub fn run(&mut self, manager: Sender<Event>) -> error::Result<()> {
+		fn sink(connection: Arc<ewmh::Connection>) -> Receiver<xcb::GenericEvent> {
+			let (sender, receiver) = sync_channel(16);
 
-	/// Check if the window has focus.
-	pub fn has_focus(&self) -> bool {
-		self.focus.load(Ordering::Relaxed)
-	}
+			// Drain events into a channel.
+			thread::spawn(move || {
+				while let Some(event) = connection.wait_for_event() {
+					try!(return sender.send(event));
+				}
+			});
 
-	pub fn is_visible(&self) -> bool {
-		self.visible.load(Ordering::Relaxed)
-	}
+			receiver
+		}
 
-	/// Take the events sink.
-	pub fn events(&mut self) -> Receiver<Event> {
-		self.receiver.take().unwrap()
-	}
+		let mut clipboard = HashMap::new();
+		let     requests  = self.receiver.take().unwrap();
+		let     events    = sink(self.connection.clone());
 
-	/// Take the surface.
-	pub fn surface(&mut self) -> Surface {
-		self.surface.take().unwrap()
-	}
+		let PRIMARY     = xcb::ATOM_PRIMARY;
+		let SECONDARY   = xcb::ATOM_SECONDARY;
+		let CLIPBOARD   = xcb::intern_atom(&self.connection, false, "CLIPBOARD").get_reply().unwrap().atom();
+		let UTF8_STRING = xcb::intern_atom(&self.connection, false, "UTF8_STRING").get_reply().unwrap().atom();
+		let STRING      = xcb::ATOM_STRING;
+		let TARGETS     = xcb::intern_atom(&self.connection, false, "TARGETS").get_reply().unwrap().atom();
+		let SELECTION   = xcb::intern_atom(&self.connection, false, "CANCER_CLIPBOARD").get_reply().unwrap().atom();
 
-	/// Resize the window.
-	pub fn resize(&mut self, width: u32, height: u32) {
-		self.sender.send(Request::Resize(width, height)).unwrap();
-	}
+		loop {
+			select! {
+				request = requests.recv() => {
+					match try!(ok request) {
+						Request::Flush => {
+							self.connection.flush();
+						}
 
-	/// Set the window title.
-	pub fn set_title<T: Into<String>>(&self, title: T) {
-		self.sender.send(Request::Title(title.into())).unwrap();
-	}
+						Request::Urgent => {
+							if !self.focus.load(Ordering::Relaxed) {
+								icccm::set_wm_hints(&self.connection, self.window, &icccm::WmHints::empty().is_urgent().build());
+							}
 
-	/// Set the clipboard.
-	pub fn copy<T1: Into<String>, T2: Into<String>>(&self, name: T1, value: T2) {
-		self.sender.send(Request::Copy(name.into(), value.into())).unwrap();
-	}
+							xcb::bell(&self.connection, self.config.environment().bell());
+							self.connection.flush();
+						}
 
-	/// Request the clipboard contents.
-	pub fn paste<T: Into<String>>(&self, name: T) {
-		self.sender.send(Request::Paste(name.into())).unwrap();
-	}
+						Request::Title(ref title) => {
+							icccm::set_wm_name(&self.connection, self.window, title);
+							ewmh::set_wm_name(&self.connection, self.window, title);
+						}
 
-	/// Request urgency.
-	pub fn urgent(&self) {
-		self.sender.send(Request::Urgent).unwrap();
-	}
+						Request::Resize(w, h) => {
+							xcb::configure_window(&self.connection, self.window, &[
+								(xcb::CONFIG_WINDOW_WIDTH as u16, w),
+								(xcb::CONFIG_WINDOW_HEIGHT as u16, h)]);
+						}
 
-	/// Flush the surface and connection.
-	pub fn flush(&self) {
-		self.connection.flush();
-	}
+						Request::Copy(name, value) => {
+							let atom = match &*name.to_uppercase() {
+								"PRIMARY"   => Some(PRIMARY),
+								"SECONDARY" => Some(SECONDARY),
+								"CLIPBOARD" => Some(CLIPBOARD),
+								_           => None,
+							};
 
-	/// Open the given item.
-	pub fn open<T: AsRef<str>>(&self, value: T) -> io::Result<process::Child> {
-		Command::new(self.config.environment().hinter().opener().unwrap_or("xdg-open"))
-			.arg(value.as_ref())
-			.spawn()
+							debug!(target: "cancer::platform::clipboard", "set clipboard: {:?}({:?}) = {:?}", name, atom, value);
+
+							if let Some(atom) = atom {
+								clipboard.insert(atom, value);
+								xcb::set_selection_owner(&self.connection, self.window, atom, xcb::CURRENT_TIME);
+								self.connection.flush();
+							}
+						}
+
+						Request::Paste(name) => {
+							let atom = match &*name.to_uppercase() {
+								"PRIMARY"   => Some(PRIMARY),
+								"SECONDARY" => Some(SECONDARY),
+								"CLIPBOARD" => Some(CLIPBOARD),
+								_           => None,
+							};
+
+							debug!(target: "cancer::platform::clipboard", "get clipboard: {:?}({:?})", name, atom);
+
+							if let Some(atom) = atom {
+								xcb::convert_selection(&self.connection, self.window, atom, UTF8_STRING, SELECTION, xcb::CURRENT_TIME);
+								self.connection.flush();
+							}
+						}
+					}
+				},
+
+				event = events.recv() => {
+					let event = try!(event);
+
+					match event.response_type() {
+						xcb::EXPOSE => {
+							let event = xcb::cast_event::<xcb::ExposeEvent>(&event);
+							let x     = event.x() as u32;
+							let y     = event.y() as u32;
+							let w     = event.width() as u32;
+							let h     = event.height() as u32;
+
+							try!(manager.send(Event::Redraw(Region::from(x, y, w, h))));
+						}
+
+						xcb::MAP_NOTIFY | xcb::UNMAP_NOTIFY => {
+							let value = event.response_type() == xcb::MAP_NOTIFY;
+
+							self.visible.store(value, Ordering::Relaxed);
+							try!(manager.send(Event::Show(value)));
+						}
+
+						xcb::FOCUS_IN | xcb::FOCUS_OUT => {
+							let value = event.response_type() == xcb::FOCUS_IN;
+
+							self.focus.store(value, Ordering::Relaxed);
+							try!(manager.send(Event::Focus(value)));
+						}
+
+						xcb::CONFIGURE_NOTIFY => {
+							let event = xcb::cast_event::<xcb::ConfigureNotifyEvent>(&event);
+							let w     = event.width() as u32;
+							let h     = event.height() as u32;
+
+							if self.width.load(Ordering::Relaxed) != w || self.height.load(Ordering::Relaxed) != h {
+								self.width.store(w, Ordering::Relaxed);
+								self.height.store(h, Ordering::Relaxed);
+
+								try!(manager.send(Event::Resize(w, h)));
+							}
+						}
+
+						xcb::SELECTION_CLEAR => {
+							let event = xcb::cast_event::<xcb::SelectionClearEvent>(&event);
+							clipboard.remove(&event.selection());
+						}
+
+						xcb::SELECTION_REQUEST => {
+							let event = xcb::cast_event::<xcb::SelectionRequestEvent>(&event);
+							let reply = try!(continue xcb::get_atom_name(&self.connection, event.target()).get_reply());
+
+							debug!(target: "cancer::platform::clipboard", "request clipboard: {:?}", reply.name());
+
+							match reply.name() {
+								"TARGETS" => {
+									xcb::change_property(&self.connection, xcb::PROP_MODE_REPLACE as u8,
+										event.requestor(), event.property(), xcb::ATOM_ATOM, 32, &[
+											TARGETS, STRING, UTF8_STRING]);
+
+									xcb::send_event(&self.connection, false, event.requestor(), 0, &xcb::SelectionNotifyEvent::new(
+										event.time(), event.requestor(), event.selection(), event.target(), event.property()));
+								}
+
+								"UTF8_STRING" => {
+									if let Some(value) = clipboard.get(&event.selection()) {
+										xcb::change_property(&self.connection, xcb::PROP_MODE_REPLACE as u8,
+											event.requestor(), event.property(), UTF8_STRING, 8, value.as_bytes());
+
+										xcb::send_event(&self.connection, false, event.requestor(), 0, &xcb::SelectionNotifyEvent::new(
+											event.time(), event.requestor(), event.selection(), event.target(), event.property()));
+									}
+								}
+
+								"STRING" => {
+									if let Some(value) = clipboard.get(&event.selection()) {
+										xcb::change_property(&self.connection, xcb::PROP_MODE_REPLACE as u8,
+											event.requestor(), event.property(), STRING, 8, value.as_bytes());
+
+										xcb::send_event(&self.connection, false, event.requestor(), 0, &xcb::SelectionNotifyEvent::new(
+											event.time(), event.requestor(), event.selection(), event.target(), event.property()));
+									}
+								}
+
+								_ => ()
+							}
+
+							self.connection.flush();
+						}
+
+						xcb::PROPERTY_NOTIFY => {
+							let event = xcb::cast_event::<xcb::PropertyNotifyEvent>(&event);
+
+							if event.atom() == SELECTION {
+								let reply = try!(continue icccm::get_text_property(&self.connection, self.window, SELECTION).get_reply());
+								xcb::delete_property(&self.connection, self.window, SELECTION);
+
+								if !reply.name().is_empty() {
+									try!(manager.send(Event::Paste(reply.name().as_bytes().to_vec())));
+								}
+							}
+						}
+
+						xcb::BUTTON_PRESS | xcb::BUTTON_RELEASE => {
+							let press = event.response_type() == xcb::BUTTON_PRESS;
+							let event = xcb::cast_event::<xcb::ButtonPressEvent>(&event);
+
+							let button = match event.detail() {
+								1 => mouse::Button::Left,
+								2 => mouse::Button::Middle,
+								3 => mouse::Button::Right,
+								4 => mouse::Button::Up,
+								5 => mouse::Button::Down,
+								_ => continue,
+							};
+
+							try!(manager.send(Event::Mouse(Mouse::Click(mouse::Click {
+								press:    press,
+								button:   button,
+								modifier: key::Modifier::from(event.state()),
+								position: mouse::Position {
+									x: event.event_x() as u32,
+									y: event.event_y() as u32,
+								}
+							}))));
+						}
+
+						xcb::MOTION_NOTIFY => {
+							let event = xcb::cast_event::<xcb::MotionNotifyEvent>(&event);
+
+							try!(manager.send(Event::Mouse(Mouse::Motion(mouse::Motion {
+								modifier: key::Modifier::from(event.state()),
+								position: mouse::Position {
+									x: event.event_x() as u32,
+									y: event.event_y() as u32,
+								}
+							}))));
+						}
+
+						e if self.keyboard.owns_event(e) => {
+							self.keyboard.handle(&event);
+						}
+
+						xcb::KEY_PRESS => {
+							let event = xcb::cast_event::<xcb::KeyPressEvent>(&event);
+
+							if let Some(key) = self.keyboard.key(event.detail()) {
+								try!(manager.send(Event::Key(key)));
+							}
+						}
+
+						e => {
+							debug!(target: "cancer::platform::x11", "unhandled X event: {:?}", e);
+						}
+					}
+				}
+			}
+		}
 	}
 }
 

@@ -21,7 +21,10 @@ use xcb;
 use ffi::cairo::*;
 use libc::c_int;
 
+#[derive(Debug)]
 pub struct Surface(pub *mut cairo_surface_t);
+
+unsafe impl Send for Surface { }
 
 impl Surface {
 	pub fn flush(&self) {

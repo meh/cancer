@@ -19,6 +19,7 @@ use std::fmt;
 use std::error;
 use std::io;
 use std::ffi;
+use std::sync::mpsc::{RecvError, SendError};
 
 #[cfg(target_os = "linux")]
 use xcb;
@@ -33,7 +34,6 @@ pub enum Error {
 	Nul(ffi::NulError),
 	Directory(app_dirs::AppDirsError),
 	Unknown,
-	Config,
 
 	#[cfg(target_os = "linux")]
 	X(X),
@@ -75,6 +75,18 @@ impl From<app_dirs::AppDirsError> for Error {
 impl From<()> for Error {
 	fn from(_value: ()) -> Self {
 		Error::Unknown
+	}
+}
+
+impl<T> From<SendError<T>> for Error {
+	fn from(_value: SendError<T>) -> Self {
+		Error::Message("send failed on closed channel".into())
+	}
+}
+
+impl From<RecvError> for Error {
+	fn from(_value: RecvError) -> Self {
+		Error::Message("recv failed on closed channel".into())
 	}
 }
 
@@ -122,9 +134,6 @@ impl error::Error for Error {
 
 			Error::Unknown =>
 				"Unknown error.",
-
-			Error::Config =>
-				"Configuration error.",
 
 			#[cfg(target_os = "linux")]
 			Error::X(ref err) => match *err {

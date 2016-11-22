@@ -55,6 +55,8 @@ pub struct Overlay {
 	hinter:   Hinter,
 }
 
+unsafe impl Send for Overlay { }
+
 #[derive(PartialEq, Clone, Debug)]
 struct Selector {
 	current: Option<Selection>,

@@ -25,6 +25,9 @@ mod unix;
 #[cfg(unix)]
 pub use self::unix::Tty;
 
+mod proxy;
+pub use self::proxy::Proxy;
+
 pub mod event;
 pub use self::event::Event;
 

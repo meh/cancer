@@ -34,6 +34,9 @@ pub struct Font {
 	metrics: pango::Metrics,
 }
 
+unsafe impl Send for Font { }
+unsafe impl Sync for Font { }
+
 impl Font {
 	/// Load the font from the given configuration.
 	pub fn load<T: AsRef<str>>(name: T) -> error::Result<Self> {

@@ -46,6 +46,8 @@ pub struct Renderer {
 	glyphs:  Glyphs,
 }
 
+unsafe impl Send for Renderer { }
+
 /// Adaptable margins depending on the view size.
 #[derive(Eq, PartialEq, Copy, Clone, Debug)]
 pub struct Margin {

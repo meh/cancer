@@ -58,6 +58,8 @@ pub struct Terminal {
 	saved:  Option<Cursor>,
 }
 
+unsafe impl Send for Terminal { }
+
 macro_rules! term {
 	($term:ident; charset) => (
 		$term.cursor.charsets[$term.cursor.charset as usize]
