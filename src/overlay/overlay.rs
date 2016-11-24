@@ -277,7 +277,7 @@ impl Overlay {
 						else {
 							self.times = Some(number);
 						}
-	
+
 						return (Vec::new().into_iter(), self.touched.iter(self.inner.region()));
 					}
 				}

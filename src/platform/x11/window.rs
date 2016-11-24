@@ -108,7 +108,7 @@ impl Window {
 			window:     window,
 			screen:     screen,
 		};
-			
+
 		Ok(Window {
 			config:     config.clone(),
 			connection: connection,

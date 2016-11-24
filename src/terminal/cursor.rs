@@ -112,7 +112,7 @@ impl Cursor {
 		if self.x >= width {
 			self.x = width - 1;
 		}
-		
+
 		if self.y >= height {
 			self.y = height - 1;
 		}
