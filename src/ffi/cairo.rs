@@ -15,10 +15,13 @@
 // You should have received a copy of the GNU General Public License
 // along with cancer.  If not, see <http://www.gnu.org/licenses/>.
 
-use libc::{c_void, c_int, c_double};
+use std::os::raw::c_void;
+use libc::{c_int, c_double};
 
 #[cfg(target_os = "macos")]
 use libc::c_uint;
+#[cfg(target_os = "macos")]
+use core_graphics::base::CGFloat;
 
 #[repr(C)]
 pub struct cairo_t(c_void);
@@ -81,4 +84,7 @@ extern "C" {
 	pub fn cairo_quartz_surface_create(format: cairo_format_t, width: c_uint, height: c_uint) -> *mut cairo_surface_t;
 	pub fn cairo_quartz_surface_create_for_cg_context(context: *mut c_void, width: c_uint, height: c_uint) -> *mut cairo_surface_t;
 	pub fn cairo_quartz_surface_get_cg_context(surface: *const cairo_surface_t) -> *mut c_void;
+
+	pub fn CGContextTranslateCTM(context: *mut c_void, tx: CGFloat, ty: CGFloat);
+	pub fn CGContextScaleCTM(context: *mut c_void, sx: CGFloat, sy: CGFloat);
 }

@@ -55,7 +55,14 @@ extern crate xcb_util as xcbu;
 extern crate xkbcommon;
 
 #[cfg(target_os = "macos")]
+#[macro_use]
+extern crate objc;
+#[cfg(target_os = "macos")]
 extern crate cocoa;
+#[cfg(target_os = "macos")]
+extern crate core_foundation;
+#[cfg(target_os = "macos")]
+extern crate core_graphics;
 
 #[macro_use]
 mod util;

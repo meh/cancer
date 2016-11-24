@@ -18,6 +18,13 @@
 #[cfg(target_os = "linux")]
 use xcb;
 
+#[cfg(target_os = "macos")]
+use std::os::raw::c_void;
+#[cfg(target_os = "macos")]
+use libc::c_uint;
+#[cfg(target_os = "macos")]
+use core_graphics::base::CGFloat;
+
 use ffi::cairo::*;
 use libc::c_int;
 
@@ -39,6 +46,18 @@ impl Surface {
 	pub fn new(connection: &xcb::Connection, drawable: xcb::Drawable, visual: xcb::Visualtype, width: u32, height: u32) -> Self {
 		unsafe {
 			Surface(cairo_xcb_surface_create(connection.get_raw_conn(), drawable, &visual.base, width as c_int, height as c_int))
+		}
+	}
+}
+
+#[cfg(target_os = "macos")]
+impl Surface {
+	pub fn new(context: *mut c_void, width: u32, height: u32) -> Self {
+		unsafe {
+			CGContextTranslateCTM(context, 0.0, height as CGFloat);
+			CGContextScaleCTM(context, 1.0, -1.0);
+
+			Surface(cairo_quartz_surface_create_for_cg_context(context, width as c_uint, height as c_uint))
 		}
 	}
 }
