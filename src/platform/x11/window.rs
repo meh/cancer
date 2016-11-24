@@ -222,7 +222,7 @@ impl Window {
 							let w     = event.width() as u32;
 							let h     = event.height() as u32;
 
-							try!(manager.send(Event::Redraw(Region::from(x, y, w, h))));
+							try!(manager.send(Event::Damaged(Region::from(x, y, w, h))));
 						}
 
 						xcb::MAP_NOTIFY | xcb::UNMAP_NOTIFY => {

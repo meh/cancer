@@ -31,6 +31,7 @@ extern crate itertools;
 extern crate lru_cache as lru;
 extern crate shlex;
 extern crate picto;
+use picto::Region;
 extern crate schedule_recv as timer;
 #[macro_use]
 extern crate control_code as control;
@@ -314,19 +315,28 @@ fn spawn<W: platform::Proxy + 'static>(matches: &ArgMatches, config: Arc<Config>
 							visible = value;
 						}
 
-						Event::Flush => {
+						Event::Redraw => {
+							let options = render!(options!);
+							let width   = renderer.width();
+							let height  = renderer.height();
+							let rows    = renderer.rows();
+							let columns = renderer.columns();
+
+							renderer.batch(|mut o| {
+								o.margin(&Region::from(0, 0, width, height));
+								o.update(&interface, Region::from(0, 0, columns, rows).absolute(), options)
+							});
+
 							surface.flush();
 							window.flush();
 						}
 
-						Event::Redraw(region) => {
+						Event::Damaged(region) => {
 							let options = render!(options!);
 
 							renderer.batch(|mut o| {
-								// Redraw margins.
 								o.margin(&region);
 
-								// Redraw the cells that fall within the damaged region.
 								let damaged = o.damaged(&region).relative();
 								o.update(&interface, damaged, options);
 							});
@@ -342,6 +352,10 @@ fn spawn<W: platform::Proxy + 'static>(matches: &ArgMatches, config: Arc<Config>
 						}
 
 						Event::Resize(width, height) => {
+							if renderer.width() == width && renderer.height() == height {
+								continue;
+							}
+
 							if interface.overlay() {
 								interface = try!(return interface.into_inner(tty.by_ref())).into();
 							}

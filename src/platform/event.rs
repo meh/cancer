@@ -26,11 +26,11 @@ pub enum Event {
 	/// The window is being shown or hidden.
 	Show(bool),
 
-	/// Redraw the specified region.
-	Redraw(Region),
+	/// Redraw the whole screen.
+	Redraw,
 
-	/// Flush the surface and window.
-	Flush,
+	/// Redraw the specified region.
+	Damaged(Region),
 
 	/// Focus change.
 	Focus(bool),

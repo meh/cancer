@@ -97,6 +97,16 @@ impl Renderer {
 		value
 	}
 
+	/// Get the width.
+	pub fn width(&self) -> u32 {
+		self.width
+	}
+
+	/// Get the height.
+	pub fn height(&self) -> u32 {
+		self.height
+	}
+
 	/// How many rows fit the view.
 	pub fn rows(&self) -> u32 {
 		(self.height - (self.margin.vertical * 2)) /
