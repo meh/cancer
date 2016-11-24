@@ -17,9 +17,10 @@
 
 use std::sync::Arc;
 use std::sync::mpsc::Sender;
-use std::sync::atomic::{AtomicBool, AtomicU32, Ordering};
 use std::process::Command;
-use std::cell::RefCell;
+
+use xcb;
+use xcbu::ewmh;
 
 use sys::cairo;
 use error;
@@ -27,60 +28,36 @@ use platform;
 use platform::x11::Request;
 use config::Config;
 
-#[derive(Debug)]
 pub struct Proxy {
-	config:  Arc<Config>,
-	sender:  Sender<Request>,
-	surface: RefCell<Option<cairo::Surface>>,
+	pub(super) config: Arc<Config>,
+	pub(super) sender: Sender<Request>,
 
-	width:   Arc<AtomicU32>,
-	height:  Arc<AtomicU32>,
-	focus:   Arc<AtomicBool>,
-	visible: Arc<AtomicBool>,
+	pub(super) connection: Arc<ewmh::Connection>,
+	pub(super) window:     xcb::Window,
+	pub(super) screen:     i32,
 }
 
 unsafe impl Send for Proxy { }
 
-impl Proxy {
-	pub fn new(config: Arc<Config>,
-	           sender: Sender<Request>,
-	           surface: cairo::Surface,
-	           width: Arc<AtomicU32>,
-	           height: Arc<AtomicU32>,
-	           focus: Arc<AtomicBool>,
-	           visible: Arc<AtomicBool>) -> Self {
-		Proxy {
-			config:  config,
-			sender:  sender,
-			surface: RefCell::new(Some(surface)),
-
-			width:   width,
-			height:  height,
-			focus:   focus,
-			visible: visible,
-		}
-	}
-}
-
 impl platform::Proxy for Proxy {
-	fn width(&self) -> u32 {
-		self.width.load(Ordering::Relaxed)
+	fn dimensions(&self) -> (u32, u32) {
+		let reply = xcb::get_geometry(&self.connection, self.window).get_reply().unwrap();
+		(reply.width() as u32, reply.height() as u32)
 	}
 
-	fn height(&self) -> u32 {
-		self.height.load(Ordering::Relaxed)
-	}
+	fn surface(&self) -> error::Result<cairo::Surface> {
+		let screen          = self.connection.get_setup().roots().nth(self.screen as usize).unwrap();
+		let (width, height) = self.dimensions();
 
-	fn has_focus(&self) -> bool {
-		self.focus.load(Ordering::Relaxed)
-	}
+		for item in screen.allowed_depths() {
+			if item.depth() == 24 {
+				for visual in item.visuals() {
+					return Ok(cairo::Surface::new(&self.connection, self.window, visual, width, height));
+				}
+			}
+		}
 
-	fn is_visible(&self) -> bool {
-		self.visible.load(Ordering::Relaxed)
-	}
-
-	fn surface(&self) -> cairo::Surface {
-		self.surface.borrow_mut().take().unwrap()
+		Err(error::X::MissingDepth(24).into())
 	}
 
 	fn resize(&mut self, width: u32, height: u32) {

@@ -17,8 +17,7 @@
 
 #![feature(mpsc_select, conservative_impl_trait, slice_patterns, static_in_const)]
 #![feature(trace_macros, type_ascription, inclusive_range_syntax, pub_restricted)]
-#![feature(deque_extras, integer_atomics)]
-#![recursion_limit="100"]
+#![feature(deque_extras)]
 
 #[macro_use]
 extern crate log;
@@ -151,12 +150,16 @@ fn main() {
 
 fn spawn<W: platform::Proxy + 'static>(matches: &ArgMatches, config: Arc<Config>, font: Arc<Font>, window: W) -> error::Result<Sender<Event>> {
 	let mut window    = window;
-	let mut surface   = window.surface();
-	let mut renderer  = Renderer::new(config.clone(), font.clone(), &surface, window.width(), window.height());
+	let mut surface   = window.surface().unwrap();
+	let     (w, h)    = window.dimensions();
+	let mut renderer  = Renderer::new(config.clone(), font.clone(), &surface, w, h);
 	let mut interface = Interface::from(Terminal::new(config.clone(), renderer.columns(), renderer.rows())?);
 	let mut tty       = Tty::spawn(renderer.columns(), renderer.rows(),
                                  matches.value_of("term").or_else(|| config.environment().term()),
                                  matches.value_of("execute").or_else(|| config.environment().program()))?;
+
+	let mut focused = true;
+	let mut visible = true;
 
 	let     blink    = timer::periodic_ms(config.style().blink());
 	let mut blinking = true;
@@ -176,7 +179,7 @@ fn spawn<W: platform::Proxy + 'static>(matches: &ArgMatches, config: Arc<Config>
 				options.insert(renderer::option::BLINKING);
 			}
 
-			if window.has_focus() {
+			if focused {
 				options.insert(renderer::option::FOCUS);
 			}
 
@@ -253,7 +256,7 @@ fn spawn<W: platform::Proxy + 'static>(matches: &ArgMatches, config: Arc<Config>
 		($iter:expr) => ({
 			let iter = $iter;
 
-			if window.is_visible() {
+			if visible {
 				let options = render!(options);
 
 				renderer.batch(|mut o| {
@@ -301,8 +304,20 @@ fn spawn<W: platform::Proxy + 'static>(matches: &ArgMatches, config: Arc<Config>
 				},
 
 				event = events.recv() => {
-					match try!(return event) {
-						Event::Show(_) => (),
+					let event = try!(return event);
+					debug!(target: "cancer::runner", "{:?}", event);
+
+					match event {
+						Event::Closed => return,
+
+						Event::Show(value) => {
+							visible = value;
+						}
+
+						Event::Flush => {
+							surface.flush();
+							window.flush();
+						}
 
 						Event::Redraw(region) => {
 							let options = render!(options!);
@@ -321,6 +336,7 @@ fn spawn<W: platform::Proxy + 'static>(matches: &ArgMatches, config: Arc<Config>
 						}
 
 						Event::Focus(focus) => {
+							focused = focus;
 							try!(return interface.focus(focus, tty.by_ref()));
 							render!(iter::empty());
 						}
@@ -330,8 +346,8 @@ fn spawn<W: platform::Proxy + 'static>(matches: &ArgMatches, config: Arc<Config>
 								interface = try!(return interface.into_inner(tty.by_ref())).into();
 							}
 
-							renderer.resize(width, height);
-							surface.resize(width, height);
+							surface = window.surface().unwrap();
+							renderer.resize(&surface, width, height);
 
 							let rows    = renderer.rows();
 							let columns = renderer.columns();

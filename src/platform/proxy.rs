@@ -19,20 +19,11 @@ use sys::cairo;
 use error;
 
 pub trait Proxy: Send {
-	/// Get the width.
-	fn width(&self) -> u32;
-
-	/// Get the height.
-	fn height(&self) -> u32;
-
-	/// Check if the window has focus.
-	fn has_focus(&self) -> bool;
-
-	/// Check if the window is visible.
-	fn is_visible(&self) -> bool;
+	/// Get the Window dimensions.
+	fn dimensions(&self) -> (u32, u32);
 
 	/// Create a Cairo surface.
-	fn surface(&self) -> cairo::Surface;
+	fn surface(&self) -> error::Result<cairo::Surface>;
 
 	/// Resize the window.
 	fn resize(&mut self, width: u32, height: u32);

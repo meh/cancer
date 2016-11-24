@@ -18,14 +18,12 @@
 use std::collections::HashMap;
 use std::thread;
 use std::sync::Arc;
-use std::sync::atomic::{AtomicBool, AtomicU32, Ordering};
 use std::sync::mpsc::{Receiver, Sender, channel, sync_channel};
 
 use xcb;
 use xcbu::{icccm, ewmh};
 
 use error;
-use sys::cairo::Surface;
 use config::Config;
 use font::Font;
 use platform::Event;
@@ -42,11 +40,6 @@ pub struct Window {
 	keyboard:   Keyboard,
 	receiver:   Option<Receiver<Request>>,
 	proxy:      Option<Proxy>,
-
-	width:   Arc<AtomicU32>,
-	height:  Arc<AtomicU32>,
-	focus:   Arc<AtomicBool>,
-	visible: Arc<AtomicBool>,
 }
 
 #[derive(Eq, PartialEq, Clone, Debug)]
@@ -65,14 +58,14 @@ impl Window {
 		let margin  = config.style().margin();
 		let spacing = config.style().spacing();
 
-		let mut width  = (80 * font.width()) + (margin * 2);
-		let mut height = (24 * (font.height() + spacing)) + (margin * 2);
+		let width  = (80 * font.width()) + (margin * 2);
+		let height = (24 * (font.height() + spacing)) + (margin * 2);
 
 		let (proxy, requests)    = channel();
 		let (connection, screen) = xcb::Connection::connect(config.environment().display())?;
 		let connection           = Arc::new(ewmh::Connection::connect(connection).map_err(|(e, _)| e)?);
 		let keyboard             = Keyboard::new(connection.clone(), config.input().locale())?;
-		let (window, surface)    = {
+		let window               = {
 			let window = connection.generate_id();
 			let screen = connection.get_setup().roots().nth(screen as usize).unwrap();
 
@@ -104,41 +97,18 @@ impl Window {
 			xcb::map_window(&connection, window);
 			connection.flush();
 
-			// Wait for the window to get mapped.
-			while let Some(event) = connection.wait_for_event() {
-				if event.response_type() == xcb::CONFIGURE_NOTIFY {
-					let configure = xcb::cast_event::<xcb::ConfigureNotifyEvent>(&event);
-
-					width  = configure.width() as u32;
-					height = configure.height() as u32;
-
-					break;
-				}
-			}
-
-			fn create(connection: &xcb::Connection, screen: &xcb::Screen, window: xcb::Window, width: u32, height: u32) -> error::Result<Surface> {
-				for item in screen.allowed_depths() {
-					if item.depth() == 24 {
-						for visual in item.visuals() {
-							return Ok(Surface::new(connection, window, visual, width, height));
-						}
-					}
-				}
-
-				Err(error::X::MissingDepth(24).into())
-			}
-
-			(window, create(&connection, &screen, window, width, height)?)
+			window
 		};
 
-		let width   = Arc::new(AtomicU32::new(width));
-		let height  = Arc::new(AtomicU32::new(height));
-		let focus   = Arc::new(AtomicBool::new(true));
-		let visible = Arc::new(AtomicBool::new(true));
+		let proxy = Proxy {
+			config: config.clone(),
+			sender: proxy,
 
-		let proxy = Proxy::new(config.clone(), proxy, surface,
-			width.clone(), height.clone(), focus.clone(), visible.clone());
-
+			connection: connection.clone(),
+			window:     window,
+			screen:     screen,
+		};
+			
 		Ok(Window {
 			config:     config.clone(),
 			connection: connection,
@@ -146,11 +116,6 @@ impl Window {
 			keyboard:   keyboard,
 			receiver:   Some(requests),
 			proxy:      Some(proxy),
-
-			width:   width,
-			height:  height,
-			focus:   focus,
-			visible: visible,
 		})
 	}
 
@@ -194,11 +159,9 @@ impl Window {
 						}
 
 						Request::Urgent => {
-							if !self.focus.load(Ordering::Relaxed) {
-								icccm::set_wm_hints(&self.connection, self.window, &icccm::WmHints::empty().is_urgent().build());
-							}
-
+							icccm::set_wm_hints(&self.connection, self.window, &icccm::WmHints::empty().is_urgent().build());
 							xcb::bell(&self.connection, self.config.environment().bell());
+
 							self.connection.flush();
 						}
 
@@ -263,17 +226,11 @@ impl Window {
 						}
 
 						xcb::MAP_NOTIFY | xcb::UNMAP_NOTIFY => {
-							let value = event.response_type() == xcb::MAP_NOTIFY;
-
-							self.visible.store(value, Ordering::Relaxed);
-							try!(manager.send(Event::Show(value)));
+							try!(manager.send(Event::Show(event.response_type() == xcb::MAP_NOTIFY)));
 						}
 
 						xcb::FOCUS_IN | xcb::FOCUS_OUT => {
-							let value = event.response_type() == xcb::FOCUS_IN;
-
-							self.focus.store(value, Ordering::Relaxed);
-							try!(manager.send(Event::Focus(value)));
+							try!(manager.send(Event::Focus(event.response_type() == xcb::FOCUS_IN)));
 						}
 
 						xcb::CONFIGURE_NOTIFY => {
@@ -281,12 +238,7 @@ impl Window {
 							let w     = event.width() as u32;
 							let h     = event.height() as u32;
 
-							if self.width.load(Ordering::Relaxed) != w || self.height.load(Ordering::Relaxed) != h {
-								self.width.store(w, Ordering::Relaxed);
-								self.height.store(h, Ordering::Relaxed);
-
-								try!(manager.send(Event::Resize(w, h)));
-							}
+							try!(manager.send(Event::Resize(w, h)));
 						}
 
 						xcb::SELECTION_CLEAR => {
@@ -398,7 +350,7 @@ impl Window {
 						}
 
 						e => {
-							debug!(target: "cancer::platform::x11", "unhandled X event: {:?}", e);
+							debug!(target: "cancer::platform", "unhandled X event: {:?}", e);
 						}
 					}
 				}

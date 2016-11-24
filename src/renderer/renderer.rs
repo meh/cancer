@@ -93,7 +93,7 @@ impl Renderer {
 			glyphs:  glyphs,
 		};
 
-		value.resize(width, height);
+		value.resize(surface, width, height);
 		value
 	}
 
@@ -110,12 +110,12 @@ impl Renderer {
 	}
 
 	/// Resize the renderer viewport.
-	pub fn resize(&mut self, width: u32, height: u32) {
-		let (m, s) = (self.config.style().margin(), self.spacing);
+	pub fn resize(&mut self, surface: &cairo::Surface, width: u32, height: u32) {
+		self.context = cairo::Context::new(surface);
 
+		let (m, s) = (self.config.style().margin(), self.spacing);
 		self.margin.horizontal = m +
 			((width - (m * 2)) % self.font.width()) / 2;
-
 		self.margin.vertical = m +
 			((height - (m * 2)) % (self.font.height() + s)) / 2;
 

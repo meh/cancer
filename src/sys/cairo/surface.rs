@@ -41,12 +41,6 @@ impl Surface {
 			Surface(cairo_xcb_surface_create(connection.get_raw_conn(), drawable, &visual.base, width as c_int, height as c_int))
 		}
 	}
-
-	pub fn resize(&mut self, width: u32, height: u32) {
-		unsafe {
-			cairo_xcb_surface_set_size(self.0, width as c_int, height as c_int);
-		}
-	}
 }
 
 impl Drop for Surface {
