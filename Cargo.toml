@@ -51,3 +51,13 @@ objc            = "0.2"
 cocoa           = "0.5.0"
 core-foundation = "0"
 core-graphics   = "0.4"
+
+[target.'cfg(target_os = "windows")'.dependencies]
+winapi       = "0.2"
+shell32-sys  = "0.1"
+gdi32-sys    = "0.1"
+user32-sys   = "0.1"
+kernel32-sys = "0.2"
+dwmapi-sys   = "0.1"
+libloading   = "0.3"
+lazy_static  = "0.1"

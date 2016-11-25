@@ -15,11 +15,12 @@
 // You should have received a copy of the GNU General Public License
 // along with cancer.  If not, see <http://www.gnu.org/licenses/>.
 
+#[cfg(any(target_os = "macos", target_os = "windows"))]
+use std::os::raw::c_void;
+
 #[cfg(target_os = "linux")]
 use xcb;
 
-#[cfg(target_os = "macos")]
-use std::os::raw::c_void;
 #[cfg(target_os = "macos")]
 use libc::c_uint;
 #[cfg(target_os = "macos")]
@@ -58,6 +59,15 @@ impl Surface {
 			CGContextScaleCTM(context, 1.0, -1.0);
 
 			Surface(cairo_quartz_surface_create_for_cg_context(context, width as c_uint, height as c_uint))
+		}
+	}
+}
+
+#[cfg(target_os = "windows")]
+impl Surface {
+	pub fn new(context: *mut c_void) -> Self {
+		unsafe {
+			Surface(cairo_win32_surface_create(context))
 		}
 	}
 }

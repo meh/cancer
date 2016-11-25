@@ -20,11 +20,106 @@ use std::io::{self, Write};
 use std::thread;
 use std::sync::mpsc::{SyncSender, Receiver, sync_channel};
 
-use libc::{c_void, c_char, c_ushort, c_int, winsize};
-use libc::{SIGCHLD, SIGHUP, SIGINT, SIGQUIT, SIGTERM, SIGALRM, SIG_DFL, TIOCSCTTY, TIOCSWINSZ};
-use libc::{close, read, write, openpty, fork, setsid, dup2, signal, ioctl, getpwuid, getuid, execvp};
-use libc::{fcntl, F_GETFL, F_SETFL, O_NONBLOCK};
+#[cfg(unix)]
+mod system {
+	pub use libc::{c_void, c_char, c_ushort, c_int, winsize};
+	pub use libc::{SIGCHLD, SIGHUP, SIGINT, SIGQUIT, SIGTERM, SIGALRM, SIG_DFL, TIOCSCTTY, TIOCSWINSZ};
+	pub use libc::{close, read, write, openpty, fork, setsid, dup2, signal, ioctl, getpwuid, getuid, execvp};
+	pub use libc::{fcntl, F_GETFL, F_SETFL, O_NONBLOCK};
+}
 
+#[cfg(all(windows, target_env = "gnu"))]
+mod system {
+	use lib;
+	pub use libc::{c_void, c_char, c_ushort, c_int, c_ulong, size_t};
+	pub use libc::{close, read, write, execvp, dup2};
+
+	pub type pid_t = c_int;
+	pub type uid_t = c_int;
+	pub type gid_t = c_int;
+
+	#[repr(C)]
+	pub struct winsize {
+		pub ws_row: c_ushort,
+		pub ws_col: c_ushort,
+		pub ws_xpixel: c_ushort,
+		pub ws_ypixel: c_ushort,
+	}
+
+	#[repr(C)]
+	pub struct passwd {
+		pub pw_name: *mut c_char,
+		pub pw_passwd: *mut c_char,
+		pub pw_uid: uid_t,
+		pub pw_gid: gid_t,
+		pub pw_gecos: *mut c_char,
+		pub pw_dir: *mut c_char,
+		pub pw_shell: *mut c_char,
+	}
+
+	pub type sighandler_t = size_t;
+	pub const SIG_DFL: sighandler_t = 0 as sighandler_t;
+
+	pub const SIGCHLD: c_int = 20;
+	pub const SIGHUP:  c_int = 1;
+	pub const SIGINT:  c_int = 2;
+	pub const SIGQUIT: c_int = 3;
+	pub const SIGTERM: c_int = 15;
+	pub const SIGALRM: c_int = 14;
+
+	pub const TIOCSCTTY:  c_ulong = 0x540E;
+	pub const TIOCSWINSZ: c_ulong = ((b'T' as c_ulong) << 8) | 2;
+
+	pub const F_GETFL:    c_int = 3;
+	pub const F_SETFL:    c_int = 4;
+	pub const O_NONBLOCK: c_int = 0x400;
+
+	lazy_static! {
+		static ref LIBRARY: lib::Library = lib::Library::new(env!("MSYS")).unwrap();
+	}
+
+	pub unsafe fn getuid() -> uid_t {
+		LIBRARY.get::<unsafe extern fn() -> uid_t>(b"getuid")
+			.unwrap()()
+	}
+
+  pub unsafe fn getpwuid(uid: uid_t) -> *mut passwd {
+		LIBRARY.get::<unsafe extern fn(uid_t) -> *mut passwd>(b"getpwuid")
+			.unwrap()(uid)
+	}
+
+	pub unsafe fn fork() -> pid_t {
+		LIBRARY.get::<unsafe extern fn() -> pid_t>(b"fork")
+			.unwrap()()
+	}
+
+	pub unsafe fn setsid() -> pid_t {
+		LIBRARY.get::<unsafe extern fn() -> pid_t>(b"setsid")
+			.unwrap()()
+	}
+
+	pub unsafe fn signal(signum: c_int, handler: sighandler_t) -> sighandler_t {
+		LIBRARY.get::<unsafe extern fn(c_int, sighandler_t) -> sighandler_t>(b"signal")
+			.unwrap()(signum, handler)
+	}
+
+	pub unsafe fn fcntl(fd: c_int, cmd: c_int, value: c_int) -> c_int {
+		LIBRARY.get::<unsafe extern fn(c_int, c_int, c_int) -> c_int>(b"fcntl")
+			.unwrap()(fd, cmd, value)
+	}
+
+	pub unsafe fn ioctl(fd: c_int, request: c_ulong, value: *const c_void) -> c_int {
+		LIBRARY.get::<unsafe extern fn(c_int, c_ulong, *const c_void) -> c_int>(b"ioctl")
+			.unwrap()(fd, request, value)
+	}
+
+	pub unsafe fn openpty(amaster: *mut c_int, aslave: *mut c_int, name: *mut c_char, termp: *const c_void, winp: *const winsize) -> c_int {
+		LIBRARY.get::<unsafe extern fn(*mut c_int, *mut c_int, *mut c_char, *const c_void, *const winsize) -> c_int>(b"openpty")
+			.unwrap()(amaster, aslave, name, termp, winp)
+	}
+}
+
+use self::system::*;
 use error::{self, Error};
 
 #[derive(Debug)]
@@ -50,9 +145,13 @@ impl Tty {
 			let mut master = 0;
 			let mut slave  = 0;
 
+			println!("OPENPTY");
+
 			if openpty(&mut master, &mut slave, ptr::null_mut(), ptr::null_mut(), &mut size) < 0 {
 				return Err(Error::Message("failed to open pty".into()));
 			}
+
+			println!("FORK");
 
 			match fork() {
 				// Fork failed.
@@ -62,6 +161,8 @@ impl Tty {
 
 				// Into the new process.
 				0 => {
+					println!("WEW");
+
 					// Create a new process group.
 					setsid();
 
@@ -85,6 +186,7 @@ impl Tty {
 
 				// From our process.
 				id => {
+					println!("WOW");
 					// Free the slaves.
 					close(slave);
 
@@ -174,7 +276,7 @@ impl Tty {
 				ws_ypixel: 0,
 			};
 
-			if ioctl(self.fd, TIOCSWINSZ as _, &size) < 0 {
+			if ioctl(self.fd, TIOCSWINSZ as _, &size as *const _ as *const _) < 0 {
 				return Err(Error::Message("failed to resize tty".into()));
 			}
 		}

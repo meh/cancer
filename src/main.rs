@@ -64,6 +64,23 @@ extern crate core_foundation;
 #[cfg(target_os = "macos")]
 extern crate core_graphics;
 
+#[cfg(target_os = "windows")]
+extern crate winapi;
+#[cfg(target_os = "windows")]
+extern crate kernel32;
+#[cfg(target_os = "windows")]
+extern crate shell32;
+#[cfg(target_os = "windows")]
+extern crate gdi32;
+#[cfg(target_os = "windows")]
+extern crate user32;
+#[cfg(target_os = "windows")]
+extern crate dwmapi;
+#[cfg(target_os = "windows")]
+extern crate libloading as lib;
+#[cfg(target_os = "windows")]
+#[macro_use] extern crate lazy_static;
+
 #[macro_use]
 mod util;
 mod error;
@@ -152,6 +169,16 @@ fn main() {
 	let     font   = Arc::new(Font::load(matches.value_of("font").unwrap_or(config.style().font())).unwrap());
 	let mut window = Window::new(matches.value_of("name"), config.clone(), font.clone()).unwrap();
 	let     proxy  = window.proxy();
+
+	let mut tty = Tty::spawn(80, 24,
+                           matches.value_of("term").or_else(|| config.environment().term()),
+                           matches.value_of("execute").or_else(|| config.environment().program())).unwrap();
+
+	let input = tty.output();
+
+	loop {
+		println!("{:?}", input.recv());
+	}
 
 	window.run(spawn(&matches, config.clone(), font.clone(), proxy).unwrap()).unwrap();
 }

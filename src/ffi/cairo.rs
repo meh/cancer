@@ -87,3 +87,8 @@ extern "C" {
 	pub fn CGContextTranslateCTM(context: *mut c_void, tx: CGFloat, ty: CGFloat);
 	pub fn CGContextScaleCTM(context: *mut c_void, sx: CGFloat, sy: CGFloat);
 }
+
+#[cfg(target_os = "windows")]
+extern "C" {
+	pub fn cairo_win32_surface_create(hdc: *mut c_void) -> *mut cairo_surface_t;
+}

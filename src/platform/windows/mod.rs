@@ -15,32 +15,8 @@
 // You should have received a copy of the GNU General Public License
 // along with cancer.  If not, see <http://www.gnu.org/licenses/>.
 
-mod tty;
-pub use self::tty::Tty;
-
-#[cfg(target_os = "linux")]
-mod x11;
-#[cfg(target_os = "linux")]
-pub use self::x11::Window;
-
-#[cfg(target_os = "macos")]
-mod macos;
-#[cfg(target_os = "macos")]
-pub use self::macos::Window;
-
-#[cfg(target_os = "windows")]
-mod windows;
-#[cfg(target_os = "windows")]
-pub use self::windows::Window;
+mod window;
+pub use self::window::Window;
 
 mod proxy;
 pub use self::proxy::Proxy;
-
-pub mod event;
-pub use self::event::Event;
-
-pub mod key;
-pub use self::key::Key;
-
-pub mod mouse;
-pub use self::mouse::Mouse;
