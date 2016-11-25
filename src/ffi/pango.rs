@@ -117,7 +117,6 @@ pub struct PangoAttrList(c_void);
 #[repr(C)]
 pub struct PangoAttribute(c_void);
 
-#[link(name = "pango-1.0")]
 extern "C" {
 	pub fn pango_font_map_create_context(fontmap: *mut PangoFontMap) -> *mut PangoContext;
 	pub fn pango_context_set_font_description(context: *mut PangoContext, desc: *const PangoFontDescription);
@@ -158,7 +157,6 @@ extern "C" {
 	pub fn pango_item_free(item: *mut PangoItem);
 }
 
-#[link(name = "pangocairo-1.0")]
 extern "C" {
 	pub fn pango_cairo_font_map_new() -> *mut PangoFontMap;
 	pub fn pango_cairo_show_glyph_item(cr: *mut cairo_t, text: *const c_char, glyph_item: *const PangoGlyphItem);

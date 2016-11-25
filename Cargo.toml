@@ -4,6 +4,7 @@ version = "0.1.0"
 
 authors = ["meh. <meh@schizofreni.co>"]
 license = "GPL-3"
+build   = "build.rs"
 
 description = "Terminal cancer."
 repository  = "https://github.com/meh/terme"
@@ -13,6 +14,9 @@ keywords    = ["term", "pty"]
 debug = true
 lto   = true
 panic = "abort"
+
+[build-dependencies]
+pkg-config = "0.3"
 
 [dependencies]
 log        = "0.3"

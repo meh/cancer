@@ -40,7 +40,6 @@ pub enum cairo_format_t {
 	Rgb30,
 }
 
-#[link(name = "cairo")]
 extern "C" {
 	pub fn cairo_create(surface: *mut cairo_surface_t) -> *mut cairo_t;
 	pub fn cairo_destroy(cr: *mut cairo_t);

@@ -24,8 +24,6 @@ pub struct GList {
 	pub prev: *mut GList,
 }
 
-#[link(name = "gobject-2.0")]
-#[link(name = "glib-2.0")]
 extern "C" {
 	pub fn g_list_free(ptr: *mut GList);
 
