@@ -16,15 +16,13 @@
 // along with cancer.  If not, see <http://www.gnu.org/licenses/>.
 
 use std::ptr;
-use std::fs::File;
-use std::os::unix::io::{RawFd, FromRawFd};
 use std::io::{self, Write};
 use std::thread;
 use std::sync::mpsc::{SyncSender, Receiver, sync_channel};
 
 use libc::{c_void, c_char, c_ushort, c_int, winsize};
 use libc::{SIGCHLD, SIGHUP, SIGINT, SIGQUIT, SIGTERM, SIGALRM, SIG_DFL, TIOCSCTTY, TIOCSWINSZ};
-use libc::{close, read, openpty, fork, setsid, dup2, signal, ioctl, getpwuid, getuid, execvp};
+use libc::{close, read, write, openpty, fork, setsid, dup2, signal, ioctl, getpwuid, getuid, execvp};
 use libc::{fcntl, F_GETFL, F_SETFL, O_NONBLOCK};
 
 use error::{self, Error};
@@ -32,7 +30,7 @@ use error::{self, Error};
 #[derive(Debug)]
 pub struct Tty {
 	id: c_int,
-	fd: RawFd,
+	fd: c_int,
 
 	input:  SyncSender<Vec<u8>>,
 	output: Option<Receiver<Vec<u8>>>,
@@ -102,7 +100,7 @@ impl Tty {
 							let mut consumed = 0usize;
 
 							// First do a blocking read.
-							match read(master, buffer.as_mut_ptr() as _, buffer.len()) {
+							match read(master, buffer.as_mut_ptr() as _, buffer.len() as _) {
 								// Stop the thread on failure or EOF.
 								-1 | 0 =>
 									return,
@@ -118,7 +116,7 @@ impl Tty {
 								loop {
 									let mut offset = &mut buffer[consumed ..];
 
-									match read(master, offset.as_mut_ptr() as _, offset.len()) {
+									match read(master, offset.as_mut_ptr() as _, offset.len() as _) {
 										// Break out of the non-blocking loop, any errors or EOF
 										// will be handled by the next loop.
 										-1 | 0 =>
@@ -138,10 +136,15 @@ impl Tty {
 
 					// Spawn writer.
 					thread::spawn(move || {
-						let mut stream = File::from_raw_fd(master);
-
 						while let Ok(buffer) = i_receiver.recv() {
-							try!(return stream.write_all(&buffer));
+							let mut written = 0;
+
+							while written != buffer.len() {
+								match write(master, buffer.as_ptr() as _, buffer.len() as _) {
+									-1 | 0 => return,
+									n      => written += n as usize
+								}
+							}
 						}
 					});
 

@@ -15,10 +15,8 @@
 // You should have received a copy of the GNU General Public License
 // along with cancer.  If not, see <http://www.gnu.org/licenses/>.
 
-#[cfg(unix)]
-mod unix;
-#[cfg(unix)]
-pub use self::unix::Tty;
+mod tty;
+pub use self::tty::Tty;
 
 #[cfg(target_os = "linux")]
 mod x11;
