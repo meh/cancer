@@ -18,6 +18,7 @@
 use picto::Region;
 use platform::{Key, Mouse};
 
+#[allow(dead_code)]
 #[derive(Eq, PartialEq, Clone, Debug)]
 pub enum Event {
 	/// The window has been closed.

@@ -33,6 +33,7 @@ pub struct Keyboard {
 	keymap:     xkb::Keymap,
 	state:      xkb::State,
 
+	#[allow(dead_code)]
 	table:   xkb::compose::Table,
 	compose: xkb::compose::State,
 }
