@@ -160,7 +160,10 @@ impl Window {
 
 						Request::Urgent => {
 							icccm::set_wm_hints(&self.connection, self.window, &icccm::WmHints::empty().is_urgent().build());
-							xcb::bell(&self.connection, self.config.environment().bell());
+
+							if let Some(volume) = self.config.environment().bell().and_then(|b| b.parse().ok()) {
+								xcb::bell(&self.connection, volume);
+							}
 
 							self.connection.flush();
 						}
