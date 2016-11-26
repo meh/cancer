@@ -51,3 +51,6 @@ objc            = "0.2"
 cocoa           = "0.5.0"
 core-foundation = "0"
 core-graphics   = "0.4"
+
+[features]
+static = []
