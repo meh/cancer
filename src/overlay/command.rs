@@ -15,6 +15,8 @@
 // You should have received a copy of the GNU General Public License
 // along with cancer.  If not, see <http://www.gnu.org/licenses/>.
 
+use platform::Clipboard;
+
 #[derive(Eq, PartialEq, Clone, Debug)]
 pub enum Command {
 	None,
@@ -22,8 +24,8 @@ pub enum Command {
 	Move(Move),
 	Scroll(Scroll),
 	Select(Select),
-	Copy(String),
-	Paste(String),
+	Copy(Clipboard),
+	Paste(Clipboard),
 	Hint(Hint),
 }
 
@@ -80,5 +82,5 @@ pub enum Hint {
 	Start,
 	Pick(char),
 	Open,
-	Copy(String),
+	Copy(Clipboard),
 }

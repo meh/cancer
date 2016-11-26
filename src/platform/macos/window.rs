@@ -79,6 +79,8 @@ impl Window {
 
 			let proxy = Proxy {
 				config:  config.clone(),
+				manager: None,
+
 				window:  window.clone(),
 				view:    view.clone(),
 				context: RefCell::new(IdRef::new(nil)),

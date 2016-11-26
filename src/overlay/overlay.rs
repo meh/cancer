@@ -26,6 +26,7 @@ use fnv::FnvHasher;
 use unicode_segmentation::UnicodeSegmentation;
 use error;
 use style::{self, Style};
+use platform::Clipboard;
 use platform::key::{self, Key};
 use platform::mouse::{self, Mouse};
 use terminal::{Terminal, Cursor, Iter, Row};
@@ -298,10 +299,10 @@ impl Overlay {
 
 				"y" if key.modifier().is_empty() && self.hinter.selected.is_some() =>
 					Command::Hint(command::Hint::Copy(match times {
-						Some(1) => "PRIMARY",
-						Some(2) => "SECONDARY",
-						_       => "CLIPBOARD",
-					}.into())),
+						Some(1) => Clipboard::Primary,
+						Some(2) => Clipboard::Secondary,
+						_       => Clipboard::default(),
+					})),
 
 				ch if key.modifier().is_empty() && self.hinter.hints.is_some() && self.hinter.selected.is_none() =>
 					Command::Hint(command::Hint::Pick(ch.chars().next().unwrap())),
@@ -397,16 +398,16 @@ impl Overlay {
 
 				"y" if key.modifier().is_empty() =>
 					Command::Copy(match times {
-						Some(1) => "PRIMARY",
-						Some(2) => "SECONDARY",
-						_       => "CLIPBOARD",
+						Some(1) => Clipboard::Primary,
+						Some(2) => Clipboard::Secondary,
+						_       => Clipboard::default(),
 					}.into()),
 
 				"p" if key.modifier().is_empty() =>
 					Command::Paste(match times {
-						Some(1) => "PRIMARY",
-						Some(2) => "SECONDARY",
-						_       => "CLIPBOARD",
+						Some(1) => Clipboard::Primary,
+						Some(2) => Clipboard::Secondary,
+						_       => Clipboard::default(),
 					}.into()),
 
 				// Prefix setters.
@@ -478,7 +479,7 @@ impl Overlay {
 
 				// Selection commands.
 				Button::Insert if key.modifier() == key::SHIFT =>
-					Command::Paste("PRIMARY".into()),
+					Command::Paste(Clipboard::Primary),
 
 				_ => {
 					debug!(target: "cancer::overlay::unhandled", "key {:?}", key);
@@ -543,7 +544,7 @@ impl Overlay {
 
 			// Selection commands.
 			Mouse::Click(mouse::Click { button: mouse::Button::Middle, press: false, .. }) =>
-				Command::Paste("PRIMARY".into()),
+				Command::Paste(Clipboard::Primary),
 
 			_ =>
 				Command::None,
@@ -585,7 +586,7 @@ impl Overlay {
 
 			if let Some(selection) = self.selector.current {
 				debug!(target: "cancer::overlay::selection", "selection: {:?}", self.selection(&selection));
-				actions.push(Action::Copy("PRIMARY".into(), self.selection(&selection)));
+				actions.push(Action::Copy(Clipboard::Primary, self.selection(&selection)));
 			}
 		}
 
@@ -1076,7 +1077,7 @@ impl Overlay {
 						}
 
 						self.hinter.selected = Some(selected);
-						actions.push(Action::Copy("PRIMARY".into(), self.hinter.get().unwrap().into()));
+						actions.push(Action::Copy(Clipboard::Primary, self.hinter.get().unwrap().into()));
 					}
 					else {
 						// De-highlight non-matching hints, and highlight matching ones.

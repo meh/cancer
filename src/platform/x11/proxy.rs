@@ -24,7 +24,7 @@ use xcbu::ewmh;
 
 use sys::cairo;
 use error;
-use platform;
+use platform::{self, Clipboard};
 use platform::x11::Request;
 use config::Config;
 
@@ -68,11 +68,11 @@ impl platform::Proxy for Proxy {
 		self.sender.send(Request::Title(title)).unwrap();
 	}
 
-	fn copy(&self, name: String, value: String) {
+	fn copy(&self, name: Clipboard, value: String) {
 		self.sender.send(Request::Copy(name, value)).unwrap();
 	}
 
-	fn paste(&self, name: String) {
+	fn paste(&self, name: Clipboard) {
 		self.sender.send(Request::Paste(name)).unwrap();
 	}
 

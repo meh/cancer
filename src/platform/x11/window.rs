@@ -26,7 +26,7 @@ use xcbu::{icccm, ewmh};
 use error;
 use config::Config;
 use font::Font;
-use platform::Event;
+use platform::{Event, Clipboard};
 use platform::key;
 use platform::mouse::{self, Mouse};
 use platform::x11::{Keyboard, Proxy};
@@ -48,8 +48,8 @@ pub enum Request {
 	Urgent,
 	Title(String),
 	Resize(u32, u32),
-	Copy(String, String),
-	Paste(String),
+	Copy(Clipboard, String),
+	Paste(Clipboard),
 }
 
 impl Window {
@@ -180,36 +180,30 @@ impl Window {
 						}
 
 						Request::Copy(name, value) => {
-							let atom = match &*name.to_uppercase() {
-								"PRIMARY"   => Some(PRIMARY),
-								"SECONDARY" => Some(SECONDARY),
-								"CLIPBOARD" => Some(CLIPBOARD),
-								_           => None,
+							let atom = match name {
+								Clipboard::Primary   => PRIMARY,
+								Clipboard::Secondary => SECONDARY,
+								Clipboard::System    => CLIPBOARD,
 							};
 
 							debug!(target: "cancer::platform::clipboard", "set clipboard: {:?}({:?}) = {:?}", name, atom, value);
 
-							if let Some(atom) = atom {
-								clipboard.insert(atom, value);
-								xcb::set_selection_owner(&self.connection, self.window, atom, xcb::CURRENT_TIME);
-								self.connection.flush();
-							}
+							clipboard.insert(atom, value);
+							xcb::set_selection_owner(&self.connection, self.window, atom, xcb::CURRENT_TIME);
+							self.connection.flush();
 						}
 
 						Request::Paste(name) => {
-							let atom = match &*name.to_uppercase() {
-								"PRIMARY"   => Some(PRIMARY),
-								"SECONDARY" => Some(SECONDARY),
-								"CLIPBOARD" => Some(CLIPBOARD),
-								_           => None,
+							let atom = match name {
+								Clipboard::Primary   => PRIMARY,
+								Clipboard::Secondary => SECONDARY,
+								Clipboard::System    => CLIPBOARD,
 							};
 
 							debug!(target: "cancer::platform::clipboard", "get clipboard: {:?}({:?})", name, atom);
 
-							if let Some(atom) = atom {
-								xcb::convert_selection(&self.connection, self.window, atom, UTF8_STRING, SELECTION, xcb::CURRENT_TIME);
-								self.connection.flush();
-							}
+							xcb::convert_selection(&self.connection, self.window, atom, UTF8_STRING, SELECTION, xcb::CURRENT_TIME);
+							self.connection.flush();
 						}
 					}
 				},

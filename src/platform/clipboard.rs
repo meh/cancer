@@ -15,30 +15,25 @@
 // You should have received a copy of the GNU General Public License
 // along with cancer.  If not, see <http://www.gnu.org/licenses/>.
 
-mod tty;
-pub use self::tty::Tty;
+#[derive(Eq, PartialEq, Copy, Clone, Debug)]
+pub enum Clipboard {
+	Primary,
+	Secondary,
+	System,
+}
 
-#[cfg(target_os = "linux")]
-mod x11;
-#[cfg(target_os = "linux")]
-pub use self::x11::Window;
+impl Default for Clipboard {
+	fn default() -> Self {
+		Clipboard::System
+	}
+}
 
-#[cfg(target_os = "macos")]
-mod macos;
-#[cfg(target_os = "macos")]
-pub use self::macos::Window;
-
-mod proxy;
-pub use self::proxy::Proxy;
-
-pub mod event;
-pub use self::event::Event;
-
-pub mod key;
-pub use self::key::Key;
-
-pub mod mouse;
-pub use self::mouse::Mouse;
-
-mod clipboard;
-pub use self::clipboard::Clipboard;
+impl<T: AsRef<str>> From<T> for Clipboard {
+	fn from(value: T) -> Self {
+		match &*value.as_ref().to_uppercase() {
+			"PRIMARY"   => Clipboard::Primary,
+			"SECONDARY" => Clipboard::Secondary,
+			_           => Clipboard::System,
+		}
+	}
+}

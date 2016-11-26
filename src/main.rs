@@ -155,10 +155,13 @@ fn main() {
 	let     _      = window.run(spawn(&matches, config.clone(), font.clone(), proxy).unwrap());
 }
 
-fn spawn<W: platform::Proxy + 'static>(matches: &ArgMatches, config: Arc<Config>, font: Arc<Font>, window: W) -> error::Result<Sender<Event>> {
-	let mut window    = window;
-	let mut surface   = window.surface().unwrap();
-	let     (w, h)    = window.dimensions();
+fn spawn<W: platform::Proxy + 'static>(matches: &ArgMatches, config: Arc<Config>, font: Arc<Font>, mut window: W) -> error::Result<Sender<Event>> {
+	let (sender, events) = channel();
+	window.prepare(sender.clone());
+
+	let mut surface = window.surface().unwrap();
+	let     (w, h)  = window.dimensions();
+
 	let mut renderer  = Renderer::new(config.clone(), font.clone(), &surface, w, h);
 	let mut interface = Interface::from(Terminal::new(config.clone(), renderer.columns(), renderer.rows())?);
 	let mut tty       = Tty::spawn(renderer.columns(), renderer.rows(),
@@ -175,8 +178,7 @@ fn spawn<W: platform::Proxy + 'static>(matches: &ArgMatches, config: Arc<Config>
 	let mut batching          = None;
 	let mut batched           = None;
 
-	let (sender, events) = channel();
-	let input            = tty.output();
+	let input = tty.output();
 
 	macro_rules! render {
 		(options) => ({

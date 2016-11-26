@@ -18,20 +18,25 @@
 use std::sync::Arc;
 use std::process::Command;
 use std::cell::RefCell;
+use std::ffi::CStr;
+use std::str;
+use std::sync::mpsc::Sender;
 
-use cocoa::foundation::{NSString, NSSize};
-use cocoa::appkit::{NSWindow, NSView, NSSound};
+use cocoa::foundation::{NSString, NSSize, NSArray};
+use cocoa::appkit::{NSWindow, NSView, NSSound, NSPasteboard, NSPasteboardTypeString};
 use cocoa::base::{class, nil};
 
 use sys::cairo;
 use error;
-use platform;
+use platform::{self, Clipboard, Event};
 use platform::macos::IdRef;
 use config::Config;
 
 #[derive(Debug)]
 pub struct Proxy {
 	pub(super) config:  Arc<Config>,
+	pub(super) manager: Option<Sender<Event>>,
+
 	pub(super) window:  IdRef,
 	pub(super) view:    IdRef,
 	pub(super) context: RefCell<IdRef>,
@@ -62,6 +67,10 @@ impl platform::Proxy for Proxy {
 		}
 	}
 
+	fn prepare(&mut self, manager: Sender<Event>) {
+		self.manager = Some(manager);
+	}
+
 	fn resize(&mut self, width: u32, height: u32) {
 		unsafe {
 			self.window.setContentSize_(NSSize::new(width as f64, height as f64));
@@ -74,17 +83,33 @@ impl platform::Proxy for Proxy {
 		}
 	}
 
-	fn copy(&self, name: String, value: String) {
-
+	fn copy(&self, _name: Clipboard, value: String) {
+		unsafe {
+			let paste = NSPasteboard::generalPasteboard(nil);
+			paste.clearContents();
+			paste.writeObjects(NSArray::arrayWithObjects(nil, &[NSString::alloc(nil).init_str(&value)]));
+		}
 	}
 
-	fn paste(&self, name: String) {
+	fn paste(&self, name: Clipboard) {
+		unsafe {
+			if let Some(manager) = self.manager.as_ref() {
+				let paste = NSPasteboard::generalPasteboard(nil);
+				let value = paste.stringForType(NSPasteboardTypeString);
 
+				if value != nil {
+					let string = value.UTF8String();
+					let string = CStr::from_ptr(string);
+					let string = str::from_utf8_unchecked(string.to_bytes());
+					let _      = manager.send(Event::Paste(string.into()));
+				}
+			}
+		}
 	}
 
 	fn urgent(&self) {
-		if let Some(sound) = self.config.environment().bell() {
-			unsafe {
+		unsafe {
+			if let Some(sound) = self.config.environment().bell() {
 				NSSound::soundNamed_(nil, NSString::alloc(nil).init_str(sound)).play();
 			}
 		}

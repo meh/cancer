@@ -22,7 +22,7 @@ use std::vec;
 use picto::Region;
 use error;
 use config::Config;
-use platform::{Key, Mouse};
+use platform::{Clipboard, Key, Mouse};
 use terminal::{Terminal, Mode, Iter, Cell};
 use terminal::{cursor, touched};
 use overlay::Overlay;
@@ -39,8 +39,8 @@ pub enum Action {
 	Overlay(bool),
 	Title(String),
 	Resize(u32, u32),
-	Copy(String, String),
-	Paste(String),
+	Copy(Clipboard, String),
+	Paste(Clipboard),
 	Open(String),
 }
 
