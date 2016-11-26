@@ -20,7 +20,7 @@ use std::process::Command;
 use std::cell::RefCell;
 
 use cocoa::foundation::{NSString, NSSize};
-use cocoa::appkit::{NSWindow, NSView};
+use cocoa::appkit::{NSWindow, NSView, NSSound};
 use cocoa::base::{class, nil};
 
 use sys::cairo;
@@ -83,7 +83,11 @@ impl platform::Proxy for Proxy {
 	}
 
 	fn urgent(&self) {
-
+		if let Some(sound) = self.config.environment().bell() {
+			unsafe {
+				NSSound::soundNamed_(nil, NSString::alloc(nil).init_str(sound)).play();
+			}
+		}
 	}
 
 	fn flush(&self) {
