@@ -191,100 +191,108 @@ impl Window {
 					appkit::NSAnyEventMask.bits() | appkit::NSEventMaskPressure.bits(),
 					NSDate::distantFuture(nil), NSDefaultRunLoopMode, YES);
 
-				if event != nil {
-					if event.eventType() != appkit::NSKeyDown {
-						appkit::NSApp().sendEvent_(event);
+				if event == nil {
+					continue;
+				}
+
+				// Only forward the event if it's not a KeyDown one, this is because
+				// Cocoa is shit and it will beep if it thinks you didn't handle key
+				// input.
+				if event.eventType() != appkit::NSKeyDown {
+					appkit::NSApp().sendEvent_(event);
+				}
+
+				match event.eventType() {
+					// It doesn't render properly if it isn't redrawn after the first
+					// event is received, so hack around it.
+					appkit::NSAppKitDefined => {
+						if first {
+							first = false;
+							try!(manager.send(Event::Redraw));
+						}
 					}
 
-					match event.eventType() {
-						appkit::NSAppKitDefined => {
-							if first {
-								first = false;
-								try!(manager.send(Event::Redraw));
-							}
+					// Key modifiers.
+					appkit::NSFlagsChanged => {
+						let flags = event.modifierFlags();
+
+						if flags.contains(appkit::NSShiftKeyMask) {
+							modifier.insert(key::SHIFT);
+						}
+						else {
+							modifier.remove(key::SHIFT);
 						}
 
-						appkit::NSFlagsChanged => {
-							let flags = event.modifierFlags();
-
-							if flags.contains(appkit::NSShiftKeyMask) {
-								modifier.insert(key::SHIFT);
-							}
-							else {
-								modifier.remove(key::SHIFT);
-							}
-
-							if flags.contains(appkit::NSControlKeyMask) {
-								modifier.insert(key::CTRL);
-							}
-							else {
-								modifier.remove(key::CTRL);
-							}
-
-							if flags.contains(appkit::NSCommandKeyMask) {
-								modifier.insert(key::LOGO);
-							}
-							else {
-								modifier.remove(key::LOGO);
-							}
-
-							if flags.contains(appkit::NSAlternateKeyMask) {
-								modifier.insert(key::ALT);
-							}
-							else {
-								modifier.remove(key::ALT);
-							}
-
-							if flags.contains(appkit::NSAlphaShiftKeyMask) {
-								lock.insert(key::CAPS);
-							}
-							else {
-								lock.remove(key::CAPS);
-							}
+						if flags.contains(appkit::NSControlKeyMask) {
+							modifier.insert(key::CTRL);
+						}
+						else {
+							modifier.remove(key::CTRL);
 						}
 
-						appkit::NSKeyDown => {
-							if let Some(key) = key(event, modifier, lock) {
-								try!(manager.send(Event::Key(key)));
-							}
+						if flags.contains(appkit::NSCommandKeyMask) {
+							modifier.insert(key::LOGO);
+						}
+						else {
+							modifier.remove(key::LOGO);
 						}
 
-						appkit::NSLeftMouseDown |
-						appkit::NSRightMouseDown |
-						appkit::NSLeftMouseUp |
-						appkit::NSRightMouseUp => {
-							let press = event.eventType() == appkit::NSLeftMouseDown
-								|| event.eventType() == appkit::NSRightMouseDown;
-
-							let button = if event.eventType() == appkit::NSLeftMouseDown ||
-							                event.eventType() == appkit::NSLeftMouseUp {
-								mouse::Button::Left
-							}
-							else {
-								mouse::Button::Right
-							};
-
-							try!(manager.send(Event::Mouse(Mouse::Click(mouse::Click {
-								press:    press,
-								button:   button,
-								modifier: modifier,
-								position: position(&self.window, &self.view, event),
-							}))));
+						if flags.contains(appkit::NSAlternateKeyMask) {
+							modifier.insert(key::ALT);
+						}
+						else {
+							modifier.remove(key::ALT);
 						}
 
-						appkit::NSMouseMoved => {
-							try!(manager.send(Event::Mouse(Mouse::Motion(mouse::Motion {
-								modifier: modifier,
-								position: position(&self.window, &self.view, event),
-							}))));
+						if flags.contains(appkit::NSAlphaShiftKeyMask) {
+							lock.insert(key::CAPS);
 						}
+						else {
+							lock.remove(key::CAPS);
+						}
+					}
 
-						appkit::NSScrollWheel => {
+					// Handle key input.
+					appkit::NSKeyDown => {
+						if let Some(key) = key(event, modifier, lock) {
+							try!(manager.send(Event::Key(key)));
 						}
+					}
 
-						value => {
-							debug!(target: "cancer::platform", "unhandled event: {:?}", value);
+					// Handle mouse clicks.
+					appkit::NSLeftMouseDown |
+					appkit::NSRightMouseDown |
+					appkit::NSLeftMouseUp |
+					appkit::NSRightMouseUp => {
+						let press = event.eventType() == appkit::NSLeftMouseDown
+							|| event.eventType() == appkit::NSRightMouseDown;
+
+						let button = if event.eventType() == appkit::NSLeftMouseDown ||
+						                event.eventType() == appkit::NSLeftMouseUp {
+							mouse::Button::Left
 						}
+						else {
+							mouse::Button::Right
+						};
+
+						try!(manager.send(Event::Mouse(Mouse::Click(mouse::Click {
+							press:    press,
+							button:   button,
+							modifier: modifier,
+							position: position(&self.window, &self.view, event),
+						}))));
+					}
+
+					// Handle mouse motion.
+					appkit::NSMouseMoved => {
+						try!(manager.send(Event::Mouse(Mouse::Motion(mouse::Motion {
+							modifier: modifier,
+							position: position(&self.window, &self.view, event),
+						}))));
+					}
+
+					event => {
+						debug!(target: "cancer::platform", "unhandled event: {:?}", event);
 					}
 				}
 
