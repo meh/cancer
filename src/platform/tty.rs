@@ -137,12 +137,12 @@ impl Tty {
 					// Spawn writer.
 					thread::spawn(move || {
 						while let Ok(buffer) = i_receiver.recv() {
-							let mut written = 0;
+							let mut buffer = &buffer[..];
 
-							while written != buffer.len() {
+							while !buffer.is_empty() {
 								match write(master, buffer.as_ptr() as _, buffer.len() as _) {
 									-1 | 0 => return,
-									n      => written += n as usize
+									n      => buffer = &buffer[n as usize ..],
 								}
 							}
 						}
