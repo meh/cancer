@@ -21,7 +21,7 @@ use sys::cairo;
 use error;
 use platform::{Event, Clipboard};
 
-#[allow(dead_code)]
+#[allow(unused_variables)]
 pub trait Proxy: Send {
 	/// Get the Window dimensions.
 	fn dimensions(&self) -> (u32, u32);
