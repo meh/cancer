@@ -192,12 +192,18 @@ impl Window {
 					NSDate::distantFuture(nil), NSDefaultRunLoopMode, YES);
 
 				if event != nil {
-					if first && event.eventType() == appkit::NSAppKitDefined {
-						first = false;
-						try!(manager.send(Event::Redraw));
+					if event.eventType() != appkit::NSKeyDown {
+						appkit::NSApp().sendEvent_(event);
 					}
 
 					match event.eventType() {
+						appkit::NSAppKitDefined => {
+							if first {
+								first = false;
+								try!(manager.send(Event::Redraw));
+							}
+						}
+
 						appkit::NSFlagsChanged => {
 							let flags = event.modifierFlags();
 
@@ -277,7 +283,6 @@ impl Window {
 						}
 
 						value => {
-							appkit::NSApp().sendEvent_(event);
 							debug!(target: "cancer::platform", "unhandled event: {:?}", value);
 						}
 					}
