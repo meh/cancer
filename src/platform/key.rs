@@ -87,6 +87,7 @@ pub enum Button {
 	Menu,
 }
 
+#[allow(dead_code)]
 #[derive(Eq, PartialEq, Copy, Clone, Debug)]
 pub enum Keypad {
 	Enter,

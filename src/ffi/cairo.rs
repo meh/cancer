@@ -16,7 +16,10 @@
 // along with cancer.  If not, see <http://www.gnu.org/licenses/>.
 
 use std::os::raw::c_void;
-use libc::{c_int, c_double};
+use libc::{c_double};
+
+#[cfg(target_os = "linux")]
+use libc::c_int;
 
 #[cfg(target_os = "macos")]
 use libc::c_uint;

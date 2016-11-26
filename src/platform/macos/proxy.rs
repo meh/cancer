@@ -91,7 +91,7 @@ impl platform::Proxy for Proxy {
 		}
 	}
 
-	fn paste(&self, name: Clipboard) {
+	fn paste(&self, _name: Clipboard) {
 		unsafe {
 			if let Some(manager) = self.manager.as_ref() {
 				let paste = NSPasteboard::generalPasteboard(nil);

@@ -44,7 +44,7 @@ pub struct Window {
 }
 
 impl Window {
-	pub fn new(name: Option<&str>, config: Arc<Config>, font: Arc<Font>) -> error::Result<Self> {
+	pub fn new(_name: Option<&str>, config: Arc<Config>, font: Arc<Font>) -> error::Result<Self> {
 		let margin  = config.style().margin();
 		let spacing = config.style().spacing();
 
@@ -182,10 +182,12 @@ impl Window {
 		}
 
 		unsafe {
+			#[allow(unused_variables)]
+			let delegate = Delegate::new(manager.clone(), self.window.clone(), self.view.clone());
+
 			let mut modifier = key::Modifier::empty();
 			let mut lock     = key::Lock::empty();
 			let mut first    = true;
-			let     delegate = Delegate::new(manager.clone(), self.window.clone(), self.view.clone());
 
 			loop {
 				let pool  = NSAutoreleasePool::new(nil);

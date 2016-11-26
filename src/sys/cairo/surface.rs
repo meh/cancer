@@ -18,6 +18,9 @@
 #[cfg(target_os = "linux")]
 use xcb;
 
+#[cfg(target_os = "linux")]
+use libc::c_int;
+
 #[cfg(target_os = "macos")]
 use std::os::raw::c_void;
 #[cfg(target_os = "macos")]
@@ -26,7 +29,6 @@ use libc::c_uint;
 use core_graphics::base::CGFloat;
 
 use ffi::cairo::*;
-use libc::c_int;
 
 #[derive(Debug)]
 pub struct Surface(pub *mut cairo_surface_t);
