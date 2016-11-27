@@ -85,8 +85,19 @@ impl Keyboard {
 		let keymap  = xkb::x11::keymap_new_from_device(&context, &connection, device, xkb::KEYMAP_COMPILE_NO_FLAGS);
 		let state   = xkb::x11::state_new_from_device(&keymap, &connection, device);
 
-		let mut table   = xkb::compose::Table::new(&context, &locale.map(String::from).or(env::var("LANG").ok()).unwrap_or("C".into()), 0);
-		let     compose = table.state(0);
+		let (table, compose) = {
+			let     locale = locale.map(String::from).or(env::var("LANG").ok()).unwrap_or("C".into());
+			let mut table  = if let Ok(table) = xkb::compose::Table::new(&context, &locale, 0) {
+				table
+			}
+			else {
+				xkb::compose::Table::new(&context, "C", 0).unwrap()
+			};
+
+			let state = table.state(0);
+
+			(table, state)
+		};
 
 		Ok(Keyboard {
 			connection: connection,
