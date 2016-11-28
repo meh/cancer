@@ -266,30 +266,60 @@ impl Window {
 					// Handle mouse clicks.
 					appkit::NSLeftMouseDown |
 					appkit::NSRightMouseDown |
+					appkit::NSOtherMouseDown |
 					appkit::NSLeftMouseUp |
-					appkit::NSRightMouseUp => {
-						let press = event.eventType() == appkit::NSLeftMouseDown
-							|| event.eventType() == appkit::NSRightMouseDown;
+					appkit::NSRightMouseUp |
+					appkit::NSOtherMouseUp => {
+						let press = event.eventType() == appkit::NSLeftMouseDown ||
+						            event.eventType() == appkit::NSRightMouseDown ||
+						            event.eventType() == appkit::NSOtherMouseDown;
 
-						let button = if event.eventType() == appkit::NSLeftMouseDown ||
-						                event.eventType() == appkit::NSLeftMouseUp {
-							mouse::Button::Left
-						}
-						else {
-							mouse::Button::Right
+						let button = match event.buttonNumber() {
+							0 => Some(mouse::Button::Left),
+							1 => Some(mouse::Button::Right),
+							2 => Some(mouse::Button::Middle),
+							_ => None
 						};
 
-						try!(manager.send(Event::Mouse(Mouse::Click(mouse::Click {
-							press:    press,
-							button:   button,
+						if let Some(button) = button {
+							try!(manager.send(Event::Mouse(Mouse::Click(mouse::Click {
+								press:    press,
+								button:   button,
+								modifier: modifier,
+								position: position(&self.window, &self.view, event),
+							}))));
+						}
+					}
+
+					// Handle mouse motion.
+					appkit::NSMouseMoved |
+					appkit::NSLeftMouseDragged |
+					appkit::NSRightMouseDragged |
+					appkit::NSOtherMouseDragged => {
+						try!(manager.send(Event::Mouse(Mouse::Motion(mouse::Motion {
 							modifier: modifier,
 							position: position(&self.window, &self.view, event),
 						}))));
 					}
 
-					// Handle mouse motion.
-					appkit::NSMouseMoved => {
-						try!(manager.send(Event::Mouse(Mouse::Motion(mouse::Motion {
+					appkit::NSScrollWheel => {
+						let button = if event.scrollingDeltaY().is_sign_positive() {
+							mouse::Button::Up
+						}
+						else {
+							mouse::Button::Down
+						};
+
+						try!(manager.send(Event::Mouse(Mouse::Click(mouse::Click {
+							press:    true,
+							button:   button,
+							modifier: modifier,
+							position: position(&self.window, &self.view, event),
+						}))));
+
+						try!(manager.send(Event::Mouse(Mouse::Click(mouse::Click {
+							press:    false,
+							button:   button,
 							modifier: modifier,
 							position: position(&self.window, &self.view, event),
 						}))));
