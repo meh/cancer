@@ -1637,9 +1637,14 @@ impl Terminal {
 
 		let (x, y) = term!(self; cursor);
 
-		// If the inserted character is all whitespace, make the cell empty,
-		// otherwise make it occupied.
-		if ch.chars().all(char::is_whitespace) {
+		// If the character width goes beyond the terminal width add an error
+		// character.
+		if x + width > self.region.width {
+			self.grid[(x, y)].make_occupied("�", self.cursor.style().clone());
+			self.touched.mark(x, y);
+		}
+		// If the inserted character is all whitespace make the cell empty.
+		else if ch.chars().all(char::is_whitespace) {
 			for x in x .. x + width {
 				self.grid[(x, y)].make_empty(self.cursor.style().clone());
 				self.touched.mark(x, y);
@@ -1647,6 +1652,7 @@ impl Terminal {
 
 			term!(self; clean references (x + width, y));
 		}
+		// Just insert the graphame.
 		else {
 			self.grid[(x, y)].make_occupied(ch, self.cursor.style().clone());
 			self.touched.mark(x, y);
