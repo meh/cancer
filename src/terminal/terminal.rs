@@ -21,6 +21,7 @@ use std::io::{self, Write};
 use std::mem;
 use std::vec;
 use std::str;
+use std::cmp;
 
 use unicode_segmentation::UnicodeSegmentation;
 use unicode_width::UnicodeWidthStr;
@@ -856,8 +857,10 @@ impl Terminal {
 
 			Control::DEC(DEC::ScrollRegion { top, bottom }) => {
 				let mut top    = top;
-				let mut bottom = util::clamp(bottom.unwrap_or(self.region.height),
-					0, self.region.height - 1);
+				let mut bottom = bottom.unwrap_or(self.region.height);
+
+				top    = util::clamp(top, 0, self.region.height - 1);
+				bottom = util::clamp(bottom, 0, self.region.height - 1);
 
 				if top > bottom {
 					mem::swap(&mut top, &mut bottom);
@@ -1241,7 +1244,7 @@ impl Terminal {
 			Control::C1(C1::ControlSequence(CSI::EraseCharacter(n))) => {
 				let (x, y) = term!(self; cursor);
 
-				for x in x .. x + n {
+				for x in x .. cmp::min(x + n, self.region.width) {
 					self.grid[(x, y)].make_empty(self.cursor.style().clone());
 					self.touched.mark(x, y);
 				}
