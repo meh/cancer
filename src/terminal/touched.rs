@@ -19,8 +19,7 @@ use std::mem;
 use std::collections::{hash_set, HashSet};
 use std::hash::BuildHasherDefault;
 use fnv::FnvHasher;
-use picto::Region;
-use picto::iter::Coordinates;
+use util::{Coordinates, Region};
 
 /// Object to handle cells being touched.
 #[derive(Eq, PartialEq, Clone, Default, Debug)]
@@ -97,7 +96,7 @@ impl Iter {
 	/// Create a new empty touched iterator.
 	pub fn empty() -> Self {
 		Iter {
-			region: Region::from(0, 0, 0, 0),
+			region: Region::new(0, 0, 0, 0),
 			state:  State::Done,
 			lines:  Default::default(),
 

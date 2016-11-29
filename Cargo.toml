@@ -11,6 +11,7 @@ repository  = "https://github.com/meh/terme"
 keywords    = ["term", "pty"]
 
 [profile.release]
+debug = true
 lto   = true
 panic = "abort"
 
@@ -34,7 +35,7 @@ control-code  = "0.4.7"
 clap     = "2"
 app_dirs = "1.1"
 toml     = "0.1"
-picto    = "0.4"
+palette  = "0.2"
 regex    = "0.1"
 
 unicode-segmentation = "0.1"

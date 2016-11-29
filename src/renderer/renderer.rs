@@ -20,7 +20,7 @@ use std::sync::Arc;
 use std::rc::Rc;
 use std::ops::{Deref, DerefMut};
 
-use picto::Region;
+use util::Region;
 use config::Config;
 use config::style::Shape;
 use sys::cairo;
@@ -174,7 +174,7 @@ impl Renderer {
 		    (region.y < v && region.height <= v - region.y) ||
 		    (region.y >= self.height - v))
 		{
-			return Region::from(0, 0, 0, 0);
+			return Region::new(0, 0, 0, 0);
 		}
 
 		// Cache font dimensions.
@@ -205,7 +205,7 @@ impl Renderer {
 		// This is done because the dirty region is actually bigger than the one
 		// reported, or because the algorithm is broken. Regardless, this way it
 		// works properly.
-		Region::from(x, y,
+		Region::new(x, y,
 			w + if x + w < self.columns() { 1 } else { 0 },
 			h + if y + h < self.rows() { 1 } else { 0 })
 	}

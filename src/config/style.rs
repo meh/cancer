@@ -16,7 +16,7 @@
 // along with cancer.  If not, see <http://www.gnu.org/licenses/>.
 
 use toml::{self, Value};
-use picto::color::Rgba;
+use palette::Rgba;
 use config::util::{to_color, to_attributes};
 use style;
 

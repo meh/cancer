@@ -15,7 +15,7 @@
 // You should have received a copy of the GNU General Public License
 // along with cancer.  If not, see <http://www.gnu.org/licenses/>.
 
-use picto::color::Rgba;
+use palette::Rgba;
 
 #[derive(PartialEq, Copy, Clone, Debug)]
 pub struct Style {

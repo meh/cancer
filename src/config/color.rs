@@ -19,7 +19,7 @@ use std::collections::HashMap;
 use std::hash::BuildHasherDefault;
 use fnv::FnvHasher;
 use toml;
-use picto::color::Rgba;
+use palette::Rgba;
 use config::util::to_color;
 
 #[derive(PartialEq, Clone, Debug)]

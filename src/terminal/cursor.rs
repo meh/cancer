@@ -19,7 +19,7 @@ use std::ops::Deref;
 use std::rc::Rc;
 use std::sync::Arc;
 
-use picto::color::Rgba;
+use palette::Rgba;
 use style::Style;
 use config::Config;
 use config::style::Shape;

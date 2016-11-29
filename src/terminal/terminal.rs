@@ -25,8 +25,7 @@ use std::cmp;
 
 use unicode_segmentation::UnicodeSegmentation;
 use unicode_width::UnicodeWidthStr;
-use picto::Region;
-use picto::color::Rgba;
+use palette::Rgba;
 use control::{self, Control, C0, C1, DEC, CSI, SGR};
 use util;
 use error;
@@ -35,6 +34,7 @@ use config::style::Shape;
 use style::{self, Style};
 use platform::key::{self, Key};
 use platform::mouse::{self, Mouse};
+use util::Region;
 use terminal::{Iter, Touched, Cell, Tabs, Grid, cell};
 use terminal::mode::{self, Mode};
 use terminal::cursor::{self, Cursor};
@@ -134,7 +134,7 @@ macro_rules! term {
 impl Terminal {
 	/// Create a new terminal.
 	pub fn new(config: Arc<Config>, width: u32, height: u32) -> error::Result<Self> {
-		let region = Region::from(0, 0, width, height);
+		let region = Region::new(0, 0, width, height);
 		let grid   = Grid::new(width, height, config.environment().scroll());
 		let tabs   = Tabs::new(width, height);
 

@@ -19,7 +19,7 @@ use std::ops::Index;
 use std::io::Write;
 use std::vec;
 
-use picto::Region;
+use util::Region;
 use error;
 use config::Config;
 use platform::{Clipboard, Key, Mouse};

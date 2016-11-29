@@ -15,73 +15,11 @@
 // You should have received a copy of the GNU General Public License
 // along with cancer.  If not, see <http://www.gnu.org/licenses/>.
 
-macro_rules! try {
-	(return option $body:expr) => (
-		if let Some(value) = $body {
-			value
-		}
-		else {
-			return;
-		}
-	);
+#[macro_use]
+mod macros;
 
-	(return $body:expr) => (
-		if let Ok(value) = $body {
-			value
-		}
-		else {
-			return;
-		}
-	);
-
-	(continue $body:expr) => (
-		if let Ok(value) = $body {
-			value
-		}
-		else {
-			continue;
-		}
-	);
-
-	(break $body:expr) => (
-		if let Ok(value) = $body {
-			value
-		}
-		else {
-			break;
-		}
-	);
-
-	(ok $body:expr) => (
-		if let Ok(value) = $body {
-			value
-		}
-		else {
-			return Ok(());
-		}
-	);
-
-	(option $body:expr) => (
-		if let Some(value) = $body {
-			value
-		}
-		else {
-			return None;
-		}
-	);
-
-	($body:expr) => (
-		$body?
-	);
-}
-
-macro_rules! vec_deque {
-	($value:expr; $size:expr) => ({
-		let mut value = VecDeque::new();
-		value.extend(::std::iter::repeat($value).take($size));
-		value
-	})
-}
+mod region;
+pub use self::region::{Region, Coordinates};
 
 pub fn clamp<T: PartialOrd>(n: T, min: T, max: T) -> T {
 	if n > max {

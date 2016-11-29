@@ -30,8 +30,7 @@ extern crate fnv;
 extern crate itertools;
 extern crate lru_cache as lru;
 extern crate shlex;
-extern crate picto;
-use picto::Region;
+extern crate palette;
 extern crate schedule_recv as timer;
 #[macro_use]
 extern crate control_code as control;
@@ -66,6 +65,8 @@ extern crate core_graphics;
 
 #[macro_use]
 mod util;
+use util::Region;
+
 mod error;
 mod ffi;
 mod sys;
@@ -331,8 +332,8 @@ fn spawn<W: platform::Proxy + 'static>(matches: &ArgMatches, config: Arc<Config>
 							let columns = renderer.columns();
 
 							renderer.batch(|mut o| {
-								o.margin(&Region::from(0, 0, width, height));
-								o.update(&interface, Region::from(0, 0, columns, rows).absolute(), options)
+								o.margin(&Region::new(0, 0, width, height));
+								o.update(&interface, Region::new(0, 0, columns, rows).absolute(), options)
 							});
 
 							surface.flush();
