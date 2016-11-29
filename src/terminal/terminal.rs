@@ -1637,11 +1637,12 @@ impl Terminal {
 
 		let (x, y) = term!(self; cursor);
 
-		// If the character width goes beyond the terminal width add an error
-		// character.
+		// If the character width goes beyond the terminal width, make the cells empty.
 		if x + width > self.region.width {
-			self.grid[(x, y)].make_occupied("�", self.cursor.style().clone());
-			self.touched.mark(x, y);
+			for x in x .. self.region.width {
+				self.grid[(x, y)].make_empty(self.cursor.style().clone());
+				self.touched.mark(x, y);
+			}
 		}
 		// If the inserted character is all whitespace make the cell empty.
 		else if ch.chars().all(char::is_whitespace) {
