@@ -17,7 +17,6 @@
 
 use platform::Clipboard;
 
-#[derive(Eq, PartialEq, Clone, Debug)]
 pub enum Command {
 	None,
 	Exit,
@@ -29,7 +28,6 @@ pub enum Command {
 	Hint(Hint),
 }
 
-#[derive(Eq, PartialEq, Copy, Clone, Debug)]
 pub enum Scroll {
 	Up(u32),
 	Down(u32),
@@ -40,7 +38,6 @@ pub enum Scroll {
 	To(u32),
 }
 
-#[derive(Eq, PartialEq, Clone, Debug)]
 pub enum Move {
 	Left(u32),
 	Right(u32),
@@ -49,35 +46,38 @@ pub enum Move {
 	Start,
 	End,
 	To(u32, u32),
+	Next(u32, Next),
+	Previous(u32, Previous),
+}
+
+pub enum Next {
 	Word(Word),
-	Until(Until),
+	Match(Match),
 }
 
-#[derive(Eq, PartialEq, Copy, Clone, Debug)]
+pub enum Previous {
+	Word(Word),
+	Match(Match),
+}
+
+pub type Boundary = Box<Fn(&str) -> bool>;
+
 pub enum Word {
-	Next(u32),
-	Previous(u32),
-	NextEnd(u32),
-	PreviousEnd(u32),
+	Start(Boundary),
+	End(Boundary),
 }
 
-#[derive(Eq, PartialEq, Clone, Debug)]
-pub enum Until {
-	Next(u32, String),
-	Previous(u32, String),
-
-	NextBefore(u32, String),
-	PreviousBefore(u32, String),
+pub enum Match {
+	After(String),
+	Before(String),
 }
 
-#[derive(Eq, PartialEq, Copy, Clone, Debug)]
 pub enum Select {
 	Normal,
 	Block,
 	Line,
 }
 
-#[derive(Eq, PartialEq, Clone, Debug)]
 pub enum Hint {
 	Start,
 	Pick(char),
