@@ -19,6 +19,12 @@
 #![feature(trace_macros, type_ascription, inclusive_range_syntax, pub_restricted)]
 #![feature(deque_extras, box_syntax)]
 
+#![cfg_attr(feature = "afl", feature(plugin))]
+#![cfg_attr(feature = "afl", plugin(afl_plugin))]
+
+#[cfg(feature = "afl")]
+extern crate afl;
+
 #[macro_use]
 extern crate log;
 extern crate env_logger;
@@ -103,6 +109,9 @@ use std::mem;
 use std::io::Write;
 
 fn main() {
+	#[cfg(feature = "afl")]
+	unsafe { afl::init() };
+
 	env_logger::init().unwrap();
 
 	let matches = App::new("cancer")

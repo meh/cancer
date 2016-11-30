@@ -54,3 +54,12 @@ core-graphics   = "0.4"
 
 [features]
 static = []
+fuzzy  = ["afl", "afl-plugin"]
+
+[dependencies.afl]
+version  = "0.1"
+optional = true
+
+[dependencies.afl-plugin]
+version  = "0.1"
+optional = true
