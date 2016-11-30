@@ -17,7 +17,7 @@
 
 #![feature(mpsc_select, conservative_impl_trait, slice_patterns, static_in_const)]
 #![feature(trace_macros, type_ascription, inclusive_range_syntax, pub_restricted)]
-#![feature(deque_extras, box_syntax)]
+#![feature(deque_extras, box_syntax, question_mark)]
 
 #[macro_use]
 extern crate log;
@@ -82,11 +82,11 @@ mod style;
 mod renderer;
 use renderer::Renderer;
 
-mod terminal;
-use terminal::Terminal;
-
 mod interface;
 use interface::{Interface, Action};
+
+mod terminal;
+use terminal::Terminal;
 
 mod overlay;
 use overlay::Overlay;
@@ -149,8 +149,9 @@ fn main() {
 		return;
 	}
 
-	let     config = Arc::new(Config::load(matches.value_of("config")).unwrap());
-	let     font   = Arc::new(Font::load(matches.value_of("font").unwrap_or(config.style().font())).unwrap());
+	let config = Arc::new(Config::load(matches.value_of("config")).unwrap());
+	let font   = Arc::new(Font::load(matches.value_of("font").unwrap_or(config.style().font())).unwrap());
+
 	let mut window = Window::new(matches.value_of("name"), config.clone(), font.clone()).unwrap();
 	let     proxy  = window.proxy();
 	let     _      = window.run(spawn(&matches, config.clone(), font.clone(), proxy).unwrap());

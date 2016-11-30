@@ -14,10 +14,11 @@ fn cairo() -> Result<(), Error> {
 		}
 
 		println!("cargo:rustc-link-search=native={}", path);
-		return Ok(());
+	}
+	else {
+		try!(Config::new().statik(is_static()).probe("cairo"));
 	}
 
-	Config::new().statik(is_static()).probe("cairo")?;
 	Ok(())
 }
 
@@ -28,10 +29,11 @@ fn pango() -> Result<(), Error> {
 		}
 
 		println!("cargo:rustc-link-search=native={}", path);
-		return Ok(());
+	}
+	else {
+		try!(Config::new().statik(is_static()).probe("pangocairo"));
 	}
 
-	Config::new().statik(is_static()).probe("pangocairo")?;
 	Ok(())
 }
 

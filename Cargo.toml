@@ -10,6 +10,14 @@ description = "Terminal cancer."
 repository  = "https://github.com/meh/terme"
 keywords    = ["term", "pty"]
 
+[[bin]]
+name = "cancer"
+path = "src/main.rs"
+
+[[bin]]
+name = "afl"
+path = "src/afl.rs"
+
 [profile.release]
 debug = true
 lto   = true
@@ -54,3 +62,12 @@ core-graphics   = "0.4"
 
 [features]
 static = []
+crash  = ["afl", "afl-plugin"]
+
+[dependencies.afl]
+version  = "0.1"
+optional = true
+
+[dependencies.afl-plugin]
+version  = "0.1"
+optional = true

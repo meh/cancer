@@ -18,7 +18,7 @@
 use std::ptr;
 use std::io::{self, Write};
 use std::thread;
-use std::sync::mpsc::{SyncSender, Receiver, sync_channel};
+use std::sync::mpsc::{Sender, Receiver, channel, sync_channel};
 
 use libc::{c_void, c_char, c_ushort, c_int, winsize};
 use libc::{SIGCHLD, SIGHUP, SIGINT, SIGQUIT, SIGTERM, SIGALRM, SIG_DFL, TIOCSCTTY, TIOCSWINSZ};
@@ -32,7 +32,7 @@ pub struct Tty {
 	id: c_int,
 	fd: c_int,
 
-	input:  SyncSender<Vec<u8>>,
+	input:  Sender<Vec<u8>>,
 	output: Option<Receiver<Vec<u8>>>,
 	buffer: Option<Vec<u8>>,
 }
@@ -88,77 +88,83 @@ impl Tty {
 					// Free the slaves.
 					close(slave);
 
-					let (i_sender, i_receiver) = sync_channel::<Vec<u8>>(16);
-					let (o_sender, o_receiver) = sync_channel::<Vec<u8>>(16);
-
-					// Spawn the reader.
-					thread::spawn(move || {
-						let mut buffer = [0u8; 64 * 1024];
-						let     flags  = fcntl(master, F_GETFL, 0);
-
-						loop {
-							let mut consumed = 0usize;
-
-							// First do a blocking read.
-							match read(master, buffer.as_mut_ptr() as _, buffer.len() as _) {
-								// Stop the thread on failure or EOF.
-								-1 | 0 =>
-									return,
-
-								n =>
-									consumed += n as usize
-							}
-
-							// Set as non-blocking and try to read until the buffer is full.
-							{
-								fcntl(master, F_SETFL, flags | O_NONBLOCK);
-
-								loop {
-									let mut offset = &mut buffer[consumed ..];
-
-									match read(master, offset.as_mut_ptr() as _, offset.len() as _) {
-										// Break out of the non-blocking loop, any errors or EOF
-										// will be handled by the next loop.
-										-1 | 0 =>
-											break,
-
-										n =>
-											consumed += n as usize
-									}
-								}
-
-								fcntl(master, F_SETFL, flags);
-							}
-
-							try!(return o_sender.send((&buffer[.. consumed]).to_vec()));
-						}
-					});
-
-					// Spawn writer.
-					thread::spawn(move || {
-						while let Ok(buffer) = i_receiver.recv() {
-							let mut buffer = &buffer[..];
-
-							while !buffer.is_empty() {
-								match write(master, buffer.as_ptr() as _, buffer.len() as _) {
-									-1 | 0 => return,
-									n      => buffer = &buffer[n as usize ..],
-								}
-							}
-						}
-					});
+					let (input, output) = Tty::open(master, master);
 
 					Ok(Tty {
 						id: id,
 						fd: master,
 
-						input:  i_sender,
-						output: Some(o_receiver),
+						input:  input,
+						output: Some(output),
 						buffer: None,
 					})
 				}
 			}
 		}
+	}
+
+	unsafe fn open(input: c_int, output: c_int) -> (Sender<Vec<u8>>, Receiver<Vec<u8>>) {
+		let (i_sender, i_receiver) = channel::<Vec<u8>>();
+		let (o_sender, o_receiver) = sync_channel::<Vec<u8>>(16);
+
+		// Spawn the reader.
+		thread::spawn(move || {
+			let mut buffer = [0u8; 64 * 1024];
+			let     flags  = fcntl(input, F_GETFL, 0);
+
+			loop {
+				let mut consumed = 0usize;
+
+				// First do a blocking read.
+				match read(input, buffer.as_mut_ptr() as _, buffer.len() as _) {
+					// Stop the thread on failure or EOF.
+					-1 | 0 =>
+						return,
+
+					n =>
+						consumed += n as usize
+				}
+
+				// Set as non-blocking and try to read until the buffer is full.
+				{
+					fcntl(input, F_SETFL, flags | O_NONBLOCK);
+
+					loop {
+						let mut offset = &mut buffer[consumed ..];
+
+						match read(input, offset.as_mut_ptr() as _, offset.len() as _) {
+							// Break out of the non-blocking loop, any errors or EOF
+							// will be handled by the next loop.
+							-1 | 0 =>
+								break,
+
+							n =>
+								consumed += n as usize
+						}
+					}
+
+					fcntl(input, F_SETFL, flags);
+				}
+
+				try!(return o_sender.send((&buffer[.. consumed]).to_vec()));
+			}
+		});
+
+		// Spawn writer.
+		thread::spawn(move || {
+			while let Ok(buffer) = i_receiver.recv() {
+				let mut buffer = &buffer[..];
+
+				while !buffer.is_empty() {
+					match write(output, buffer.as_ptr() as _, buffer.len() as _) {
+						-1 | 0 => return,
+						n      => buffer = &buffer[n as usize ..],
+					}
+				}
+			}
+		});
+
+		(i_sender, o_receiver)
 	}
 
 	pub fn output(&mut self) -> Receiver<Vec<u8>> {
