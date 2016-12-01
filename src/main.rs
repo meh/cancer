@@ -205,13 +205,6 @@ fn main() {
 				options
 			});
 
-			(options!) => ({
-				let mut options = render!(options);
-				options.insert(renderer::option::DAMAGE);
-
-				options
-			});
-
 			(handle $what:expr) => ({
 				let (actions, touched) = try!(continue $what);
 
@@ -268,11 +261,7 @@ fn main() {
 				let iter = $iter;
 
 				if visible {
-					let options = render!(options);
-
-					renderer.batch(|mut o| {
-						o.update(&interface, iter, options);
-					});
+					renderer.render(render!(options), None, &interface, iter);
 
 					surface.flush();
 					window.flush();
@@ -326,30 +315,21 @@ fn main() {
 							}
 
 							Event::Redraw => {
-								let options = render!(options!);
 								let width   = renderer.width();
 								let height  = renderer.height();
 								let rows    = renderer.rows();
 								let columns = renderer.columns();
 
-								renderer.batch(|mut o| {
-									o.margin(&Region::new(0, 0, width, height));
-									o.update(&interface, Region::new(0, 0, columns, rows).absolute(), options)
-								});
+								renderer.render(render!(options), Some(Region::new(0, 0, width, height)),
+									&interface, Region::new(0, 0, columns, rows).absolute());
 
 								surface.flush();
 								window.flush();
 							}
 
 							Event::Damaged(region) => {
-								let options = render!(options!);
-
-								renderer.batch(|mut o| {
-									o.margin(&region);
-
-									let damaged = o.damaged(&region).relative();
-									o.update(&interface, damaged, options);
-								});
+								let damaged = renderer.damaged(&region);
+								renderer.render(render!(options), Some(region), &interface, damaged.relative());
 
 								surface.flush();
 								window.flush();
