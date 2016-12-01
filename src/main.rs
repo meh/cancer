@@ -70,41 +70,40 @@ extern crate core_graphics;
 
 #[macro_use]
 mod util;
-use util::Region;
-
 mod error;
 mod ffi;
 mod sys;
 
 mod config;
-use config::Config;
-
 mod font;
-use font::Font;
-
 mod style;
 
+mod platform;
 mod renderer;
-use renderer::Renderer;
 
 mod interface;
-use interface::{Interface, Action};
-
 mod terminal;
-use terminal::Terminal;
-
 mod overlay;
-use overlay::Overlay;
-
-mod platform;
-use platform::{Window, Tty, Event};
-use platform::mouse::{self, Mouse};
-
-use std::sync::Arc;
-use std::sync::mpsc::{Sender, channel};
 
 #[cfg(not(feature = "fuzzy"))]
 fn main() {
+	use std::sync::Arc;
+	use std::sync::mpsc::{Sender, channel};
+	use std::iter;
+	use std::mem;
+	use std::io::Write;
+	use std::thread;
+
+	use util::Region;
+	use config::Config;
+	use font::Font;
+	use renderer::Renderer;
+	use interface::{Interface, Action};
+	use terminal::Terminal;
+	use overlay::Overlay;
+	use platform::{Window, Tty, Event};
+	use platform::mouse::{self, Mouse};
+
 	env_logger::init().unwrap();
 
 	let matches = App::new("cancer")
@@ -157,282 +156,280 @@ fn main() {
 	let mut window = Window::new(matches.value_of("name"), config.clone(), font.clone()).unwrap();
 	let     proxy  = window.proxy();
 	let     _      = window.run(spawn(&matches, config.clone(), font.clone(), proxy).unwrap());
-}
 
-#[cfg(not(feature = "fuzzy"))]
-fn spawn<W: platform::Proxy + 'static>(matches: &ArgMatches, config: Arc<Config>, font: Arc<Font>, mut window: W) -> error::Result<Sender<Event>> {
-	use std::iter;
-	use std::mem;
-	use std::io::Write;
-	use std::thread;
+	fn spawn<W: platform::Proxy + 'static>(matches: &ArgMatches, config: Arc<Config>, font: Arc<Font>, mut window: W) -> error::Result<Sender<Event>> {
+		let (sender, events) = channel();
+		window.prepare(sender.clone());
 
-	let (sender, events) = channel();
-	window.prepare(sender.clone());
+		let mut surface = window.surface().unwrap();
+		let     (w, h)  = window.dimensions();
 
-	let mut surface = window.surface().unwrap();
-	let     (w, h)  = window.dimensions();
+		let mut renderer  = Renderer::new(config.clone(), font.clone(), &surface, w, h);
+		let mut interface = Interface::from(Terminal::new(config.clone(), renderer.columns(), renderer.rows())?);
+		let mut tty       = Tty::spawn(renderer.columns(), renderer.rows(),
+	                                 matches.value_of("term").or_else(|| config.environment().term()),
+	                                 matches.value_of("execute").or_else(|| config.environment().program()))?;
 
-	let mut renderer  = Renderer::new(config.clone(), font.clone(), &surface, w, h);
-	let mut interface = Interface::from(Terminal::new(config.clone(), renderer.columns(), renderer.rows())?);
-	let mut tty       = Tty::spawn(renderer.columns(), renderer.rows(),
-                                 matches.value_of("term").or_else(|| config.environment().term()),
-                                 matches.value_of("execute").or_else(|| config.environment().program()))?;
+		let mut focused = true;
+		let mut visible = true;
 
-	let mut focused = true;
-	let mut visible = true;
+		let     blink    = timer::periodic_ms(config.style().blink());
+		let mut blinking = true;
 
-	let     blink    = timer::periodic_ms(config.style().blink());
-	let mut blinking = true;
+		let (_batcher, mut batch) = channel();
+		let mut batching          = None;
+		let mut batched           = None;
 
-	let (_batcher, mut batch) = channel();
-	let mut batching          = None;
-	let mut batched           = None;
+		let input = tty.output();
 
-	let input = tty.output();
+		macro_rules! render {
+			(options) => ({
+				let mut options = renderer::Options::empty();
 
-	macro_rules! render {
-		(options) => ({
-			let mut options = renderer::Options::empty();
-
-			if interface.mode().contains(terminal::mode::BLINK) {
-				options.insert(renderer::option::BLINKING);
-			}
-
-			if focused {
-				options.insert(renderer::option::FOCUS);
-			}
-
-			if interface.mode().contains(terminal::mode::REVERSE) {
-				options.insert(renderer::option::REVERSE);
-			}
-
-			if interface.cursor().is_visible() {
-				options.insert(renderer::option::CURSOR);
-			}
-
-			options
-		});
-
-		(options!) => ({
-			let mut options = render!(options);
-			options.insert(renderer::option::DAMAGE);
-
-			options
-		});
-
-		(handle $what:expr) => ({
-			let (actions, touched) = try!(continue $what);
-
-			if touched.is_total() && batched.is_none() && config.environment().batch().is_some() {
-				batching = Some(true);
-			}
-			else if batched.is_none() && !touched.is_empty() {
-				render!(touched);
-			}
-
-			for action in actions {
-				match action {
-					Action::Urgent => {
-						window.urgent();
-					}
-
-					Action::Overlay(true) => {
-						interface = Overlay::new(try!(return interface.into_inner(tty.by_ref()))).into();
-						render!(interface.region().absolute());
-					}
-
-					Action::Overlay(false) => {
-						interface = try!(return interface.into_inner(tty.by_ref())).into();
-						render!(interface.region().absolute());
-					}
-
-					Action::Title(string) => {
-						window.set_title(string);
-					}
-
-					Action::Resize(columns, rows) => {
-						let (width, height) = Renderer::dimensions(columns, rows, &config, &font);
-						window.resize(width, height);
-					}
-
-					Action::Copy(name, value) => {
-						window.copy(name, value);
-					}
-
-					Action::Paste(name) => {
-						window.paste(name)
-					}
-
-					Action::Open(what) => {
-						window.open(what.as_ref()).unwrap();
-					}
-				}
-			}
-
-			try!(return tty.flush());
-		});
-
-		($iter:expr) => ({
-			let iter = $iter;
-
-			if visible {
-				let options = render!(options);
-
-				renderer.batch(|mut o| {
-					o.update(&interface, iter, options);
-				});
-
-				surface.flush();
-				window.flush();
-			}
-		});
-	}
-
-	thread::spawn(move || {
-		let _batcher = _batcher;
-
-		loop {
-			match batching.take() {
-				Some(true) => {
-					batched = Some(mem::replace(&mut batch,
-						timer::oneshot_ms(config.environment().batch().unwrap())));
+				if interface.mode().contains(terminal::mode::BLINK) {
+					options.insert(renderer::option::BLINKING);
 				}
 
-				Some(false) => {
-					if let Some(empty) = batched.take() {
-						batch = empty;
-						render!(interface.region().absolute());
+				if focused {
+					options.insert(renderer::option::FOCUS);
+				}
+
+				if interface.mode().contains(terminal::mode::REVERSE) {
+					options.insert(renderer::option::REVERSE);
+				}
+
+				if interface.cursor().is_visible() {
+					options.insert(renderer::option::CURSOR);
+				}
+
+				options
+			});
+
+			(options!) => ({
+				let mut options = render!(options);
+				options.insert(renderer::option::DAMAGE);
+
+				options
+			});
+
+			(handle $what:expr) => ({
+				let (actions, touched) = try!(continue $what);
+
+				if touched.is_total() && batched.is_none() && config.environment().batch().is_some() {
+					batching = Some(true);
+				}
+				else if batched.is_none() && !touched.is_empty() {
+					render!(touched);
+				}
+
+				for action in actions {
+					match action {
+						Action::Urgent => {
+							window.urgent();
+						}
+
+						Action::Overlay(true) => {
+							interface = Overlay::new(try!(return interface.into_inner(tty.by_ref()))).into();
+							render!(interface.region().absolute());
+						}
+
+						Action::Overlay(false) => {
+							interface = try!(return interface.into_inner(tty.by_ref())).into();
+							render!(interface.region().absolute());
+						}
+
+						Action::Title(string) => {
+							window.set_title(string);
+						}
+
+						Action::Resize(columns, rows) => {
+							let (width, height) = Renderer::dimensions(columns, rows, &config, &font);
+							window.resize(width, height);
+						}
+
+						Action::Copy(name, value) => {
+							window.copy(name, value);
+						}
+
+						Action::Paste(name) => {
+							window.paste(name)
+						}
+
+						Action::Open(what) => {
+							window.open(what.as_ref()).unwrap();
+						}
 					}
 				}
 
-				None => ()
-			}
+				try!(return tty.flush());
+			});
 
-			select! {
-				_ = batch.recv() => {
-					batching = Some(false);
-				},
+			($iter:expr) => ({
+				let iter = $iter;
 
-				_ = blink.recv() => {
-					blinking = !blinking;
+				if visible {
+					let options = render!(options);
 
-					let blinked = interface.blinking(blinking);
-					if (!blinked.is_empty() || interface.cursor().blink()) && batched.is_none() {
-						render!(blinked);
+					renderer.batch(|mut o| {
+						o.update(&interface, iter, options);
+					});
+
+					surface.flush();
+					window.flush();
+				}
+			});
+		}
+
+		thread::spawn(move || {
+			let _batcher = _batcher;
+
+			loop {
+				match batching.take() {
+					Some(true) => {
+						batched = Some(mem::replace(&mut batch,
+							timer::oneshot_ms(config.environment().batch().unwrap())));
 					}
-				},
 
-				event = events.recv() => {
-					let event = try!(return event);
-					debug!(target: "cancer::runner", "{:?}", event);
-
-					match event {
-						Event::Closed => return,
-
-						Event::Show(value) => {
-							visible = value;
+					Some(false) => {
+						if let Some(empty) = batched.take() {
+							batch = empty;
+							render!(interface.region().absolute());
 						}
+					}
 
-						Event::Redraw => {
-							let options = render!(options!);
-							let width   = renderer.width();
-							let height  = renderer.height();
-							let rows    = renderer.rows();
-							let columns = renderer.columns();
+					None => ()
+				}
 
-							renderer.batch(|mut o| {
-								o.margin(&Region::new(0, 0, width, height));
-								o.update(&interface, Region::new(0, 0, columns, rows).absolute(), options)
-							});
+				select! {
+					_ = batch.recv() => {
+						batching = Some(false);
+					},
 
-							surface.flush();
-							window.flush();
+					_ = blink.recv() => {
+						blinking = !blinking;
+
+						let blinked = interface.blinking(blinking);
+						if (!blinked.is_empty() || interface.cursor().blink()) && batched.is_none() {
+							render!(blinked);
 						}
+					},
 
-						Event::Damaged(region) => {
-							let options = render!(options!);
+					event = events.recv() => {
+						let event = try!(return event);
+						debug!(target: "cancer::runner", "{:?}", event);
 
-							renderer.batch(|mut o| {
-								o.margin(&region);
+						match event {
+							Event::Closed => return,
 
-								let damaged = o.damaged(&region).relative();
-								o.update(&interface, damaged, options);
-							});
-
-							surface.flush();
-							window.flush();
-						}
-
-						Event::Focus(focus) => {
-							focused = focus;
-							try!(return interface.focus(focus, tty.by_ref()));
-							render!(iter::empty());
-						}
-
-						Event::Resize(width, height) => {
-							if renderer.width() == width && renderer.height() == height {
-								continue;
+							Event::Show(value) => {
+								visible = value;
 							}
 
-							if interface.overlay() {
-								interface = try!(return interface.into_inner(tty.by_ref())).into();
+							Event::Redraw => {
+								let options = render!(options!);
+								let width   = renderer.width();
+								let height  = renderer.height();
+								let rows    = renderer.rows();
+								let columns = renderer.columns();
+
+								renderer.batch(|mut o| {
+									o.margin(&Region::new(0, 0, width, height));
+									o.update(&interface, Region::new(0, 0, columns, rows).absolute(), options)
+								});
+
+								surface.flush();
+								window.flush();
 							}
 
-							surface = window.surface().unwrap();
-							renderer.resize(&surface, width, height);
+							Event::Damaged(region) => {
+								let options = render!(options!);
 
-							let rows    = renderer.rows();
-							let columns = renderer.columns();
+								renderer.batch(|mut o| {
+									o.margin(&region);
 
-							if interface.columns() != columns || interface.rows() != rows {
-								try!(return tty.resize(columns, rows));
-								interface.resize(columns, rows);
+									let damaged = o.damaged(&region).relative();
+									o.update(&interface, damaged, options);
+								});
+
+								surface.flush();
+								window.flush();
 							}
-						}
 
-						Event::Paste(value) => {
-							try!(return interface.paste(&value, tty.by_ref()));
-							try!(return tty.flush());
-						}
+							Event::Focus(focus) => {
+								focused = focus;
+								try!(return interface.focus(focus, tty.by_ref()));
+								render!(iter::empty());
+							}
 
-						Event::Key(key) => {
-							render!(handle interface.key(key, tty.by_ref()));
-						}
+							Event::Resize(width, height) => {
+								if renderer.width() == width && renderer.height() == height {
+									continue;
+								}
 
-						Event::Mouse(mut event) => {
-							match event {
-								Mouse::Click(mouse::Click { ref mut position, .. }) |
-								Mouse::Motion(mouse::Motion { ref mut position, .. }) => {
-									if let Some((x, y)) = renderer.position(position.x, position.y) {
-										position.x = x;
-										position.y = y;
-									}
-									else {
-										continue;
-									}
+								if interface.overlay() {
+									interface = try!(return interface.into_inner(tty.by_ref())).into();
+								}
+
+								surface = window.surface().unwrap();
+								renderer.resize(&surface, width, height);
+
+								let rows    = renderer.rows();
+								let columns = renderer.columns();
+
+								if interface.columns() != columns || interface.rows() != rows {
+									try!(return tty.resize(columns, rows));
+									interface.resize(columns, rows);
 								}
 							}
 
-							render!(handle interface.mouse(event, tty.by_ref()));
-						}
-					}
-				},
+							Event::Paste(value) => {
+								try!(return interface.paste(&value, tty.by_ref()));
+								try!(return tty.flush());
+							}
 
-				input = input.recv() => {
-					render!(handle interface.input(&try!(return input), tty.by_ref()));
+							Event::Key(key) => {
+								render!(handle interface.key(key, tty.by_ref()));
+							}
+
+							Event::Mouse(mut event) => {
+								match event {
+									Mouse::Click(mouse::Click { ref mut position, .. }) |
+									Mouse::Motion(mouse::Motion { ref mut position, .. }) => {
+										if let Some((x, y)) = renderer.position(position.x, position.y) {
+											position.x = x;
+											position.y = y;
+										}
+										else {
+											continue;
+										}
+									}
+								}
+
+								render!(handle interface.mouse(event, tty.by_ref()));
+							}
+						}
+					},
+
+					input = input.recv() => {
+						render!(handle interface.input(&try!(return input), tty.by_ref()));
+					}
 				}
 			}
-		}
-	});
+		});
 
-	Ok(sender)
+		Ok(sender)
+	}
 }
 
 #[cfg(feature = "fuzzy")]
 fn main() {
+	use std::sync::Arc;
 	use std::fs::File;
 	use std::io::{Cursor, Read};
 	use std::panic::UnwindSafe;
+
+	use config::Config;
+	use terminal::Terminal;
 
 	env_logger::init().unwrap();
 
