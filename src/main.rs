@@ -19,6 +19,11 @@
 #![feature(trace_macros, type_ascription, inclusive_range_syntax, pub_restricted)]
 #![feature(deque_extras, box_syntax, try_from)]
 
+#![cfg_attr(feature = "fuzzy", feature(plugin))]
+#![cfg_attr(feature = "fuzzy", plugin(afl_plugin))]
+#[cfg(feature = "fuzzy")]
+extern crate afl;
+
 #[macro_use]
 extern crate log;
 extern crate env_logger;
@@ -96,12 +101,9 @@ use platform::{Window, Tty, Event};
 use platform::mouse::{self, Mouse};
 
 use std::sync::Arc;
-use std::thread;
 use std::sync::mpsc::{Sender, channel};
-use std::iter;
-use std::mem;
-use std::io::Write;
 
+#[cfg(not(feature = "fuzzy"))]
 fn main() {
 	env_logger::init().unwrap();
 
@@ -157,7 +159,13 @@ fn main() {
 	let     _      = window.run(spawn(&matches, config.clone(), font.clone(), proxy).unwrap());
 }
 
+#[cfg(not(feature = "fuzzy"))]
 fn spawn<W: platform::Proxy + 'static>(matches: &ArgMatches, config: Arc<Config>, font: Arc<Font>, mut window: W) -> error::Result<Sender<Event>> {
+	use std::iter;
+	use std::mem;
+	use std::io::Write;
+	use std::thread;
+
 	let (sender, events) = channel();
 	window.prepare(sender.clone());
 
@@ -418,4 +426,57 @@ fn spawn<W: platform::Proxy + 'static>(matches: &ArgMatches, config: Arc<Config>
 	});
 
 	Ok(sender)
+}
+
+#[cfg(feature = "fuzzy")]
+fn main() {
+	use std::fs::File;
+	use std::io::{Cursor, Read};
+	use std::panic::UnwindSafe;
+
+	env_logger::init().unwrap();
+
+	let matches = App::new("cancer")
+		.version(env!("CARGO_PKG_VERSION"))
+		.author("meh. <meh@schizofreni.co>")
+		.arg(Arg::with_name("config")
+			.short("c")
+			.long("config")
+			.help("The path to the configuration file.")
+			.takes_value(true))
+		.arg(Arg::with_name("font")
+			.short("f")
+			.long("font")
+			.takes_value(true)
+			.help("Font to use with the terminal."))
+		.arg(Arg::with_name("term")
+			.short("t")
+			.long("term")
+			.takes_value(true).
+			help("Specify the TERM environment variable to use."))
+		.arg(Arg::with_name("test")
+			.short("T")
+			.long("test")
+			.takes_value(true)
+			.help("Test a crasher."))
+		.get_matches();
+
+	let mut terminal = Terminal::new(Arc::new(Config::load(matches.value_of("config")).unwrap()), 80, 24).unwrap();
+
+	if matches.is_present("test") {
+		let mut content = Vec::new();
+		let mut file    = File::open(matches.value_of("test").unwrap()).expect("cannot open crasher");
+		file.read_to_end(&mut content).unwrap();
+
+		terminal.input(&content, Cursor::new(vec![])).unwrap();
+	}
+	else {
+		unsafe { afl::init() }
+
+		impl UnwindSafe for Terminal { }
+
+		afl::handle_bytes(move |input| {
+			terminal.input(&input, Cursor::new(vec![])).unwrap();
+		});
+	}
 }
