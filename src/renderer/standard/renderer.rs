@@ -57,12 +57,12 @@ impl Renderer {
 		self.cache.resize(state.columns(), state.rows());
 	}
 
+	/// Render the given changes.
 	pub fn render<I>(&mut self, state: &State, mut options: Options, region: Option<Region>, interface: &Interface, iter: I)
 		where I: Iterator<Item = (u32, u32)>
 	{
 		if let Some(region) = region {
 			self.margin(state, &region);
-			options.insert(option::DAMAGE);
 		}
 
 		self.context.push();

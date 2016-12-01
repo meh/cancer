@@ -89,10 +89,18 @@ impl Renderer {
 		}
 	}
 
-	pub fn render<I>(&mut self, options: Options, region: Option<Region>, interface: &Interface, iter: I)
+	/// Render the given changes.
+	pub fn render<I>(&mut self, mut options: Options, region: Option<Region>, interface: &Interface, iter: I)
 		where I: Iterator<Item = (u32, u32)>
 	{
 		let (mode, state) = (&mut self.mode, &self.state);
+
+		if region.is_some() {
+			options.insert(option::DAMAGE);
+		}
+		else {
+			options.remove(option::DAMAGE);
+		}
 
 		match *mode {
 			Mode::Standard(ref mut renderer) =>
