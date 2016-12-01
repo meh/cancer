@@ -10,7 +10,7 @@ scroll = 2048
 
 [environment.hinter]
 label   = "1234567890"
-matcher = '(gopher|https?|ftp)://(-\.)?([^\s\n/?\.#]+\.?)+(/[^\s\n]*)?'
+matcher = '(gopher|https?|ftp)://(-\.)?([^\s/?\.#]+\.?)+(/[^\s]*)?'
 opener  = "firefox"
 
 [input]

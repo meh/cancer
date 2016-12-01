@@ -1366,11 +1366,11 @@ impl Overlay {
 				+ self.scroll;
 
 			while let Some(ch) = graphemes.next() {
-				if position.0.is_none() && offset == start {
+				if position.0.is_none() && offset >= start {
 					position.0 = Some((x, y));
 				}
 
-				if position.1.is_none() && offset == end {
+				if position.1.is_none() && offset >= end {
 					position.1 = Some((x, y));
 					break;
 				}

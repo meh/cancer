@@ -58,7 +58,7 @@ impl Default for Hinter {
 	fn default() -> Self {
 		Hinter {
 			label:   vec!['g', 'h', 'f', 'j', 'd', 'k', 's', 'l', 'a', 'v', 'n', 'c', 'm', 'x', 'z'],
-			matcher: Regex::new(r"(https?|ftp)://(-\.)?([^\s\n/?\.#]+\.?)+(/[^\s\n]*)?").unwrap(),
+			matcher: Regex::new(r"(https?|ftp)://(-\.)?([^\s/?\.#]+\.?)+(/[^\s]*)?").unwrap(),
 			opener:  None,
 		}
 	}
