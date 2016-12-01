@@ -22,9 +22,10 @@ use style;
 
 #[derive(PartialEq, Clone, Debug)]
 pub struct Style {
-	font:  Option<String>,
-	blink: u32,
-	bold:  Bold,
+	font:      String,
+	ligatures: bool,
+	blink:     u32,
+	bold:      Bold,
 
 	margin:  u8,
 	spacing: u8,
@@ -37,9 +38,10 @@ pub struct Style {
 impl Default for Style {
 	fn default() -> Self {
 		Style {
-			font:  None,
-			blink: 500,
-			bold:  Bold::default(),
+			font:      "monospace 16px".into(),
+			ligatures: false,
+			blink:     500,
+			bold:      Bold::default(),
 
 			margin:  0,
 			spacing: 0,
@@ -160,7 +162,11 @@ impl Default for Overlay {
 impl Style {
 	pub fn load(&mut self, table: &toml::Table) {
 		if let Some(value) = table.get("font").and_then(|v| v.as_str()) {
-			self.font = Some(value.into());
+			self.font = value.into();
+		}
+
+		if let Some(value) = table.get("ligatures").and_then(|v| v.as_bool()) {
+			self.ligatures = value;
 		}
 
 		if let Some(value) = table.get("bold").and_then(|v| v.as_str()) {
@@ -330,7 +336,11 @@ impl Style {
 	}
 
 	pub fn font(&self) -> &str {
-		self.font.as_ref().map(AsRef::as_ref).unwrap_or("monospace 16px")
+		&self.font
+	}
+
+	pub fn ligatures(&self) -> bool {
+		self.ligatures
 	}
 
 	pub fn blink(&self) -> u32 {

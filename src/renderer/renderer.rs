@@ -22,8 +22,9 @@ use util::Region;
 use sys::cairo;
 use config::Config;
 use font::Font;
-use renderer::{State, Margin, Options};
-use renderer::{standard};
+use renderer::{State, Margin};
+use renderer::{option, Options};
+use renderer::{standard, ligatures};
 use interface::Interface;
 
 pub struct Renderer {
@@ -33,6 +34,7 @@ pub struct Renderer {
 
 pub enum Mode {
 	Standard(standard::Renderer),
+	Ligatures(ligatures::Renderer),
 }
 
 impl Renderer {
@@ -69,7 +71,12 @@ impl Renderer {
 			margin:  margin,
 		};
 
-		let mode = Mode::Standard(standard::Renderer::new(surface, &state));
+		let mode = if state.config().style().ligatures() {
+			Mode::Ligatures(ligatures::Renderer::new(surface, &state))
+		}
+		else {
+			Mode::Standard(standard::Renderer::new(surface, &state))
+		};
 
 		Renderer {
 			state: state,
@@ -85,6 +92,9 @@ impl Renderer {
 
 		match *mode {
 			Mode::Standard(ref mut renderer) =>
+				renderer.resize(surface, state),
+
+			Mode::Ligatures(ref mut renderer) =>
 				renderer.resize(surface, state),
 		}
 	}
@@ -104,6 +114,9 @@ impl Renderer {
 
 		match *mode {
 			Mode::Standard(ref mut renderer) =>
+				renderer.render(state, options, region, interface, iter),
+
+			Mode::Ligatures(ref mut renderer) =>
 				renderer.render(state, options, region, interface, iter),
 		}
 	}

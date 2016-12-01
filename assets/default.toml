@@ -14,6 +14,9 @@ prefix = "L-a"
 mouse  = true
 
 [style]
+font      = "monospace 16px"
+ligatures = false
+
 blink = 500
 bold  = "bright"
 

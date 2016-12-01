@@ -15,14 +15,5 @@
 // You should have received a copy of the GNU General Public License
 // along with cancer.  If not, see <http://www.gnu.org/licenses/>.
 
-mod state;
-pub use self::state::{Margin, State};
-
-pub mod option;
-pub use self::option::Options;
-
 mod renderer;
 pub use self::renderer::Renderer;
-
-mod standard;
-mod ligatures;
