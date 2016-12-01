@@ -17,7 +17,7 @@
 
 #![feature(mpsc_select, conservative_impl_trait, slice_patterns, static_in_const)]
 #![feature(trace_macros, type_ascription, inclusive_range_syntax, pub_restricted)]
-#![feature(deque_extras, box_syntax, question_mark, try_from)]
+#![feature(deque_extras, box_syntax, try_from)]
 
 #![feature(plugin)]
 #![plugin(afl_plugin)]
