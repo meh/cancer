@@ -1,6 +1,23 @@
+// Copyleft (ↄ) meh. <meh@schizofreni.co> | http://meh.schizofreni.co
+//
+// This file is part of cancer.
+//
+// cancer is free software: you can redistribute it and/or modify
+// it under the terms of the GNU General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// cancer is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// GNU General Public License for more details.
+//
+// You should have received a copy of the GNU General Public License
+// along with cancer.  If not, see <http://www.gnu.org/licenses/>.
+
 #![feature(mpsc_select, conservative_impl_trait, slice_patterns, static_in_const)]
 #![feature(trace_macros, type_ascription, inclusive_range_syntax, pub_restricted)]
-#![feature(deque_extras, box_syntax, question_mark)]
+#![feature(deque_extras, box_syntax, question_mark, try_from)]
 
 #![feature(plugin)]
 #![plugin(afl_plugin)]

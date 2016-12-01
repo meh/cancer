@@ -18,6 +18,8 @@
 use std::ops::Deref;
 use std::rc::Rc;
 use std::sync::Arc;
+use std::convert::TryFrom;
+use std::i32;
 
 use palette::Rgba;
 use style::Style;
@@ -217,7 +219,7 @@ impl Cursor {
 			}
 
 			Up(n) => {
-				let new = self.y as i32 - n as i32;
+				let new = (self.y as i32).saturating_sub(i32::try_from(n).unwrap_or(i32::MAX));
 
 				if new < self.scroll.0 as i32 {
 					self.y = self.scroll.0;
@@ -229,7 +231,7 @@ impl Cursor {
 			}
 
 			Down(n) => {
-				let new = self.y as i32 + n as i32;
+				let new = (self.y as i32).saturating_add(i32::try_from(n).unwrap_or(i32::MAX));
 
 				if new > self.scroll.1 as i32 {
 					self.y = self.scroll.1;
@@ -241,11 +243,11 @@ impl Cursor {
 			}
 
 			Left(n) => {
-				let new = self.x as i32 - n as i32;
+				let new = (self.x as i32).saturating_sub(i32::try_from(n).unwrap_or(i32::MAX));
 
 				if new < 0 {
 					self.x = 0;
-					overflow = Some(new);
+					overflow = Some(new.abs());
 				}
 				else {
 					self.x = new as u32;
@@ -253,7 +255,7 @@ impl Cursor {
 			}
 
 			Right(n) => {
-				let new = self.x as i32 + n as i32;
+				let new = (self.x as i32).saturating_add(i32::try_from(n).unwrap_or(i32::MAX));
 
 				if new >= self.width as i32 {
 					self.x = self.width - 1;

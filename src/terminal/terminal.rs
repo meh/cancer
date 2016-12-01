@@ -81,10 +81,12 @@ macro_rules! term {
 	);
 
 	($term:ident; scroll up $n:tt from $y:expr) => ({
-		$term.grid.up($n as u32, Some(($y, $term.cursor.scroll.1)));
+		if $y < $term.cursor.scroll.1 {
+			$term.grid.up($n as u32, Some(($y, $term.cursor.scroll.1)));
 
-		for y in $y ... $term.cursor.scroll.1 {
-			$term.touched.line(y);
+			for y in $y ... $term.cursor.scroll.1 {
+				$term.touched.line(y);
+			}
 		}
 	});
 
@@ -93,10 +95,12 @@ macro_rules! term {
 	);
 
 	($term:ident; scroll down $n:tt from $y:expr) => ({
-		$term.grid.down($n as u32, Some(($y, $term.cursor.scroll.1)));
+		if $y < $term.cursor.scroll.1 {
+			$term.grid.down($n as u32, Some(($y, $term.cursor.scroll.1)));
 
-		for y in $y ... $term.cursor.scroll.1 {
-			$term.touched.line(y);
+			for y in $y ... $term.cursor.scroll.1 {
+				$term.touched.line(y);
+			}
 		}
 	});
 
@@ -791,6 +795,8 @@ impl Terminal {
 							value
 						}
 					};
+
+					debug!(target: "cancer::terminal::input::parsed", "insert: {:?}", kind);
 
 					match kind {
 						input::Kind::Unicode(string) => {
@@ -1669,7 +1675,7 @@ impl Terminal {
 		}
 
 		// If the character overflows the region, mark it for wrapping.
-		if self.cursor.x() + width >= self.region.width {
+		if x + width >= self.region.width {
 			self.cursor.state.insert(cursor::WRAP);
 		}
 		else {

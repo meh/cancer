@@ -313,8 +313,20 @@ impl Grid {
 		let n   = clamp(n, 0, self.cols - x);
 		let row = &mut self.view[y as usize];
 
-		row.drain(x as usize .. x as usize + n as usize);
-		row.append(&mut vec_deque![self.free.cell(); n as usize]);
+		// The row may contain references, account for them.
+		let mut end = x;
+		for _ in 0 .. n {
+			end += row[end as usize].width();
+
+			if end >= self.cols {
+				end = self.cols - 1;
+				break;
+			}
+		}
+
+		// Drain the cells and insert empty ones at the end.
+		row.drain(x as usize .. end as usize);
+		row.append(&mut vec_deque![self.free.cell(); (end - x) as usize]);
 	}
 
 	/// Insert `n` empty cells starting from the given origin.
@@ -327,6 +339,28 @@ impl Grid {
 		}
 
 		row.drain(self.cols as usize ..);
+
+		// Check if the last occupied cell width corresponds to the number of
+		// references.
+		{
+			let mut width = 0;
+
+			for x in (0 .. self.cols).rev() {
+				width += 1;
+
+				if row[x as usize].is_occupied() {
+					break;
+				}
+			}
+
+			let start = self.cols - width;
+
+			if width != row[start as usize].width() {
+				for x in start .. self.cols {
+					row[x as usize].make_empty(self.free.style());
+				}
+			}
+		}
 	}
 
 	/// Mark a row as wrapped.
