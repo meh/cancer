@@ -29,21 +29,25 @@ pub mod util;
 pub mod environment;
 pub use self::environment::Environment;
 
+pub mod input;
+pub use self::input::Input;
+
 pub mod style;
 pub use self::style::Style;
+
+pub mod overlay;
+pub use self::overlay::Overlay;
 
 pub mod color;
 pub use self::color::Color;
 
-pub mod input;
-pub use self::input::Input;
-
 #[derive(PartialEq, Clone, Default, Debug)]
 pub struct Config {
 	environment: Environment,
-	style:       Style,
-	color:       Color,
 	input:       Input,
+	style:       Style,
+	overlay:     Overlay,
+	color:       Color,
 }
 
 impl Config {
@@ -90,20 +94,24 @@ impl Config {
 		Ok(Config::from(table))
 	}
 
-	pub fn style(&self) -> &Style {
-		&self.style
-	}
-
 	pub fn environment(&self) -> &Environment {
 		&self.environment
 	}
 
-	pub fn color(&self) -> &Color {
-		&self.color
+	pub fn overlay(&self) -> &Overlay {
+		&self.overlay
 	}
 
 	pub fn input(&self) -> &Input {
 		&self.input
+	}
+
+	pub fn style(&self) -> &Style {
+		&self.style
+	}
+
+	pub fn color(&self) -> &Color {
+		&self.color
 	}
 }
 
@@ -113,6 +121,10 @@ impl From<toml::Table> for Config {
 
 		if let Some(table) = table.get("environment").and_then(|v| v.as_table()) {
 			config.environment.load(table);
+		}
+
+		if let Some(table) = table.get("overlay").and_then(|v| v.as_table()) {
+			config.overlay.load(table);
 		}
 
 		if let Some(table) = table.get("style").and_then(|v| v.as_table()) {

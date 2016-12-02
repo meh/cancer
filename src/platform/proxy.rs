@@ -51,5 +51,5 @@ pub trait Proxy: Send {
 	fn flush(&self) { }
 
 	/// Open the given item.
-	fn open(&self, value: &str) -> error::Result<()> { Ok(()) }
+	fn open(&self, through: Option<&str>, value: &str) -> error::Result<()> { Ok(()) }
 }

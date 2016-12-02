@@ -248,8 +248,8 @@ fn main() {
 							window.paste(name)
 						}
 
-						Action::Open(what) => {
-							window.open(what.as_ref()).unwrap();
+						Action::Open(through, what) => {
+							window.open(through.as_ref().map(AsRef::as_ref), what.as_ref()).unwrap();
 						}
 					}
 				}

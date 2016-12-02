@@ -8,18 +8,13 @@ batch  = 33
 cache  = 2048
 scroll = 2048
 
-[environment.hinter]
-label   = "1234567890"
-matcher = '(gopher|https?|ftp)://(-\.)?([^\s/?\.#]+\.?)+(/[^\s]*)?'
-opener  = "firefox"
-
 [input]
 prefix = "L-a"
 locale = "en_GB.UTF-8"
 
 [style]
-font      = "FiraCode 16px"
-ligatures = true
+font      = "monospace 11px"
+ligatures = false
 
 blink = 500
 bold  = "bright"
@@ -40,12 +35,26 @@ blink = false
 foreground = "#fff"
 background = "#b21818"
 
-[style.overlay]
+[overlay]
 status = false
 
-[style.overlay.hint]
+[overlay.hinter]
+matcher = '(gopher|https?|ftp)://(-\.)?([^\s/?\.#]+\.?)+(/[^\s]*)?'
+opener  = "firefox"
+
+[overlay.hinter.style]
 foreground = "#ffffff"
 background = "#b21818"
+attributes = "bold"
+
+[overlay.hinter.1]
+label   = "1234567890"
+matcher = '(gopher|https?|ftp)://(-\.)?([^\s/?\.#]+\.?)+(/[^\s]*)\.(jpg|jpeg|webm|gif|png|mp4|avi)'
+opener  = "mpv"
+
+[overlay.hinter.1.style]
+foreground = "#18b218"
+background = "#ffffff"
 attributes = "bold"
 
 [color]

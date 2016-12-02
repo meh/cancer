@@ -121,9 +121,8 @@ impl platform::Proxy for Proxy {
 		}
 	}
 
-	fn open(&self, value: &str) -> error::Result<()> {
-		Command::new(self.config.environment().hinter().opener().unwrap_or("open"))
-			.arg(value).spawn()?;
+	fn open(&self, through: Option<&str>, value: &str) -> error::Result<()> {
+		Command::new(through.unwrap_or("open")).arg(value).spawn()?;
 
 		Ok(())
 	}

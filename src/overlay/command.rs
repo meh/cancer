@@ -79,7 +79,7 @@ pub enum Select {
 }
 
 pub enum Hint {
-	Start,
+	Start(u32),
 	Pick(char),
 	Open,
 	Copy(Clipboard),

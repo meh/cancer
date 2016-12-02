@@ -41,7 +41,7 @@ pub enum Action {
 	Resize(u32, u32),
 	Copy(Clipboard, String),
 	Paste(Clipboard),
-	Open(String),
+	Open(Option<String>, String),
 }
 
 impl Interface {

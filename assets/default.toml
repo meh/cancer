@@ -5,10 +5,6 @@ batch  = 16
 cache  = 4096
 scroll = 4096
 
-[environment.hinter]
-label   = "ghfjdkslavncmxz"
-matcher = '(https?|ftp)://(-\.)?([^\s/?\.#]+\.?)+(/[^\s]*)?'
-
 [input]
 prefix = "L-a"
 mouse  = true
@@ -36,22 +32,26 @@ blink = false
 foreground = "#000"
 background = "#fff"
 
-[style.overlay.cursor]
+[overlay.cursor]
 shape = "block"
 blink = false
 
 foreground = "#000"
 background = "#fff"
 
-[style.overlay.status]
+[overlay.status]
 foreground = "#000000"
 background = "#c0c0c0"
 
-[style.overlay.selection]
+[overlay.selection]
 foreground = "#000000"
 background = "#c0c0c0"
 
-[style.overlay.hint]
+[overlay.hinter]
+label   = "ghfjdkslavncmxz"
+matcher = '(https?|ftp)://(-\.)?([^\s/?\.#]+\.?)+(/[^\s]*)?'
+
+[overlay.hinter.style]
 foreground = "#000000"
 background = "#c0c0c0"
 attributes = "bold"

@@ -25,6 +25,7 @@ use fnv::FnvHasher;
 
 use unicode_segmentation::UnicodeSegmentation;
 use error;
+use config::overlay as config;
 use style::{self, Style};
 use platform::Clipboard;
 use platform::key::{self, Key};
@@ -71,6 +72,7 @@ struct Hinter {
 	level:    usize,
 	hints:    Option<Hints>,
 
+	config: config::Hinter,
 	label:  Rc<Style>,
 	hinted: Rc<Style>,
 }
@@ -155,11 +157,12 @@ impl Overlay {
 	pub fn new(inner: Terminal) -> Self {
 		let mut cursor = inner.cursor().clone();
 		{
-			let config = inner.config().style().overlay().cursor();
+			let config = inner.config().overlay().cursor();
 
 			cursor.foreground = *config.foreground();
 			cursor.background = *config.background();
 			cursor.shape      = config.shape();
+			cursor.state.insert(cursor::VISIBLE);
 
 			if config.blink() {
 				cursor.state.insert(cursor::BLINK);
@@ -169,7 +172,7 @@ impl Overlay {
 			}
 		}
 
-		let status = inner.config().style().overlay().status().map(|c| {
+		let status = inner.config().overlay().status().map(|c| {
 			cursor.travel(cursor::Up(1));
 			cursor.scroll = (0, inner.rows() - 2);
 
@@ -185,7 +188,7 @@ impl Overlay {
 
 		let selector = Selector {
 			current: None,
-			style:   Rc::new(*inner.config().style().overlay().selection()),
+			style:   Rc::new(*inner.config().overlay().selection()),
 		};
 
 		let hinter = Hinter {
@@ -194,12 +197,9 @@ impl Overlay {
 			level:    0,
 			hints:    None,
 
-			label:  Rc::new(*inner.config().style().overlay().hint()),
-			hinted: Rc::new(Style {
-				foreground: inner.config().style().overlay().hint().foreground,
-				background: inner.config().style().overlay().hint().background,
-				attributes: inner.config().style().overlay().hint().attributes ^ style::REVERSE,
-			}),
+			config:  inner.config().overlay().hinter(0).clone(),
+			label:   Rc::new(Style::default()),
+			hinted:  Rc::new(Style::default()),
 		};
 
 		Overlay {
@@ -296,7 +296,7 @@ impl Overlay {
 			Value::Char(ref ch) => match &**ch {
 				// Hint handling.
 				"u" if key.modifier().is_empty() && self.hinter.hints.is_none() =>
-					Command::Hint(command::Hint::Start),
+					Command::Hint(command::Hint::Start(times.unwrap_or(0))),
 
 				"o" if key.modifier().is_empty() && self.hinter.selected.is_some() =>
 					Command::Hint(command::Hint::Open),
@@ -1033,20 +1033,28 @@ impl Overlay {
 			}
 
 			// Hint handling.
-			Command::Hint(command::Hint::Start) => {
+			Command::Hint(command::Hint::Start(id)) => {
 				let bottom = self.scroll;
 				let top    = self.inner.rows() - 1
 					- if self.status.is_some() { 1 } else { 0 }
 					+ self.scroll;
 
+				let config  = self.inner.config().overlay().hinter(id).clone();
 				let content = self.selection(&Selection::Line { start: top, end: bottom });
-				let urls    = self.inner.config().environment().hinter().matcher()
-					.find_iter(&content).collect::<Vec<_>>();
+				let urls    = config.matcher().find_iter(&content).collect::<Vec<_>>();
 
 				if !urls.is_empty() {
 					overlay!(self; status mode "HINT");
 
-					self.hinter.hints = Some(Hints::new(self.inner.config().environment().hinter().label().to_vec(), urls.len()));
+					self.hinter.label  = Rc::new(*config.style());
+					self.hinter.hinted = Rc::new(Style {
+						foreground: config.style().foreground,
+						background: config.style().background,
+						attributes: config.style().attributes ^ style::REVERSE,
+					});
+
+					self.hinter.hints  = Some(Hints::new(config.label().to_vec(), urls.len()));
+					self.hinter.config = config;
 
 					for url in urls {
 						self.hint(url, &content);
@@ -1107,7 +1115,7 @@ impl Overlay {
 				actions.push(Action::Overlay(false));
 
 				if let Some(hint) = self.hinter.get() {
-					actions.push(Action::Open(hint.into()));
+					actions.push(Action::Open(self.hinter.config.opener().map(String::from), hint.into()));
 				}
 			}
 

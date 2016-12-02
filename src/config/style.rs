@@ -22,17 +22,16 @@ use style;
 
 #[derive(PartialEq, Clone, Debug)]
 pub struct Style {
-	font:      String,
-	ligatures: bool,
-	blink:     u32,
-	bold:      Bold,
+	pub(super) font:      String,
+	pub(super) ligatures: bool,
+	pub(super) blink:     u32,
+	pub(super) bold:      Bold,
 
-	margin:  u8,
-	spacing: u8,
+	pub(super) margin:  u8,
+	pub(super) spacing: u8,
 
-	color:   Color,
-	cursor:  Cursor,
-	overlay: Overlay,
+	pub(super) color:  Color,
+	pub(super) cursor: Cursor,
 }
 
 impl Default for Style {
@@ -46,9 +45,8 @@ impl Default for Style {
 			margin:  0,
 			spacing: 0,
 
-			color:   Default::default(),
-			cursor:  Default::default(),
-			overlay: Default::default(),
+			color:  Default::default(),
+			cursor: Default::default(),
 		}
 	}
 }
@@ -73,11 +71,11 @@ impl Bold {
 
 #[derive(PartialEq, Clone, Debug)]
 pub struct Color {
-	foreground: Rgba<f64>,
-	background: Rgba<f64>,
+	pub(super) foreground: Rgba<f64>,
+	pub(super) background: Rgba<f64>,
 
-	underline:     Option<Rgba<f64>>,
-	strikethrough: Option<Rgba<f64>>,
+	pub(super) underline:     Option<Rgba<f64>>,
+	pub(super) strikethrough: Option<Rgba<f64>>,
 }
 
 impl Default for Color {
@@ -106,11 +104,11 @@ impl Default for Shape {
 
 #[derive(PartialEq, Clone, Debug)]
 pub struct Cursor {
-	shape: Shape,
-	blink: bool,
+	pub(super) shape: Shape,
+	pub(super) blink: bool,
 
-	foreground: Rgba<f64>,
-	background: Rgba<f64>,
+	pub(super) foreground: Rgba<f64>,
+	pub(super) background: Rgba<f64>,
 }
 
 impl Default for Cursor {
@@ -121,40 +119,6 @@ impl Default for Cursor {
 
 			foreground: to_color("#000").unwrap(),
 			background: to_color("#fff").unwrap(),
-		}
-	}
-}
-
-#[derive(PartialEq, Clone, Debug)]
-pub struct Overlay {
-	cursor:    Cursor,
-	status:    Option<style::Style>,
-	selection: style::Style,
-	hint:      style::Style,
-}
-
-impl Default for Overlay {
-	fn default() -> Self {
-		Overlay {
-			cursor: Cursor::default(),
-
-			status: Some(style::Style {
-				foreground: to_color("#000"),
-				background: to_color("#c0c0c0"),
-				attributes: style::NONE,
-			}),
-
-			selection: style::Style {
-				foreground: to_color("#000"),
-				background: to_color("#c0c0c0"),
-				attributes: style::NONE,
-			},
-
-			hint: style::Style {
-				foreground: to_color("#000"),
-				background: to_color("#c0c0c0"),
-				attributes: style::BOLD,
-			},
 		}
 	}
 }
@@ -247,92 +211,6 @@ impl Style {
 				self.cursor.background = value;
 			}
 		}
-
-		if let Some(table) = table.get("overlay").and_then(|v| v.as_table()) {
-			if let Some(table) = table.get("cursor").and_then(|v| v.as_table()) {
-				if let Some(value) = table.get("shape").and_then(|v| v.as_str()) {
-					match &*value.to_lowercase() {
-						"block" =>
-							self.overlay.cursor.shape = Shape::Block,
-
-						"beam" | "ibeam" =>
-							self.overlay.cursor.shape = Shape::Beam,
-
-						"underline" | "line" =>
-							self.overlay.cursor.shape = Shape::Line,
-
-						_ => ()
-					}
-				}
-
-				if let Some(true) = table.get("blink").and_then(|v| v.as_bool()) {
-					self.overlay.cursor.blink = true;
-				}
-
-				if let Some(value) = table.get("foreground").and_then(|v| v.as_str()).and_then(|v| to_color(v)) {
-					self.overlay.cursor.foreground = value;
-				}
-
-				if let Some(value) = table.get("background").and_then(|v| v.as_str()).and_then(|v| to_color(v)) {
-					self.overlay.cursor.background = value;
-				}
-			}
-
-			if let Some(value) = table.get("status") {
-				if let Some(table) = value.as_table() {
-					let mut status = style::Style::default();
-
-					if let Some(value) = table.get("foreground").and_then(|v| v.as_str()).and_then(|v| to_color(v)) {
-						status.foreground = Some(value);
-					}
-
-					if let Some(value) = table.get("background").and_then(|v| v.as_str()).and_then(|v| to_color(v)) {
-						status.background = Some(value);
-					}
-
-					if let Some(value) = table.get("attributes").and_then(|v| v.as_str()) {
-						status.attributes = to_attributes(value);
-					}
-
-					self.overlay.status = Some(status);
-				}
-				else {
-					self.overlay.status = None;
-				}
-			}
-
-			if let Some(value) = table.get("selection") {
-				if let Some(table) = value.as_table() {
-					if let Some(value) = table.get("foreground").and_then(|v| v.as_str()).and_then(|v| to_color(v)) {
-						self.overlay.selection.foreground = Some(value);
-					}
-
-					if let Some(value) = table.get("background").and_then(|v| v.as_str()).and_then(|v| to_color(v)) {
-						self.overlay.selection.background = Some(value);
-					}
-
-					if let Some(value) = table.get("attributes").and_then(|v| v.as_str()) {
-						self.overlay.selection.attributes = to_attributes(value);
-					}
-				}
-			}
-
-			if let Some(value) = table.get("hint") {
-				if let Some(table) = value.as_table() {
-					if let Some(value) = table.get("foreground").and_then(|v| v.as_str()).and_then(|v| to_color(v)) {
-						self.overlay.hint.foreground = Some(value);
-					}
-
-					if let Some(value) = table.get("background").and_then(|v| v.as_str()).and_then(|v| to_color(v)) {
-						self.overlay.hint.background = Some(value);
-					}
-
-					if let Some(value) = table.get("attributes").and_then(|v| v.as_str()) {
-						self.overlay.hint.attributes = to_attributes(value);
-					}
-				}
-			}
-		}
 	}
 
 	pub fn font(&self) -> &str {
@@ -365,10 +243,6 @@ impl Style {
 
 	pub fn cursor(&self) -> &Cursor {
 		&self.cursor
-	}
-
-	pub fn overlay(&self) -> &Overlay {
-		&self.overlay
 	}
 }
 
@@ -405,23 +279,5 @@ impl Cursor {
 
 	pub fn background(&self) -> &Rgba<f64> {
 		&self.background
-	}
-}
-
-impl Overlay {
-	pub fn cursor(&self) -> &Cursor {
-		&self.cursor
-	}
-
-	pub fn status(&self) -> Option<&style::Style> {
-		self.status.as_ref()
-	}
-
-	pub fn selection(&self) -> &style::Style {
-		&self.selection
-	}
-
-	pub fn hint(&self) -> &style::Style {
-		&self.hint
 	}
 }
