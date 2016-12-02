@@ -98,7 +98,7 @@ impl Grid {
 			let mut wrapped = Vec::new();
 
 			for i in (0 .. view.len()).rev() {
-				if view[i].wrap() {
+				if view[i].is_wrapped() {
 					wrapped.push(view.remove(i).unwrap());
 				}
 				else if !wrapped.is_empty() {
@@ -123,7 +123,7 @@ impl Grid {
 					// Create new rows with the cells and mark as wrapped if they do wrap
 					// again.
 					for (j, cells) in chunks.into_iter().enumerate() {
-						unwrapped.push(Row { inner: cells.collect(), wrap: j != 0 });
+						unwrapped.push(Row { inner: cells.collect(), wrapped: j != 0 });
 					}
 
 					// Extend any missing cells from the last row.
@@ -161,7 +161,7 @@ impl Grid {
 						// Create new rows with the cells and mark as wrapped if they do
 						// wrap.
 						for (j, cells) in chunks.into_iter().enumerate() {
-							wrapped.push(Row { inner: cells.collect(), wrap: j != 0 });
+							wrapped.push(Row { inner: cells.collect(), wrapped: j != 0 });
 						}
 
 						// Extend any missing cells from the last row.
@@ -364,8 +364,8 @@ impl Grid {
 	}
 
 	/// Mark a row as wrapped.
-	pub fn wrap(&mut self, y: u32) {
-		self.view[y as usize].wrap = true;
+	pub fn wrapped(&mut self, y: u32, value: bool) {
+		self.view[y as usize].wrapped = value;
 	}
 }
 

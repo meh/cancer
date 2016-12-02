@@ -807,7 +807,7 @@ impl Terminal {
 
 						input::Kind::Ascii(string) => {
 							for i in 0 .. string.len() {
-								self.insert(unsafe { str::from_utf8_unchecked(&string[i .. i + 1]) });
+								self.insert(&string[i .. i + 1]);
 							}
 						}
 					}
@@ -1188,6 +1188,7 @@ impl Terminal {
 						self.grid[(x, y)].make_empty(self.cursor.style().clone());
 					}
 
+					self.grid.wrapped(y, false);
 					self.touched.line(y);
 				}
 			}
@@ -1205,6 +1206,7 @@ impl Terminal {
 						self.grid[(x, y)].make_empty(self.cursor.style().clone());
 					}
 
+					self.grid.wrapped(y, false);
 					self.touched.line(y);
 				}
 			}
@@ -1214,6 +1216,8 @@ impl Terminal {
 					for x in 0 .. self.region.width {
 						self.grid[(x, y)].make_empty(self.cursor.style().clone());
 					}
+
+					self.grid.wrapped(y, false);
 				}
 
 				self.touched.all();
@@ -1226,6 +1230,8 @@ impl Terminal {
 					self.grid[(x, y)].make_empty(self.cursor.style().clone());
 					self.touched.mark(x, y);
 				}
+
+				self.grid.wrapped(y, false);
 			}
 
 			Control::C1(C1::ControlSequence(CSI::EraseLine(CSI::Erase::ToStart))) => {
@@ -1235,6 +1241,8 @@ impl Terminal {
 					self.grid[(x, y)].make_empty(self.cursor.style().clone());
 					self.touched.mark(x, y);
 				}
+
+				self.grid.wrapped(y, false);
 			}
 
 			Control::C1(C1::ControlSequence(CSI::EraseLine(CSI::Erase::All))) => {
@@ -1244,6 +1252,7 @@ impl Terminal {
 					self.grid[(x, y)].make_empty(self.cursor.style().clone());
 				}
 
+				self.grid.wrapped(y, false);
 				self.touched.line(y);
 			}
 
@@ -1641,7 +1650,7 @@ impl Terminal {
 
 			term!(self; cursor Position(Some(0), None));
 			let (_, y) = term!(self; cursor);
-			self.grid.wrap(y);
+			self.grid.wrapped(y, true);
 		}
 
 		let (x, y) = term!(self; cursor);

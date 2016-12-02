@@ -27,7 +27,7 @@ pub enum Input<'a> {
 #[derive(Eq, PartialEq, Copy, Clone, Debug)]
 pub enum Kind<'a> {
 	Unicode(&'a str),
-	Ascii(&'a [u8]),
+	Ascii(&'a str),
 }
 
 pub fn parse(i: &[u8]) -> Input {
@@ -83,7 +83,7 @@ pub fn parse(i: &[u8]) -> Input {
 	}
 
 	if ascii {
-		Input::Done(&i[length..], Kind::Ascii(&i[..length]))
+		Input::Done(&i[length..], Kind::Ascii(unsafe { str::from_utf8_unchecked(&i[..length]) }))
 	}
 	else {
 		Input::Done(&i[length..], Kind::Unicode(unsafe { str::from_utf8_unchecked(&i[..length]) }))

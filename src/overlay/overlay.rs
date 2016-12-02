@@ -1182,7 +1182,7 @@ impl Overlay {
 					}
 
 					// If the row is wrapped, push it up.
-					if row.wrap() {
+					if row.is_wrapped() {
 						if let Some(mut unwrapped) = unwrap.take() {
 							unwrapped.push(line);
 							unwrap = Some(unwrapped);
@@ -1387,7 +1387,7 @@ impl Overlay {
 				x       += 1;
 
 				// Avoid offsetting multiple times because of a completely filled row.
-				if x >= self.inner.columns() && ch != "\n" && graphemes.peek() == Some(&"\n") {
+				if ch != "\n" && x >= self.inner.columns() && graphemes.peek() == Some(&"\n") {
 					offset += 1;
 					graphemes.next();
 				}

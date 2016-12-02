@@ -23,14 +23,14 @@ use terminal::Cell;
 /// A row within the view or scroll back.
 #[derive(PartialEq, Clone, Debug)]
 pub struct Row {
-	pub(super) inner: VecDeque<Cell>,
-	pub(super) wrap:  bool,
+	pub(super) inner:   VecDeque<Cell>,
+	pub(super) wrapped: bool,
 }
 
 impl Row {
 	/// Check if the `Row` is wrapping.
-	pub fn wrap(&self) -> bool {
-		self.wrap
+	pub fn is_wrapped(&self) -> bool {
+		self.wrapped
 	}
 }
 

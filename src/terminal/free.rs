@@ -51,7 +51,7 @@ impl Free {
 	pub fn pop(&mut self, cols: usize) -> Row {
 		match self.inner.pop_front() {
 			Some(mut row) => {
-				row.wrap = false;
+				row.wrapped = false;
 				row.resize(cols, Cell::empty(self.empty.clone()));
 
 				for cell in row.iter_mut().filter(|c| !c.is_default()) {
@@ -63,8 +63,8 @@ impl Free {
 
 			None => {
 				Row {
-					inner: vec_deque![Cell::empty(self.empty.clone()); cols],
-					wrap:  false,
+					inner:   vec_deque![Cell::empty(self.empty.clone()); cols],
+					wrapped: false,
 				}
 			}
 		}
