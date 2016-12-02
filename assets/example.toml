@@ -39,8 +39,8 @@ background = "#b21818"
 status = false
 
 [overlay.hinter]
-matcher = '(gopher|https?|ftp)://(-\.)?([^\s/?\.#]+\.?)+(/[^\s]*)?'
 opener  = "firefox"
+matcher = '(gopher|https?|ftp)://(-\.)?([^\s/?\.#]+\.?)+(/[^\s]*)?'
 
 [overlay.hinter.style]
 foreground = "#ffffff"
@@ -49,8 +49,12 @@ attributes = "bold"
 
 [overlay.hinter.1]
 label   = "1234567890"
-matcher = '(gopher|https?|ftp)://(-\.)?([^\s/?\.#]+\.?)+(/[^\s]*)\.(jpg|jpeg|webm|gif|png|mp4|avi)'
 opener  = "mpv"
+matcher = '''(?xi)
+	(https?://.*?\.youtube.com/watch[^\s]+) |
+	(https?://.*?\.youtu.be/[^\s]+) |
+	((https?|ftp)://(-\.)?([^\s/?\.\#]+\.?)+(/[^\s]*)\.(webm|gif|mp4|avi))
+'''
 
 [overlay.hinter.1.style]
 foreground = "#18b218"

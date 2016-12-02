@@ -159,8 +159,17 @@ impl Overlay {
 				self.hinter.label = value.chars().collect();
 			}
 
-			if let Some(value) = table.get("matcher").and_then(|v| v.as_str()).and_then(|v| Regex::new(v).ok()) {
-				self.hinter.matcher = value;
+			match table.get("matcher").and_then(|v| v.as_str()).map(|v| Regex::new(v)) {
+				None => (),
+
+				Some(Ok(value)) => {
+					self.hinter.matcher = value;
+				}
+
+				Some(Err(err)) => {
+					error!(target: "cancer::config", "[overlay.hinter.matcher]");
+					error!(target: "cancer::config", "{}", err);
+				}
 			}
 
 			if let Some(value) = table.get("opener").and_then(|v| v.as_str()) {
@@ -189,49 +198,40 @@ impl Overlay {
 					continue;
 				}
 
-				let mut hinter = Hinter::default();
+				let mut hinter = self.hinter.clone();
 
 				if let Some(value) = table.get("label").and_then(|v| v.as_str()) {
 					hinter.label = value.chars().collect();
 				}
-				else {
-					hinter.label = self.hinter.label.clone();
-				}
 
-				if let Some(value) = table.get("matcher").and_then(|v| v.as_str()).and_then(|v| Regex::new(v).ok()) {
-					hinter.matcher = value;
-				}
-				else {
-					hinter.matcher = self.hinter.matcher.clone();
+				match table.get("matcher").and_then(|v| v.as_str()).map(|v| Regex::new(v)) {
+					None => (),
+
+					Some(Ok(value)) => {
+						hinter.matcher = value;
+					}
+
+					Some(Err(err)) => {
+						error!(target: "cancer::config", "[overlay.hinter.{}.matcher]", id);
+						error!(target: "cancer::config", "{}", err);
+					}
 				}
 
 				if let Some(value) = table.get("opener").and_then(|v| v.as_str()) {
 					hinter.opener = Some(value.into());
-				}
-				else {
-					hinter.opener = self.hinter.opener.clone();
 				}
 
 				if let Some(table) = table.get("style").and_then(|v| v.as_table()) {
 					if let Some(value) = table.get("foreground").and_then(|v| v.as_str()).and_then(|v| to_color(v)) {
 						hinter.style.foreground = Some(value);
 					}
-					else {
-						hinter.style.foreground = self.hinter.style.foreground;
-					}
 
 					if let Some(value) = table.get("background").and_then(|v| v.as_str()).and_then(|v| to_color(v)) {
 						hinter.style.background = Some(value);
 					}
-					else {
-						hinter.style.background = self.hinter.style.background;
-					}
 
 					if let Some(value) = table.get("attributes").and_then(|v| v.as_str()) {
 						hinter.style.attributes = to_attributes(value);
-					}
-					else {
-						hinter.style.attributes = self.hinter.style.attributes;
 					}
 				}
 
