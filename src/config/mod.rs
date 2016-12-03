@@ -56,8 +56,8 @@ impl Config {
 			path.as_ref().into()
 		}
 		else {
-			let path = app_root(AppDataType::UserConfig, &AppInfo { name: "cancer", author: "meh." })
-				?.join("config.toml");
+			let path = app_root(AppDataType::UserConfig,
+				&AppInfo { name: "cancer", author: "meh." })?.join("config.toml");
 
 			if fs::metadata(&path).is_err() {
 				if let Ok(mut file) = File::create(&path) {
@@ -68,30 +68,26 @@ impl Config {
 			path
 		};
 
-		let table = if let Ok(mut file) = File::open(path) {
+		if let Ok(mut file) = File::open(path) {
 			let mut content = String::new();
-			let _ = file.read_to_string(&mut content);
-			let mut parser = toml::Parser::new(&content);
+			let     _       = file.read_to_string(&mut content);
+			let mut parser  = toml::Parser::new(&content);
 
 			if let Some(table) = parser.parse() {
-				table
+				return Ok(Config::from(table));
 			}
-			else {
-				error!("could not load configuration file");
 
-				for error in &parser.errors {
-					error!("syntax error: {}", error);
-				}
+			error!(target: "cancer::config", "could not load configuration file");
 
-				toml::Table::new()
+			for error in &parser.errors {
+				error!(target: "cancer::config", "syntax error: {}", error);
 			}
 		}
 		else {
-			error!("could not load configuration file");
-			toml::Table::new()
-		};
+			error!(target: "cancer::config", "could not read configuration file");
+		}
 
-		Ok(Config::from(table))
+		Ok(Config::from(toml::Table::new()))
 	}
 
 	pub fn environment(&self) -> &Environment {
