@@ -348,7 +348,7 @@ impl Grid {
 			for x in (0 .. self.cols).rev() {
 				width += 1;
 
-				if row[x as usize].is_occupied() {
+				if !row[x as usize].is_reference()  {
 					break;
 				}
 			}

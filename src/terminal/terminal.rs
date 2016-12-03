@@ -1295,6 +1295,7 @@ impl Terminal {
 
 			Control::C1(C1::ControlSequence(CSI::InsertCharacter(n))) => {
 				let (x, y) = term!(self; cursor);
+
 				self.grid.insert(x, y, n);
 
 				for x in x .. self.region.width {
