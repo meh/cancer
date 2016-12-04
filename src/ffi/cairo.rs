@@ -18,16 +18,11 @@
 use std::os::raw::c_void;
 use libc::{c_double};
 
-#[cfg(target_os = "linux")]
-use libc::c_int;
-
-#[cfg(target_os = "macos")]
-use libc::c_uint;
-#[cfg(target_os = "macos")]
-use core_graphics::base::CGFloat;
-
 #[repr(C)]
 pub struct cairo_t(c_void);
+
+#[repr(C)]
+pub struct cairo_device_t(c_void);
 
 #[repr(C)]
 pub struct cairo_surface_t(c_void);
@@ -72,21 +67,31 @@ extern "C" {
 	pub fn cairo_surface_destroy(surface: *mut cairo_surface_t);
 }
 
-#[cfg(target_os = "linux")]
-use xcb::ffi::*;
+#[cfg(all(feature = "x11", any(target_os = "linux", target_os = "freebsd", target_os = "netbsd", target_os = "openbsd", target_os = "dragonfly")))]
+pub mod platform {
+	use super::*;
+	pub use libc::c_int;
+	pub use xcb::ffi::*;
+	pub use xcb;
 
-#[cfg(target_os = "linux")]
-extern "C" {
-	pub fn cairo_xcb_surface_set_size(surface: *mut cairo_surface_t, width: c_int, height: c_int);
-	pub fn cairo_xcb_surface_create(connection: *mut xcb_connection_t, drawable: xcb_drawable_t, visual: *const xcb_visualtype_t, width: c_int, height: c_int) -> *mut cairo_surface_t;
+	extern "C" {
+		pub fn cairo_xcb_surface_set_size(surface: *mut cairo_surface_t, width: c_int, height: c_int);
+		pub fn cairo_xcb_surface_create(connection: *mut xcb_connection_t, drawable: xcb_drawable_t, visual: *const xcb_visualtype_t, width: c_int, height: c_int) -> *mut cairo_surface_t;
+	}
 }
 
 #[cfg(target_os = "macos")]
-extern "C" {
-	pub fn cairo_quartz_surface_create(format: cairo_format_t, width: c_uint, height: c_uint) -> *mut cairo_surface_t;
-	pub fn cairo_quartz_surface_create_for_cg_context(context: *mut c_void, width: c_uint, height: c_uint) -> *mut cairo_surface_t;
-	pub fn cairo_quartz_surface_get_cg_context(surface: *const cairo_surface_t) -> *mut c_void;
+pub mod platform {
+	use super::*;
+	pub use libc::c_uint;
+	pub use core_graphics::base::CGFloat;
 
-	pub fn CGContextTranslateCTM(context: *mut c_void, tx: CGFloat, ty: CGFloat);
-	pub fn CGContextScaleCTM(context: *mut c_void, sx: CGFloat, sy: CGFloat);
+	extern "C" {
+		pub fn cairo_quartz_surface_create(format: cairo_format_t, width: c_uint, height: c_uint) -> *mut cairo_surface_t;
+		pub fn cairo_quartz_surface_create_for_cg_context(context: *mut c_void, width: c_uint, height: c_uint) -> *mut cairo_surface_t;
+		pub fn cairo_quartz_surface_get_cg_context(surface: *const cairo_surface_t) -> *mut c_void;
+
+		pub fn CGContextTranslateCTM(context: *mut c_void, tx: CGFloat, ty: CGFloat);
+		pub fn CGContextScaleCTM(context: *mut c_void, sx: CGFloat, sy: CGFloat);
+	}
 }

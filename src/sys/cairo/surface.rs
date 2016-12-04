@@ -15,20 +15,8 @@
 // You should have received a copy of the GNU General Public License
 // along with cancer.  If not, see <http://www.gnu.org/licenses/>.
 
-#[cfg(target_os = "linux")]
-use xcb;
-
-#[cfg(target_os = "linux")]
-use libc::c_int;
-
-#[cfg(target_os = "macos")]
-use std::os::raw::c_void;
-#[cfg(target_os = "macos")]
-use libc::c_uint;
-#[cfg(target_os = "macos")]
-use core_graphics::base::CGFloat;
-
 use ffi::cairo::*;
+use ffi::cairo::platform::*;
 
 #[derive(Debug)]
 pub struct Surface(pub *mut cairo_surface_t);
@@ -43,7 +31,7 @@ impl Surface {
 	}
 }
 
-#[cfg(target_os = "linux")]
+#[cfg(all(feature = "x11", any(target_os = "linux", target_os = "freebsd", target_os = "netbsd", target_os = "openbsd")))]
 impl Surface {
 	pub fn new(connection: &xcb::Connection, drawable: xcb::Drawable, visual: xcb::Visualtype, width: u32, height: u32) -> Self {
 		unsafe {
