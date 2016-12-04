@@ -19,9 +19,8 @@ use std::collections::HashMap;
 use std::hash::BuildHasherDefault;
 use fnv::FnvHasher;
 
-use toml::{self, Value};
+use toml;
 use regex::Regex;
-use palette::Rgba;
 use config::util::{to_color, to_attributes};
 use config::style::{Cursor, Shape};
 use style::{self, Style};

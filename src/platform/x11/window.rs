@@ -15,10 +15,10 @@
 // You should have received a copy of the GNU General Public License
 // along with cancer.  If not, see <http://www.gnu.org/licenses/>.
 
-use std::collections::HashMap;
 use std::thread;
 use std::sync::Arc;
 use std::sync::mpsc::{Receiver, Sender, channel, sync_channel};
+use std::collections::HashMap;
 
 use xcb;
 use xcbu::{icccm, ewmh};
@@ -61,7 +61,7 @@ impl Window {
 		let width  = (80 * font.width()) + (margin * 2);
 		let height = (24 * (font.height() + spacing)) + (margin * 2);
 
-		let (proxy, requests)    = channel();
+		let (request, requests)  = channel();
 		let (connection, screen) = xcb::Connection::connect(config.environment().display())?;
 		let connection           = Arc::new(ewmh::Connection::connect(connection).map_err(|(e, _)| e)?);
 		let keyboard             = Keyboard::new(connection.clone(), config.input().locale())?;
@@ -101,9 +101,7 @@ impl Window {
 		};
 
 		let proxy = Proxy {
-			config: config.clone(),
-			sender: proxy,
-
+			request:    request,
 			connection: connection.clone(),
 			window:     window,
 			screen:     screen,

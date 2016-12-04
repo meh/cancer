@@ -17,8 +17,7 @@
 
 use toml::{self, Value};
 use palette::Rgba;
-use config::util::{to_color, to_attributes};
-use style;
+use config::util::to_color;
 
 #[derive(PartialEq, Clone, Debug)]
 pub struct Style {

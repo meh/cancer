@@ -24,8 +24,7 @@ use sys::cairo;
 use style;
 use terminal::{cell, cursor};
 use interface::Interface;
-use renderer::State;
-use renderer::option::{self, Options};
+use renderer::{State, Options};
 use renderer::standard::{Cache, Glyphs};
 
 /// Renderer for a `cairo::Surface`.
@@ -58,7 +57,7 @@ impl Renderer {
 	}
 
 	/// Render the given changes.
-	pub fn render<I>(&mut self, state: &State, mut options: Options, region: Option<Region>, interface: &Interface, iter: I)
+	pub fn render<I>(&mut self, state: &State, options: Options, region: Option<Region>, interface: &Interface, iter: I)
 		where I: Iterator<Item = (u32, u32)>
 	{
 		if let Some(region) = region {

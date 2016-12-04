@@ -26,12 +26,9 @@ use sys::cairo;
 use error;
 use platform::{self, Clipboard};
 use platform::x11::Request;
-use config::Config;
 
 pub struct Proxy {
-	pub(super) config: Arc<Config>,
-	pub(super) sender: Sender<Request>,
-
+	pub(super) request:    Sender<Request>,
 	pub(super) connection: Arc<ewmh::Connection>,
 	pub(super) window:     xcb::Window,
 	pub(super) screen:     i32,
@@ -61,27 +58,27 @@ impl platform::Proxy for Proxy {
 	}
 
 	fn resize(&mut self, width: u32, height: u32) {
-		self.sender.send(Request::Resize(width, height)).unwrap();
+		self.request.send(Request::Resize(width, height)).unwrap();
 	}
 
 	fn set_title(&self, title: String) {
-		self.sender.send(Request::Title(title)).unwrap();
+		self.request.send(Request::Title(title)).unwrap();
 	}
 
 	fn copy(&self, name: Clipboard, value: String) {
-		self.sender.send(Request::Copy(name, value)).unwrap();
+		self.request.send(Request::Copy(name, value)).unwrap();
 	}
 
 	fn paste(&self, name: Clipboard) {
-		self.sender.send(Request::Paste(name)).unwrap();
+		self.request.send(Request::Paste(name)).unwrap();
 	}
 
 	fn urgent(&self) {
-		self.sender.send(Request::Urgent).unwrap();
+		self.request.send(Request::Urgent).unwrap();
 	}
 
 	fn flush(&self) {
-		self.sender.send(Request::Flush).unwrap();
+		self.request.send(Request::Flush).unwrap();
 	}
 
 	fn open(&self, through: Option<&str>, value: &str) -> error::Result<()> {
