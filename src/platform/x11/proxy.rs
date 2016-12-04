@@ -57,7 +57,7 @@ impl platform::Proxy for Proxy {
 			}
 		}
 
-		Err(error::X::MissingDepth(24).into())
+		Err(error::platform::Error::MissingDepth(24).into())
 	}
 
 	fn resize(&mut self, width: u32, height: u32) {

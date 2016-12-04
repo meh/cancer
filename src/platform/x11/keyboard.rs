@@ -44,7 +44,7 @@ impl Keyboard {
 	/// Create a keyboard for the given connection.
 	pub fn new(connection: Arc<ewmh::Connection>, locale: Option<&str>) -> error::Result<Self> {
 		connection.get_extension_data(xcb::xkb::id())
-			.ok_or(error::X::MissingExtension)?;
+			.ok_or(error::platform::Error::MissingExtension)?;
 
 		// Check the XKB extension version.
 		{
@@ -53,7 +53,7 @@ impl Keyboard {
 				xkb::x11::MIN_MINOR_XKB_VERSION);
 
 			if !cookie.get_reply()?.supported() {
-				return Err(error::X::MissingExtension.into());
+				return Err(error::platform::Error::MissingExtension.into());
 			}
 		}
 

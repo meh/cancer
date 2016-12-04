@@ -21,8 +21,6 @@ use std::io;
 use std::ffi;
 use std::sync::mpsc::{RecvError, SendError};
 
-#[cfg(target_os = "linux")]
-use xcb;
 use app_dirs;
 
 pub type Result<T> = ::std::result::Result<T, Error>;
@@ -33,19 +31,8 @@ pub enum Error {
 	Message(String),
 	Nul(ffi::NulError),
 	Directory(app_dirs::AppDirsError),
+	Platform(platform::Error),
 	Unknown,
-
-	#[cfg(target_os = "linux")]
-	X(X),
-}
-
-#[cfg(target_os = "linux")]
-#[derive(Debug)]
-pub enum X {
-	MissingExtension,
-	MissingDepth(u8),
-	Request(u8, u8),
-	Connection(xcb::ConnError),
 }
 
 impl From<io::Error> for Error {
@@ -90,25 +77,40 @@ impl From<RecvError> for Error {
 	}
 }
 
-#[cfg(target_os = "linux")]
-impl From<X> for Error {
-	fn from(value: X) -> Error {
-		Error::X(value)
+#[cfg(all(feature = "x11", any(target_os = "linux", target_os = "freebsd", target_os = "netbsd", target_os = "openbsd", target_os = "dragonfly")))]
+pub mod platform {
+	use xcb;
+
+	#[derive(Debug)]
+	pub enum Error {
+		MissingExtension,
+		MissingDepth(u8),
+		Request(u8, u8),
+		Connection(xcb::ConnError),
+	}
+
+	impl From<Error> for super::Error {
+		fn from(value: Error) -> super::Error {
+			super::Error::Platform(value)
+		}
+	}
+
+	impl From<xcb::ConnError> for super::Error {
+		fn from(value: xcb::ConnError) -> super::Error {
+			super::Error::Platform(Error::Connection(value))
+		}
+	}
+
+	impl<T> From<xcb::Error<T>> for super::Error {
+		fn from(value: xcb::Error<T>) -> super::Error {
+			super::Error::Platform(Error::Request(value.response_type(), value.error_code()))
+		}
 	}
 }
 
-#[cfg(target_os = "linux")]
-impl From<xcb::ConnError> for Error {
-	fn from(value: xcb::ConnError) -> Error {
-		Error::X(X::Connection(value))
-	}
-}
-
-#[cfg(target_os = "linux")]
-impl<T> From<xcb::Error<T>> for Error {
-	fn from(value: xcb::Error<T>) -> Error {
-		Error::X(X::Request(value.response_type(), value.error_code()))
-	}
+#[cfg(target_os = "macos")]
+pub mod platform {
+	pub type Error = ();
 }
 
 impl fmt::Display for Error {
@@ -135,20 +137,30 @@ impl error::Error for Error {
 			Error::Unknown =>
 				"Unknown error.",
 
-			#[cfg(target_os = "linux")]
-			Error::X(ref err) => match *err {
-				X::Request(..) =>
+			#[cfg(all(feature = "x11", any(target_os = "linux", target_os = "freebsd", target_os = "netbsd", target_os = "openbsd", target_os = "dragonfly")))]
+			Error::Platform(ref err) => match *err {
+				platform::Error::Request(..) =>
 					"An X request failed.",
 
-				X::MissingExtension =>
+				platform::Error::MissingExtension =>
 					"A required X extension is missing.",
 
-				X::MissingDepth(..) =>
+				platform::Error::MissingDepth(..) =>
 					"Missing visual depth.",
 
-				X::Connection(..) =>
+				platform::Error::Connection(..) =>
 					"Connection to the X display failed.",
 			},
+
+			#[cfg(all(feature = "wayland", any(target_os = "linux", target_os = "freebsd", target_os = "netbsd", target_os = "openbsd", target_os = "dragonfly")))]
+			Error::Platform(ref err) => match *err {
+				platform::Error::Connection(..) =>
+					"Connection to the Wayland server failed.",
+			},
+
+			#[cfg(target_os = "macos")]
+			Error::Platform(_) =>
+				"Something happened :(",
 		}
 	}
 }
