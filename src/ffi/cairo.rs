@@ -70,6 +70,7 @@ extern "C" {
 #[cfg(all(feature = "x11", any(target_os = "linux", target_os = "freebsd", target_os = "netbsd", target_os = "openbsd", target_os = "dragonfly")))]
 pub mod platform {
 	use super::*;
+
 	pub use libc::c_int;
 	pub use xcb::ffi::*;
 	pub use xcb;
@@ -83,6 +84,8 @@ pub mod platform {
 #[cfg(target_os = "macos")]
 pub mod platform {
 	use super::*;
+
+	pub use std::os::raw::c_void;
 	pub use libc::c_uint;
 	pub use core_graphics::base::CGFloat;
 

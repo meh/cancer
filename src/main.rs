@@ -59,7 +59,7 @@ pub extern crate xcb_util as xcbu;
 pub extern crate xkbcommon;
 
 #[cfg(target_os = "macos")]
-#[macro_use(msg_send)]
+#[macro_use(msg_send, sel)]
 pub extern crate objc;
 #[cfg(target_os = "macos")]
 pub extern crate cocoa;
