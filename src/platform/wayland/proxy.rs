@@ -21,39 +21,35 @@ use std::process::Command;
 use std::ptr;
 use std::cell::RefCell;
 
-use wayland_client::Proxy as Proxied;
+use wayland_client::Proxy as WlProxy;
 use wayland_client::egl::WlEglSurface;
-use wayland_client::protocol::wl_surface;
+use wayland_client::protocol::{wl_surface, wl_display};
 use egl;
 
 use sys::cairo;
 use error;
 use config::Config;
 use platform::{self, Clipboard};
-use platform::wayland::Context;
 
 pub struct Proxy {
-	pub(super) context: Arc<Context>,
+	pub(super) display: Arc<wl_display::WlDisplay>,
 	pub(super) surface: Arc<wl_surface::WlSurface>,
-	pub(super) window:  RefCell<Option<WlEglSurface>>,
-
-	pub(super) width:  Arc<AtomicU32>,
-	pub(super) height: Arc<AtomicU32>,
+	pub(super) inner:   RefCell<Option<WlEglSurface>>,
 }
 
 unsafe impl Send for Proxy { }
 
 impl platform::Proxy for Proxy {
 	fn dimensions(&self) -> (u32, u32) {
-		(self.width.load(Ordering::Relaxed), self.height.load(Ordering::Relaxed))
+		(800, 600)
 	}
 
 	fn surface(&self) -> error::Result<cairo::Surface> {
 		let (width, height) = self.dimensions();
-		self.window.borrow_mut().take();
+		self.inner.borrow_mut().take();
 
 		unsafe {
-			let display = egl::get_display(self.context.display.ptr() as *mut _)
+			let display = egl::get_display(self.display.ptr() as *mut _)
 				.ok_or(error::platform::Error::EGL("could not get display".into()))?;
 
 			let mut major = 0;
@@ -73,14 +69,18 @@ impl platform::Proxy for Proxy {
 			let context = egl::create_context(display, config, ptr::null_mut(), &[])
 				.ok_or(error::platform::Error::EGL("could not create context".into()))?;
 
-			let window = WlEglSurface::new(&self.surface, width as i32, height as i32);
+			let inner = WlEglSurface::new(&self.surface, width as i32, height as i32);
 
-			let surface = egl::create_window_surface(display, config, window.ptr() as *mut _, &[])
+			let surface = egl::create_window_surface(display, config, inner.ptr() as *mut _, &[])
 				.ok_or(error::platform::Error::EGL("could not create surface".into()))?;
 
-			*self.window.borrow_mut() = Some(window);
+			*self.inner.borrow_mut() = Some(inner);
 
 			Ok(cairo::Surface::new(display, context, surface, width, height))
 		}
+	}
+
+	fn flush(&self) {
+		self.surface.commit();
 	}
 }

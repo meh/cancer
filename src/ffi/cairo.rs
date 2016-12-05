@@ -128,6 +128,7 @@ pub mod platform {
 	extern "C" {
 		pub fn cairo_egl_device_create(display: EGLDisplay, context: EGLContext) -> *mut cairo_device_t;
 		pub fn cairo_gl_surface_create_for_egl(device: *mut cairo_device_t, surface: EGLSurface, width: c_int, height: c_int) -> *mut cairo_surface_t;
+		pub fn cairo_gl_surface_swapbuffers(surface: *mut cairo_surface_t);
 	}
 }
 

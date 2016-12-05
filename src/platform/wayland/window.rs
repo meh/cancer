@@ -20,8 +20,11 @@ use std::sync::atomic::{AtomicU32, Ordering};
 use std::sync::mpsc::Sender;
 use std::cell::RefCell;
 
-use wayland_client::{Init, EventQueue, EventQueueHandle};
-use wayland_client::protocol::{wl_surface, wl_shell_surface};
+use wayland_client::{EnvHandler, default_connect, EventQueue, EventQueueHandle, Init, Proxy as WlProxy};
+use wayland_client::protocol::{wl_compositor, wl_seat, wl_shell, wl_shm, wl_subcompositor};
+use wayland_client::protocol::{wl_display, wl_registry, wl_output, wl_surface, wl_pointer};
+use wayland_client::protocol::{wl_keyboard, wl_shell_surface};
+use wayland_kbd::MappedKeyboard;
 use wayland_window::{self, DecoratedSurface};
 
 use error;
@@ -31,21 +34,22 @@ use platform::{Event, Clipboard};
 use platform::key;
 use platform::mouse::{self, Mouse};
 use platform::wayland::Proxy;
-use platform::wayland::context::{self, Context};
 
 pub struct Window {
 	config: Arc<Config>,
 	proxy:  Option<Proxy>,
 
-	context: Arc<Context>,
-	surface: Arc<wl_surface::WlSurface>,
-
-	handler:    usize,
-	decoration: usize,
-
-	width:  Arc<AtomicU32>,
-	height: Arc<AtomicU32>,
+	display:  Arc<wl_display::WlDisplay>,
+	queue:    EventQueue,
+	registry: Arc<wl_registry::WlRegistry>,
+	surface:  Arc<wl_surface::WlSurface>,
 }
+
+wayland_env!(Environment,
+    compositor:    wl_compositor::WlCompositor,
+    subcompositor: wl_subcompositor::WlSubcompositor,
+    shm:           wl_shm::WlShm,
+    shell:         wl_shell::WlShell);
 
 impl Window {
 	pub fn new(name: Option<&str>, config: Arc<Config>, font: Arc<Font>) -> error::Result<Self> {
@@ -55,47 +59,64 @@ impl Window {
 		let width  = (80 * font.width()) + (margin * 2);
 		let height = (24 * (font.height() + spacing)) + (margin * 2);
 
-		let context               = Arc::new(Context::new()?);
-		let (surface, decoration) = context.create::<Decorator>(width, height)?;
+		// Connect to the server.
+		let (display, mut queue) = default_connect()?;
+		let display              = Arc::new(display);
+		queue.add_handler(EnvHandler::<Environment>::new());
 
-		let decoration = {
-			let mut queue = context.queue.lock().unwrap();
-			let     id    = queue.add_handler_with_init(decoration);
-			let mut state = queue.state();
+		// Initialize connection.
+		let registry = Arc::new(display.get_registry().expect("no registry"));
+		queue.register::<_, EnvHandler<Environment>>(&registry, 0);
+		queue.sync_roundtrip()?;
 
-			let decoration          = state.get_mut_handler::<DecoratedSurface<Decorator>>(id);
-			*(decoration.handler()) = Some(Decorator::default());
+		// Create the surface.
+		let surface = Arc::new({
+			let state = queue.state();
+			let env   = state.get_handler::<EnvHandler<Environment>>(0);
 
-			id
+			env.compositor.create_surface().expect("no surface")
+		});
+
+		// Find the first available seat.
+		let mut seat = None;
+		{
+			let state = queue.state();
+			let env   = state.get_handler::<EnvHandler<Environment>>(0);
+
+			for &(id, ref interface, _) in env.globals() {
+				if interface == "wl_seat" {
+					seat = Some(registry.bind(1, id).expect("no registry"));
+					break;
+				}
+			}
+		}
+
+		// Create the window decoration.
+		let mut decorator = {
+			let state = queue.state();
+			let env   = state.get_handler::<EnvHandler<Environment>>(0);
+
+			DecoratedSurface::new(&surface, 800, 600,
+				&env.compositor, &env.subcompositor, &env.shm, &env.shell, seat, true)?
 		};
 
-		let width  = Arc::new(AtomicU32::new(width));
-		let height = Arc::new(AtomicU32::new(height));
-
-		let handler = Handler::default();
-		let handler = context.queue.lock().unwrap().add_handler_with_init(handler);
+		*decorator.handler() = Some(Decorator::default());
+		queue.add_handler_with_init(decorator);
 
 		let proxy = Proxy {
-			width:  width.clone(),
-			height: height.clone(),
-
-			context: context.clone(),
+			display: display.clone(),
 			surface: surface.clone(),
-			window:  RefCell::new(None),
+			inner:   RefCell::new(None),
 		};
 
 		Ok(Window {
 			config: config.clone(),
 			proxy:  Some(proxy),
 
-			context: context,
-			surface: surface,
-
-			handler:    handler,
-			decoration: decoration,
-
-			width:  width,
-			height: height,
+			display:  display,
+			queue:    queue,
+			registry: registry,
+			surface:  surface,
 		})
 	}
 
@@ -104,30 +125,12 @@ impl Window {
 	}
 
 	pub fn run(&mut self, manager: Sender<Event>) -> error::Result<()> {
-		context::prepare(&self.context, manager);
-
 		loop {
-			println!("FLUSH");
-			self.context.flush()?;
-			println!("DISPATCH");
-			self.context.dispatch()?;
+			self.display.flush()?;
+			self.queue.dispatch()?;
 
-			println!("RESIZE CHECK");
-			{
-				let mut queue     = self.context.queue.lock().unwrap();
-				let mut state     = queue.state();
-				let mut decorator = state.get_mut_handler::<DecoratedSurface<Decorator>>(self.decoration);
-
-				if let Some((w, h)) = decorator.handler().as_mut().unwrap().size.take() {
-					decorator.resize(w as i32, h as i32);
-					println!("RESIZE: {} {}", w, h);
-				}
-			}
-
-			println!("hue");
+			println!("HUE");
 		}
-
-		Ok(())
 	}
 }
 
@@ -139,23 +142,11 @@ impl Drop for Window {
 
 #[derive(Default, Debug)]
 struct Decorator {
-	size: Option<(u32, u32)>,
+	size: Option<(i32, i32)>,
 }
 
 impl wayland_window::Handler for Decorator {
-	fn configure(&mut self, _queue: &mut EventQueueHandle, _surface: wl_shell_surface::Resize, width: i32, height: i32) {
-		use std::cmp;
-		self.size = Some((cmp::max(1, width) as u32, cmp::max(1, height) as u32));
-	}
-}
-
-#[derive(Default, Debug)]
-struct Handler {
-	id: usize,
-}
-
-impl Init for Handler {
-	fn init(&mut self, _queue: &mut EventQueueHandle, index: usize) {
-		self.id = index;
+	fn configure(&mut self, _queue: &mut EventQueueHandle, _shell: wl_shell_surface::Resize, width: i32, height: i32) {
+		self.size = Some((width, height))
 	}
 }

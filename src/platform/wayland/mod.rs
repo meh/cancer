@@ -20,9 +20,3 @@ pub use self::window::Window;
 
 mod proxy;
 pub use self::proxy::Proxy;
-
-mod environment;
-pub use self::environment::Environment;
-
-mod context;
-pub use self::context::Context;

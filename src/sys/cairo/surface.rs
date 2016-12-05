@@ -32,6 +32,9 @@ impl Surface {
 	pub fn flush(&self) {
 		unsafe {
 			cairo_surface_flush(self.ptr);
+
+			#[cfg(all(feature = "wayland", any(target_os = "linux", target_os = "freebsd", target_os = "netbsd", target_os = "openbsd", target_os = "dragonfly")))]
+			cairo_gl_surface_swapbuffers(self.ptr);
 		}
 	}
 }
