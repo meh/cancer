@@ -17,7 +17,7 @@
 
 #![feature(mpsc_select, conservative_impl_trait, slice_patterns, static_in_const)]
 #![feature(trace_macros, type_ascription, inclusive_range_syntax, pub_restricted)]
-#![feature(deque_extras, box_syntax, try_from)]
+#![feature(deque_extras, box_syntax, try_from, integer_atomics)]
 
 #![cfg_attr(feature = "fuzzy", feature(plugin))]
 #![cfg_attr(feature = "fuzzy", plugin(afl_plugin))]
@@ -57,6 +57,16 @@ pub extern crate xcb;
 pub extern crate xcb_util as xcbu;
 #[cfg(all(feature = "x11", any(target_os = "linux", target_os = "freebsd", target_os = "netbsd", target_os = "openbsd", target_os = "dragonfly")))]
 pub extern crate xkbcommon;
+
+#[cfg(all(feature = "wayland", any(target_os = "linux", target_os = "freebsd", target_os = "netbsd", target_os = "openbsd", target_os = "dragonfly")))]
+#[macro_use(wayland_env, declare_handler)]
+pub extern crate wayland_client;
+#[cfg(all(feature = "wayland", any(target_os = "linux", target_os = "freebsd", target_os = "netbsd", target_os = "openbsd", target_os = "dragonfly")))]
+pub extern crate wayland_kbd;
+#[cfg(all(feature = "wayland", any(target_os = "linux", target_os = "freebsd", target_os = "netbsd", target_os = "openbsd", target_os = "dragonfly")))]
+pub extern crate wayland_window;
+#[cfg(all(feature = "wayland", any(target_os = "linux", target_os = "freebsd", target_os = "netbsd", target_os = "openbsd", target_os = "dragonfly")))]
+pub extern crate egl;
 
 #[cfg(target_os = "macos")]
 #[macro_use(msg_send, sel)]
@@ -154,8 +164,11 @@ fn main() {
 	let font   = Arc::new(Font::load(matches.value_of("font").unwrap_or(config.style().font())).unwrap());
 
 	let mut window = Window::new(matches.value_of("name"), config.clone(), font.clone()).unwrap();
-	let     proxy  = window.proxy();
-	let     _      = window.run(spawn(&matches, config.clone(), font.clone(), proxy).unwrap());
+//	let     proxy  = window.proxy();
+//	let     _      = window.run(spawn(&matches, config.clone(), font.clone(), proxy).unwrap());
+
+	let (s, r) = ::std::sync::mpsc::channel();
+	window.run(s).unwrap();
 
 	fn spawn<W: platform::Proxy + 'static>(matches: &ArgMatches, config: Arc<Config>, font: Arc<Font>, mut window: W) -> error::Result<Sender<Event>> {
 		let (sender, events) = channel();

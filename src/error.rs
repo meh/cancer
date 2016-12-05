@@ -108,6 +108,29 @@ pub mod platform {
 	}
 }
 
+#[cfg(all(feature = "wayland", any(target_os = "linux", target_os = "freebsd", target_os = "netbsd", target_os = "openbsd", target_os = "dragonfly")))]
+pub mod platform {
+	use wayland_client;
+
+	#[derive(Debug)]
+	pub enum Error {
+		Connection(wayland_client::ConnectError),
+		EGL(String),
+	}
+
+	impl From<Error> for super::Error {
+		fn from(value: Error) -> super::Error {
+			super::Error::Platform(value)
+		}
+	}
+
+	impl From<wayland_client::ConnectError> for super::Error {
+		fn from(value: wayland_client::ConnectError) -> super::Error {
+			super::Error::Platform(Error::Connection(value))
+		}
+	}
+}
+
 #[cfg(target_os = "macos")]
 pub mod platform {
 	pub type Error = ();
@@ -156,6 +179,9 @@ impl error::Error for Error {
 			Error::Platform(ref err) => match *err {
 				platform::Error::Connection(..) =>
 					"Connection to the Wayland server failed.",
+
+				platform::Error::EGL(ref msg) =>
+					msg,
 			},
 
 			#[cfg(target_os = "macos")]

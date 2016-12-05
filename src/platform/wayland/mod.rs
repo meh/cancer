@@ -15,13 +15,14 @@
 // You should have received a copy of the GNU General Public License
 // along with cancer.  If not, see <http://www.gnu.org/licenses/>.
 
-#![allow(dead_code)]
+mod window;
+pub use self::window::Window;
 
-pub mod glib;
-pub mod pango;
-pub mod cairo;
+mod proxy;
+pub use self::proxy::Proxy;
 
-#[cfg(all(feature = "wayland", any(target_os = "linux", target_os = "freebsd", target_os = "netbsd", target_os = "openbsd", target_os = "dragonfly")))]
-#[link(name = "EGL")]
-#[link(name = "GLESv2")]
-extern { }
+mod environment;
+pub use self::environment::Environment;
+
+mod context;
+pub use self::context::Context;

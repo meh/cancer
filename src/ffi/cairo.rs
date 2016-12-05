@@ -99,6 +99,8 @@ extern "C" {
 	pub fn cairo_clip(cr: *mut cairo_t);
 	pub fn cairo_rectangle(cr: *mut cairo_t, x: c_double, y: c_double, w: c_double, h: c_double);
 
+	pub fn cairo_device_destroy(device: *mut cairo_device_t);
+
 	pub fn cairo_surface_flush(surface: *mut cairo_surface_t);
 	pub fn cairo_surface_destroy(surface: *mut cairo_surface_t);
 }
@@ -114,6 +116,18 @@ pub mod platform {
 	extern "C" {
 		pub fn cairo_xcb_surface_set_size(surface: *mut cairo_surface_t, width: c_int, height: c_int);
 		pub fn cairo_xcb_surface_create(connection: *mut xcb_connection_t, drawable: xcb_drawable_t, visual: *const xcb_visualtype_t, width: c_int, height: c_int) -> *mut cairo_surface_t;
+	}
+}
+
+#[cfg(all(feature = "wayland", any(target_os = "linux", target_os = "freebsd", target_os = "netbsd", target_os = "openbsd", target_os = "dragonfly")))]
+pub mod platform {
+	use super::*;
+	pub use libc::c_int;
+	pub use egl::{EGLDisplay, EGLContext, EGLSurface};
+
+	extern "C" {
+		pub fn cairo_egl_device_create(display: EGLDisplay, context: EGLContext) -> *mut cairo_device_t;
+		pub fn cairo_gl_surface_create_for_egl(device: *mut cairo_device_t, surface: EGLSurface, width: c_int, height: c_int) -> *mut cairo_surface_t;
 	}
 }
 
