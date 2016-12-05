@@ -24,11 +24,11 @@
 #[cfg(feature = "fuzzy")]
 extern crate afl;
 
-#[macro_use]
+#[macro_use(error, debug, log)]
 extern crate log;
 extern crate env_logger;
 
-#[macro_use]
+#[macro_use(bitflags)]
 extern crate bitflags;
 extern crate bit_vec;
 extern crate fnv;
@@ -37,7 +37,7 @@ extern crate lru_cache as lru;
 extern crate shlex;
 extern crate palette;
 extern crate schedule_recv as timer;
-#[macro_use]
+#[macro_use(arg)]
 extern crate control_code as control;
 
 extern crate unicode_segmentation;
@@ -51,22 +51,22 @@ use clap::{App, Arg, ArgMatches};
 
 extern crate libc;
 
-#[cfg(target_os = "linux")]
-extern crate xcb;
-#[cfg(target_os = "linux")]
-extern crate xcb_util as xcbu;
-#[cfg(target_os = "linux")]
-extern crate xkbcommon;
+#[cfg(all(feature = "x11", any(target_os = "linux", target_os = "freebsd", target_os = "netbsd", target_os = "openbsd", target_os = "dragonfly")))]
+pub extern crate xcb;
+#[cfg(all(feature = "x11", any(target_os = "linux", target_os = "freebsd", target_os = "netbsd", target_os = "openbsd", target_os = "dragonfly")))]
+pub extern crate xcb_util as xcbu;
+#[cfg(all(feature = "x11", any(target_os = "linux", target_os = "freebsd", target_os = "netbsd", target_os = "openbsd", target_os = "dragonfly")))]
+pub extern crate xkbcommon;
 
 #[cfg(target_os = "macos")]
-#[macro_use]
-extern crate objc;
+#[macro_use(msg_send)]
+pub extern crate objc;
 #[cfg(target_os = "macos")]
-extern crate cocoa;
+pub extern crate cocoa;
 #[cfg(target_os = "macos")]
-extern crate core_foundation;
+pub extern crate core_foundation;
 #[cfg(target_os = "macos")]
-extern crate core_graphics;
+pub extern crate core_graphics;
 
 #[macro_use]
 mod util;

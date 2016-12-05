@@ -40,10 +40,10 @@ regex    = "0.1"
 unicode-segmentation = "0.1"
 unicode-width        = "0.1"
 
-[target.'cfg(target_os = "linux")'.dependencies]
-xcb       = { version = "0.7.6", features = ["thread"] }
-xcb-util  = { version = "0.1.5", features = ["icccm", "ewmh", "thread"] }
-xkbcommon = { version = "0.2",   features = ["x11", "compose"], git = "https://github.com/meh/xkbcommon-rs" }
+[target.'cfg(any(target_os = "linux", target_os = "freebsd", target_os = "netbsd", target_os = "openbsd", target_os = "dragonfly"))'.dependencies]
+xcb       = { version = "0.7.6", features = ["thread"], optional = true }
+xcb-util  = { version = "0.1.5", features = ["icccm", "ewmh", "thread"], optional = true }
+xkbcommon = { version = "0.2",   features = ["x11", "compose"], git = "https://github.com/meh/xkbcommon-rs", optional = true }
 
 [target.'cfg(target_os = "macos")'.dependencies]
 objc            = "0.2"
@@ -52,8 +52,11 @@ core-foundation = "0"
 core-graphics   = "0.4"
 
 [features]
-static = []
-fuzzy  = ["afl", "afl-plugin"]
+default = ["x11"]
+static  = []
+fuzzy   = ["afl", "afl-plugin"]
+
+x11 = ["xcb", "xcb-util", "xkbcommon"]
 
 [dependencies.afl]
 version  = "0.1"

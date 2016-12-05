@@ -18,9 +18,9 @@
 mod tty;
 pub use self::tty::Tty;
 
-#[cfg(target_os = "linux")]
+#[cfg(all(feature = "x11", any(target_os = "linux", target_os = "freebsd", target_os = "netbsd", target_os = "openbsd", target_os = "dragonfly")))]
 mod x11;
-#[cfg(target_os = "linux")]
+#[cfg(all(feature = "x11", any(target_os = "linux", target_os = "freebsd", target_os = "netbsd", target_os = "openbsd", target_os = "dragonfly")))]
 pub use self::x11::Window;
 
 #[cfg(target_os = "macos")]
