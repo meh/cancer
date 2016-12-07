@@ -94,25 +94,25 @@ impl Renderer {
 			// Left margin.
 			if region.x < h {
 				o.rectangle(0.0, region.y as f64, h as f64, region.height as f64);
-				o.fill(false);
+				o.fill();
 			}
 
 			// Right margin.
 			if region.x + region.width >= state.width() - h {
 				o.rectangle((h + (columns * f.width())) as f64, region.y as f64, h as f64 * 2.0, region.height as f64);
-				o.fill(false);
+				o.fill();
 			}
 
 			// Top margin.
 			if region.y < v {
 				o.rectangle(region.x as f64, 0.0, region.width as f64, v as f64);
-				o.fill(false);
+				o.fill();
 			}
 
 			// Bottom margin.
 			if region.y + region.height >= state.height() - v {
 				o.rectangle(region.x as f64, (v + (rows * (f.height() + s))) as f64, region.width as f64, v as f64 * 2.0);
-				o.fill(false);
+				o.fill();
 			}
 		}
 		o.restore();
@@ -137,8 +137,6 @@ impl Renderer {
 		{
 			// Draw the background.
 			o.rectangle(x as f64, y as f64, w as f64, h as f64);
-			o.clip();
-
 			match cursor.shape() {
 				Shape::Block => {
 					if options.focus() && !bc {
@@ -154,11 +152,13 @@ impl Renderer {
 						c.style().color().background()));
 				}
 			}
-
-			o.paint();
+			o.fill();
 
 			// Draw the glyph.
 			if cell.is_occupied() && !(options.blinking() && cell.style().attributes().contains(style::BLINK)) {
+				o.save();
+				o.rectangle(x as f64, y as f64, w as f64, h as f64);
+				o.clip();
 				o.move_to(x as f64, (y + f.ascent()) as f64);
 
 				match cursor.shape() {
@@ -174,6 +174,7 @@ impl Renderer {
 
 				let computed = self.glyphs.compute(Rc::new(cell.value().into()), cell.style().attributes());
 				o.glyph(computed.text(), computed.glyphs());
+				o.restore();
 			}
 
 			// Render cursors that require to be on top.
@@ -247,18 +248,22 @@ impl Renderer {
 		{
 			// Draw the background.
 			o.rectangle(x as f64, y as f64, w as f64, h as f64);
-			o.clip();
 			o.rgba(bg);
-			o.paint();
+			o.fill();
 
 			// Draw the glyph.
 			if !cell.style().attributes().contains(style::BLINK) || !options.blinking() {
 				if cell.is_occupied() {
+					o.save();
+					o.rectangle(x as f64, y as f64, w as f64, h as f64);
+					o.clip();
+
 					o.move_to(x as f64, (y + f.ascent()) as f64);
 					o.rgba(fg);
-
 					let computed = self.glyphs.compute(Rc::new(cell.value().into()), cell.style().attributes());
 					o.glyph(computed.text(), computed.glyphs());
+
+					o.restore();
 				}
 
 				// Draw underline.
@@ -268,7 +273,7 @@ impl Renderer {
 					o.rgba(c.style().color().underline().unwrap_or(fg));
 					o.rectangle(x as f64, (y + position) as f64, w as f64, thickness as f64);
 					o.line_width(1.0);
-					o.fill(false);
+					o.fill();
 				}
 
 				// Draw strikethrough.
@@ -278,7 +283,7 @@ impl Renderer {
 					o.rgba(c.style().color().strikethrough().unwrap_or(fg));
 					o.rectangle(x as f64, (y + position) as f64, w as f64, thickness as f64);
 					o.line_width(1.0);
-					o.fill(false);
+					o.fill();
 				}
 			}
 		}

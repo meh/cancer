@@ -63,12 +63,7 @@ impl Renderer {
 	pub fn render<I>(&mut self, state: &State, options: Options, region: Option<Region>, interface: &Interface, iter: I)
 		where I: Iterator<Item = (u32, u32)>
 	{
-		self.context.push();
-
 		self.context.rgba(&::palette::Rgba::new_u8(0, 0, 0, 255));
-		self.context.paint();
-
-		self.context.pop();
 		self.context.paint();
 	}
 }

@@ -31,18 +31,6 @@ impl Context {
 		}
 	}
 
-	pub fn push(&mut self) {
-		unsafe {
-			cairo_push_group(self.0);
-		}
-	}
-
-	pub fn pop(&mut self) {
-		unsafe {
-			cairo_pop_group_to_source(self.0);
-		}
-	}
-
 	pub fn save(&mut self) {
 		unsafe {
 			cairo_save(self.0);
@@ -97,14 +85,9 @@ impl Context {
 		}
 	}
 
-	pub fn fill(&mut self, preserve: bool) {
+	pub fn fill(&mut self) {
 		unsafe {
-			if preserve {
-				cairo_fill_preserve(self.0);
-			}
-			else {
-				cairo_fill(self.0);
-			}
+			cairo_fill(self.0);
 		}
 	}
 

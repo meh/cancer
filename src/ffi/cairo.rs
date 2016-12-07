@@ -45,15 +45,11 @@ extern "C" {
 	pub fn cairo_save(cr: *mut cairo_t);
 	pub fn cairo_restore(cr: *mut cairo_t);
 
-	pub fn cairo_push_group(cr: *mut cairo_t);
-	pub fn cairo_pop_group_to_source(cr: *mut cairo_t);
-
 	pub fn cairo_paint(cr: *mut cairo_t);
 	pub fn cairo_set_source_rgb(cr: *mut cairo_t, r: c_double, g: c_double, b: c_double);
 	pub fn cairo_set_source_rgba(cr: *mut cairo_t, r: c_double, g: c_double, b: c_double, a: c_double);
 
 	pub fn cairo_fill(cr: *mut cairo_t);
-	pub fn cairo_fill_preserve(cr: *mut cairo_t);
 	pub fn cairo_stroke(cr: *mut cairo_t);
 
 	pub fn cairo_move_to(cr: *mut cairo_t, x: c_double, y: c_double);
