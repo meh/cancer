@@ -28,6 +28,7 @@ pub struct cairo_device_t(c_void);
 pub struct cairo_surface_t(c_void);
 
 #[repr(C)]
+#[derive(Eq, PartialEq, Copy, Clone, Debug)]
 pub enum cairo_format_t {
 	Invalid = -1,
 	Argb32,
@@ -38,8 +39,47 @@ pub enum cairo_format_t {
 	Rgb30,
 }
 
+#[repr(C)]
+#[derive(Eq, PartialEq, Copy, Clone, Debug)]
+pub enum cairo_operator_t {
+	Clear,
+
+	Source,
+	Over,
+	In,
+	Out,
+	Atop,
+
+	Dest,
+	DestOver,
+	DestIn,
+	DestOut,
+	DestAtop,
+
+	Xor,
+	Add,
+	Saturate,
+
+	Multiply,
+	Screen,
+	Overlay,
+	Darken,
+	Lighten,
+	ColorDodge,
+	ColorBurn,
+	HardLight,
+	SoftLight,
+	Difference,
+	Exclusion,
+	HslHue,
+	HslSaturation,
+	HslColor,
+	HslLuminosity
+}
+
 extern "C" {
 	pub fn cairo_create(surface: *mut cairo_surface_t) -> *mut cairo_t;
+	pub fn cairo_set_operator(cr: *mut cairo_t, operator: cairo_operator_t);
 	pub fn cairo_destroy(cr: *mut cairo_t);
 
 	pub fn cairo_save(cr: *mut cairo_t);

@@ -27,7 +27,10 @@ pub struct Context(pub *mut cairo_t);
 impl Context {
 	pub fn new(surface: &Surface) -> Self {
 		unsafe {
-			Context(cairo_create(surface.0))
+			let context = cairo_create(surface.0);
+			cairo_set_operator(context, cairo_operator_t::Source);
+
+			Context(context)
 		}
 	}
 
