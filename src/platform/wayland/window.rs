@@ -18,22 +18,18 @@
 use std::sync::{Arc, Mutex};
 use std::sync::atomic::{AtomicU32, Ordering};
 use std::sync::mpsc::Sender;
-use std::cell::RefCell;
 
 use wayland_client::{EnvHandler, default_connect, EventQueue, EventQueueHandle, Init, Proxy as WlProxy};
 use wayland_client::protocol::{wl_compositor, wl_seat, wl_shell, wl_shm, wl_subcompositor};
 use wayland_client::protocol::{wl_display, wl_registry, wl_output, wl_surface, wl_pointer};
 use wayland_client::protocol::{wl_keyboard, wl_shell_surface};
-use wayland_kbd::MappedKeyboard;
 use wayland_window::{self, DecoratedSurface};
 
 use error;
 use config::Config;
 use font::Font;
-use platform::{Event, Clipboard};
-use platform::key;
-use platform::mouse::{self, Mouse};
-use platform::wayland::Proxy;
+use platform::Event;
+use platform::wayland::{Proxy, Handler};
 
 pub struct Window {
 	config: Arc<Config>,
@@ -43,6 +39,12 @@ pub struct Window {
 	queue:    EventQueue,
 	registry: Arc<wl_registry::WlRegistry>,
 	surface:  Arc<wl_surface::WlSurface>,
+
+	mouse:    Option<wl_pointer::WlPointer>,
+	keyboard: Option<wl_keyboard::WlKeyboard>,
+
+	width:  Arc<AtomicU32>,
+	height: Arc<AtomicU32>,
 }
 
 wayland_env!(Environment,
@@ -69,44 +71,35 @@ impl Window {
 		queue.register::<_, EnvHandler<Environment>>(&registry, 0);
 		queue.sync_roundtrip()?;
 
-		// Create the surface.
-		let surface = Arc::new({
+		// Create the surface and decorations.
+		let (surface, decorator) = {
+			let seat  = Window::seat(&mut queue, &registry);
 			let state = queue.state();
 			let env   = state.get_handler::<EnvHandler<Environment>>(0);
 
-			env.compositor.create_surface().expect("no surface")
-		});
+			let     surface   = env.compositor.create_surface().expect("no surface");
+			let mut decorator = DecoratedSurface::new(&surface, width as i32, height as i32,
+				&env.compositor, &env.subcompositor, &env.shm, &env.shell, seat, true)?;
 
-		// Find the first available seat.
-		let mut seat = None;
-		{
-			let state = queue.state();
-			let env   = state.get_handler::<EnvHandler<Environment>>(0);
+			decorator.set_title("cancer".into());
+			decorator.set_class(name.unwrap_or("cancer").into());
+			*decorator.handler() = Some(Decorator::default());
 
-			for &(id, ref interface, _) in env.globals() {
-				if interface == "wl_seat" {
-					seat = Some(registry.bind(1, id).expect("no registry"));
-					break;
-				}
-			}
-		}
-
-		// Create the window decoration.
-		let mut decorator = {
-			let state = queue.state();
-			let env   = state.get_handler::<EnvHandler<Environment>>(0);
-
-			DecoratedSurface::new(&surface, 800, 600,
-				&env.compositor, &env.subcompositor, &env.shm, &env.shell, seat, true)?
+			(Arc::new(surface), decorator)
 		};
 
-		*decorator.handler() = Some(Decorator::default());
 		queue.add_handler_with_init(decorator);
+
+		let width  = Arc::new(AtomicU32::new(width));
+		let height = Arc::new(AtomicU32::new(height));
 
 		let proxy = Proxy {
 			display: display.clone(),
 			surface: surface.clone(),
-			inner:   RefCell::new(None),
+			inner:   None,
+
+			width:  width.clone(),
+			height: height.clone(),
 		};
 
 		Ok(Window {
@@ -117,6 +110,12 @@ impl Window {
 			queue:    queue,
 			registry: registry,
 			surface:  surface,
+
+			mouse:    None,
+			keyboard: None,
+
+			width:  width,
+			height: height,
 		})
 	}
 
@@ -125,12 +124,38 @@ impl Window {
 	}
 
 	pub fn run(&mut self, manager: Sender<Event>) -> error::Result<()> {
+		let handler = self.queue.add_handler_with_init(Handler::new(manager.clone()));
+		self.queue.register::<_, Handler>(&*self.surface, handler);
+
+		if let Some(seat) = Window::seat(&mut self.queue, &self.registry) {
+			let pointer = seat.get_pointer().expect("no pointer");
+			self.queue.register::<_, Handler>(&pointer, handler);
+			self.mouse = Some(pointer);
+
+			let keyboard = seat.get_keyboard().expect("no keyboard");
+			self.queue.register::<_, Handler>(&keyboard, handler);
+			self.keyboard = Some(keyboard);
+		}
+
+		manager.send(Event::Redraw);
+
 		loop {
 			self.display.flush()?;
 			self.queue.dispatch()?;
-
-			println!("HUE");
 		}
+	}
+
+	fn seat(queue: &mut EventQueue, registry: &wl_registry::WlRegistry) -> Option<wl_seat::WlSeat> {
+		let state = queue.state();
+		let env   = state.get_handler::<EnvHandler<Environment>>(0);
+
+		for &(id, ref interface, _) in env.globals() {
+			if interface == "wl_seat" {
+				return Some(registry.bind(1, id).expect("no registry"));
+			}
+		}
+
+		None
 	}
 }
 
@@ -147,6 +172,7 @@ struct Decorator {
 
 impl wayland_window::Handler for Decorator {
 	fn configure(&mut self, _queue: &mut EventQueueHandle, _shell: wl_shell_surface::Resize, width: i32, height: i32) {
+		println!("window.resize({}, {})", width, height);
 		self.size = Some((width, height))
 	}
 }

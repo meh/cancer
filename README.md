@@ -29,7 +29,6 @@ Configuration
 The default path for the configuration file is platform dependant, on Linux it
 will use `$XDG_CONFIG_PATH/cancer/config.toml`.
 
-
 `[environment]`
 ---------------
 The `environment` block is used for system specific configurations.

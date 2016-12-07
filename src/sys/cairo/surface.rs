@@ -19,46 +19,46 @@ use ffi::cairo::*;
 use ffi::cairo::platform::*;
 
 #[derive(Debug)]
-pub struct Surface {
-	pub ptr: *mut cairo_surface_t,
-
-	#[cfg(all(feature = "wayland", any(target_os = "linux", target_os = "freebsd", target_os = "netbsd", target_os = "openbsd", target_os = "dragonfly")))]
-	device: *mut cairo_device_t,
-}
+pub struct Surface(pub *mut cairo_surface_t);
 
 unsafe impl Send for Surface { }
 
 impl Surface {
-	pub fn flush(&self) {
+	pub fn flush(&mut self) {
 		unsafe {
-			cairo_surface_flush(self.ptr);
+			cairo_surface_flush(self.0);
+		}
+	}
+}
 
-			#[cfg(all(feature = "wayland", any(target_os = "linux", target_os = "freebsd", target_os = "netbsd", target_os = "openbsd", target_os = "dragonfly")))]
-			cairo_gl_surface_swapbuffers(self.ptr);
+impl Drop for Surface {
+	fn drop(&mut self) {
+		unsafe {
+			cairo_surface_destroy(self.0);
 		}
 	}
 }
 
 #[cfg(all(feature = "x11", any(target_os = "linux", target_os = "freebsd", target_os = "netbsd", target_os = "openbsd")))]
-impl Surface {
+impl super::Surface {
 	pub fn new(connection: &xcb::Connection, drawable: xcb::Drawable, visual: xcb::Visualtype, width: u32, height: u32) -> Self {
 		unsafe {
 			let surface = cairo_xcb_surface_create(connection.get_raw_conn(), drawable, &visual.base,
 				width as c_int, height as c_int);
 
-			Surface { ptr: surface }
+			Surface(surface)
 		}
 	}
 }
 
 #[cfg(all(feature = "wayland", any(target_os = "linux", target_os = "freebsd", target_os = "netbsd", target_os = "openbsd", target_os = "dragonfly")))]
 impl Surface {
-	pub fn new(display: EGLDisplay, context: EGLContext, surface: EGLSurface, width: u32, height: u32) -> Self {
+	pub fn new(device: *mut cairo_device_t, texture: GLuint, width: u32, height: u32) -> Self {
 		unsafe {
-			let device  = cairo_egl_device_create(display: EGLDisplay, context: EGLContext);
-			let surface = cairo_gl_surface_create_for_egl(device, surface, width as c_int, height as c_int);
+			let surface = cairo_gl_surface_create_for_texture(device, cairo_content_t::ColorAlpha, texture,
+				width as c_int, height as c_int);
 
-			Surface { ptr: surface, device: device }
+			Surface(surface)
 		}
 	}
 }
@@ -73,18 +73,7 @@ impl Surface {
 			let surface = cairo_quartz_surface_create_for_cg_context(context,
 				width as c_uint, height as c_uint);
 
-			Surface { ptr: surface }
-		}
-	}
-}
-
-impl Drop for Surface {
-	fn drop(&mut self) {
-		unsafe {
-			cairo_surface_destroy(self.ptr);
-
-			#[cfg(all(feature = "wayland", any(target_os = "linux", target_os = "freebsd", target_os = "netbsd", target_os = "openbsd", target_os = "dragonfly")))]
-			cairo_device_destroy(self.device);
+			Surface(surface)
 		}
 	}
 }

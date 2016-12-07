@@ -56,7 +56,7 @@ impl platform::Proxy for Proxy {
 		}
 	}
 
-	fn surface(&self) -> error::Result<cairo::Surface> {
+	fn surface(&mut self) -> error::Result<cairo::Surface> {
 		unsafe {
 			let (width, height) = self.dimensions();
 
@@ -115,7 +115,7 @@ impl platform::Proxy for Proxy {
 		}
 	}
 
-	fn flush(&self) {
+	fn after(&mut self, _surface: &cairo::Surface) {
 		unsafe {
 			msg_send![**self.context.borrow(), flushGraphics];
 		}

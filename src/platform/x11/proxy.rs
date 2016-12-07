@@ -42,7 +42,7 @@ impl platform::Proxy for Proxy {
 		(reply.width() as u32, reply.height() as u32)
 	}
 
-	fn surface(&self) -> error::Result<cairo::Surface> {
+	fn surface(&mut self) -> error::Result<cairo::Surface> {
 		let screen          = self.connection.get_setup().roots().nth(self.screen as usize).unwrap();
 		let (width, height) = self.dimensions();
 
@@ -77,7 +77,7 @@ impl platform::Proxy for Proxy {
 		self.request.send(Request::Urgent).unwrap();
 	}
 
-	fn flush(&self) {
+	fn after(&mut self, _surface: &cairo::Surface) {
 		self.request.send(Request::Flush).unwrap();
 	}
 

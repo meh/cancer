@@ -27,7 +27,7 @@ pub trait Proxy: Send {
 	fn dimensions(&self) -> (u32, u32);
 
 	/// Create a Cairo surface.
-	fn surface(&self) -> error::Result<cairo::Surface>;
+	fn surface(&mut self) -> error::Result<cairo::Surface>;
 
 	/// Prepare the proxy.
 	fn prepare(&mut self, manager: Sender<Event>) { }
@@ -47,8 +47,11 @@ pub trait Proxy: Send {
 	/// Ask senpai to notice you.
 	fn urgent(&self) { }
 
-	/// Flush whatever.
-	fn flush(&self) { }
+	/// Before rendering.
+	fn before(&mut self, surface: &cairo::Surface) { }
+
+	/// After rendering.
+	fn after(&mut self, surface: &cairo::Surface) { }
 
 	/// Open the given item.
 	fn open(&self, through: Option<&str>, value: &str) -> error::Result<()> { Ok(()) }

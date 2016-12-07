@@ -67,6 +67,8 @@ pub extern crate wayland_kbd;
 pub extern crate wayland_window;
 #[cfg(all(feature = "wayland", any(target_os = "linux", target_os = "freebsd", target_os = "netbsd", target_os = "openbsd", target_os = "dragonfly")))]
 pub extern crate egl;
+#[cfg(all(feature = "wayland", any(target_os = "linux", target_os = "freebsd", target_os = "netbsd", target_os = "openbsd", target_os = "dragonfly")))]
+pub extern crate gl;
 
 #[cfg(target_os = "macos")]
 #[macro_use(msg_send, sel)]
@@ -271,10 +273,10 @@ fn main() {
 				let iter = $iter;
 
 				if visible {
+					window.before(&surface);
 					renderer.render(render!(options), None, &interface, iter);
-
 					surface.flush();
-					window.flush();
+					window.after(&surface);
 				}
 			});
 		}
@@ -330,19 +332,20 @@ fn main() {
 								let rows    = renderer.rows();
 								let columns = renderer.columns();
 
+								window.before(&surface);
 								renderer.render(render!(options), Some(Region::new(0, 0, width, height)),
 									&interface, Region::new(0, 0, columns, rows).absolute());
-
 								surface.flush();
-								window.flush();
+								window.after(&surface);
 							}
 
 							Event::Damaged(region) => {
 								let damaged = renderer.damaged(&region);
-								renderer.render(render!(options), Some(region), &interface, damaged.relative());
 
+								window.before(&surface);
+								renderer.render(render!(options), Some(region), &interface, damaged.relative());
 								surface.flush();
-								window.flush();
+								window.after(&surface);
 							}
 
 							Event::Focus(focus) => {

@@ -60,6 +60,8 @@ impl Renderer {
 	pub fn render<I>(&mut self, state: &State, options: Options, region: Option<Region>, interface: &Interface, iter: I)
 		where I: Iterator<Item = (u32, u32)>
 	{
+		self.context.push();
+
 		if let Some(region) = region {
 			self.margin(state, &region);
 		}

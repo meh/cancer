@@ -49,6 +49,7 @@ wayland-client = { version = "0.7", optional = true }
 wayland-kbd    = { version = "0.6", optional = true }
 wayland-window = { version = "0.4", optional = true }
 egl            = { version = "0.2", optional = true }
+gl             = { version = "0.6", optional = true }
 
 [target.'cfg(target_os = "macos")'.dependencies]
 objc            = "0.2"
@@ -61,7 +62,7 @@ default = ["x11"]
 static  = []
 fuzzy   = ["afl", "afl-plugin"]
 
-wayland = ["wayland-client", "wayland-kbd", "wayland-window", "egl"]
+wayland = ["wayland-client", "wayland-kbd", "wayland-window", "egl", "gl"]
 x11     = ["xcb", "xcb-util", "xkbcommon"]
 
 [dependencies.afl]

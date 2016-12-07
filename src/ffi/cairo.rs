@@ -77,6 +77,14 @@ pub enum cairo_operator_t {
 	HslLuminosity
 }
 
+#[repr(C)]
+#[derive(Eq, PartialEq, Copy, Clone, Debug)]
+pub enum cairo_content_t {
+	Color,
+	Alpha,
+	ColorAlpha,
+}
+
 extern "C" {
 	pub fn cairo_create(surface: *mut cairo_surface_t) -> *mut cairo_t;
 	pub fn cairo_set_operator(cr: *mut cairo_t, operator: cairo_operator_t);
@@ -100,6 +108,7 @@ extern "C" {
 	pub fn cairo_rectangle(cr: *mut cairo_t, x: c_double, y: c_double, w: c_double, h: c_double);
 
 	pub fn cairo_device_destroy(device: *mut cairo_device_t);
+	pub fn cairo_device_flush(device: *mut cairo_device_t);
 
 	pub fn cairo_surface_flush(surface: *mut cairo_surface_t);
 	pub fn cairo_surface_destroy(surface: *mut cairo_surface_t);
@@ -123,11 +132,12 @@ pub mod platform {
 pub mod platform {
 	use super::*;
 	pub use libc::c_int;
+	pub use gl::types::GLuint;
 	pub use egl::{EGLDisplay, EGLContext, EGLSurface};
 
 	extern "C" {
 		pub fn cairo_egl_device_create(display: EGLDisplay, context: EGLContext) -> *mut cairo_device_t;
-		pub fn cairo_gl_surface_create_for_egl(device: *mut cairo_device_t, surface: EGLSurface, width: c_int, height: c_int) -> *mut cairo_surface_t;
+		pub fn cairo_gl_surface_create_for_texture(device: *mut cairo_device_t, content: cairo_content_t, texture: GLuint, width: c_int, height: c_int) -> *mut cairo_surface_t;
 		pub fn cairo_gl_surface_swapbuffers(surface: *mut cairo_surface_t);
 	}
 }

@@ -18,5 +18,10 @@
 mod window;
 pub use self::window::Window;
 
+mod handler;
+pub use self::handler::Handler;
+
 mod proxy;
 pub use self::proxy::Proxy;
+
+mod util;
