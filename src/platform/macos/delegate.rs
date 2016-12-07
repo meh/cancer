@@ -72,6 +72,7 @@ impl Delegate {
 				let state = state as *mut State;
 
 				let _ = (*state).manager.send(Event::Focus(true));
+				let _ = (*state).manager.send(Event::Redraw);
 			}
 		}
 
@@ -91,13 +92,13 @@ impl Delegate {
 		decl.add_method(sel!(windowShouldClose:),
 			window_should_close as extern fn(&Object, Sel, id) -> BOOL);
 
-		decl.add_method(sel!(windowDidResize:),
+		decl.add_method(sel!(windowDidEndLiveResize:),
 			window_did_resize as extern fn(&Object, Sel, id));
 
 		decl.add_method(sel!(windowDidBecomeKey:),
 			window_did_become_key as extern fn(&Object, Sel, id));
 
-		decl.add_method(sel!(window_did_resign_key:),
+		decl.add_method(sel!(windowDidResignKey:),
 			window_did_resign_key as extern fn(&Object, Sel, id));
 
 		decl.register()
