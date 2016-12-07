@@ -87,11 +87,11 @@ impl Keyboard {
 
 		let (table, compose) = {
 			let     locale = locale.map(String::from).or(env::var("LANG").ok()).unwrap_or("C".into());
-			let mut table  = if let Ok(table) = xkb::compose::Table::new(&context, &locale, 0) {
+			let mut table  = if let Ok(table) = xkb::compose::Table::new_from_locale(&context, &locale, 0) {
 				table
 			}
 			else {
-				xkb::compose::Table::new(&context, "C", 0).unwrap()
+				xkb::compose::Table::new_from_locale(&context, "C", 0).unwrap()
 			};
 
 			let state = table.state(0);
@@ -189,18 +189,18 @@ impl Keyboard {
 		debug!(target: "cancer::platform::key", "compose status: {:?}", self.compose.status());
 
 		match self.compose.status() {
-			Status::NOTHING => (),
-			Status::COMPOSING =>
+			Status::Nothing => (),
+			Status::Composing =>
 				return None,
 
-			Status::COMPOSED => {
+			Status::Composed => {
 				if let Some(string) = self.compose.utf8() {
 					self.compose.reset();
 					return Some(Key::new(string.into(), modifier, lock));
 				}
 			}
 
-			Status::CANCELLED => {
+			Status::Cancelled => {
 				self.compose.reset();
 				return None;
 			}
