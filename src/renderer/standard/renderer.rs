@@ -64,8 +64,6 @@ impl Renderer {
 			self.margin(state, &region);
 		}
 
-		self.context.push();
-
 		for cell in interface.iter(iter) {
 			self.cell(state, &cell, options);
 		}
@@ -76,9 +74,6 @@ impl Renderer {
 		else {
 			self.cell(state, &interface.cursor().cell(), options);
 		}
-
-		self.context.pop();
-		self.context.paint();
 	}
 
 	/// Draw the margins within the given region.
