@@ -190,7 +190,7 @@ impl Window {
 			let mut first    = true;
 
 			loop {
-				let pool  = NSAutoreleasePool::new(nil);
+				let pool  = IdRef::new(NSAutoreleasePool::new(nil));
 				let event = appkit::NSApp().nextEventMatchingMask_untilDate_inMode_dequeue_(
 					appkit::NSAnyEventMask.bits() | appkit::NSEventMaskPressure.bits(),
 					NSDate::distantFuture(nil), NSDefaultRunLoopMode, YES);
@@ -329,8 +329,6 @@ impl Window {
 						debug!(target: "cancer::platform", "unhandled event: {:?}", event);
 					}
 				}
-
-				msg_send![pool, release];
 			}
 		}
 	}
