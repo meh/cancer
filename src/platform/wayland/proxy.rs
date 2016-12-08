@@ -35,7 +35,7 @@ use ffi::cairo::platform::*;
 use error;
 use config::Config;
 use platform::{self, Clipboard};
-use platform::wayland::util;
+use platform::glut;
 
 pub struct Proxy {
 	pub(super) display: Arc<wl_display::WlDisplay>,
@@ -114,17 +114,11 @@ impl platform::Proxy for Proxy {
 				egl::EGL_GREEN_SIZE, 1,
 				egl::EGL_BLUE_SIZE, 1,
 				egl::EGL_ALPHA_SIZE, 1,
-				egl::EGL_DEPTH_SIZE, 1,
 				egl::EGL_NONE], 1)
 					.ok_or(error::platform::Error::EGL("choose config failed".into()))?;
 
 			let main = egl::create_context(display, config, egl::EGL_NO_CONTEXT, &[])
 				.ok_or(error::platform::Error::EGL("could not create context".into()))?;
-
-			let cairo = egl::create_context(display, config, main, &[])
-				.ok_or(error::platform::Error::EGL("could not create context".into()))?;
-
-			let device = cairo_egl_device_create(display, cairo);
 
 			egl::make_current(display, egl::EGL_NO_SURFACE, egl::EGL_NO_SURFACE, main);
 
@@ -133,7 +127,7 @@ impl platform::Proxy for Proxy {
 			let surface = egl::create_window_surface(display, config, window.ptr() as *mut _, &[])
 				.ok_or(error::platform::Error::EGL("could not create surface".into()))?;
 
-			let vertex = util::compile_shader(gl::VERTEX_SHADER, r"
+			let vertex = glut::compile_shader(gl::VERTEX_SHADER, r"
 				#version 100
 
 				precision lowp float;
@@ -147,7 +141,7 @@ impl platform::Proxy for Proxy {
 				}
 			")?;
 
-			let fragment = util::compile_shader(gl::FRAGMENT_SHADER, r"
+			let fragment = glut::compile_shader(gl::FRAGMENT_SHADER, r"
 				#version 100
 
 				precision lowp float;
@@ -160,16 +154,14 @@ impl platform::Proxy for Proxy {
 				}
 			")?;
 
-			const SQUARE: [f32; 6 * 2] = [
+			const SQUARE: [f32; 8] = [
+				-1.0,  1.0,
+				 1.0,  1.0,
 				-1.0, -1.0,
 				 1.0, -1.0,
-				-1.0,  1.0,
-				-1.0,  1.0,
-				 1.0, -1.0,
-				 1.0,  1.0,
 			];
 
-			let program   = util::link_program(vertex, fragment)?;
+			let program   = glut::link_program(vertex, fragment)?;
 			let attribute = (
 				gl::GetAttribLocation(program, b"position\0".as_ptr() as *const _) as GLuint,
 				gl::GetUniformLocation(program, b"tex\0".as_ptr() as *const _));
@@ -189,8 +181,21 @@ impl platform::Proxy for Proxy {
 			gl::BindBuffer(gl::ARRAY_BUFFER, rect_buffer);
 			gl::BufferData(gl::ARRAY_BUFFER, mem::size_of_val(&SQUARE) as GLsizeiptr, SQUARE.as_ptr() as *const _, gl::STATIC_DRAW);
 
+			gl::EnableVertexAttribArray(attribute.0);
+			gl::VertexAttribPointer(attribute.0, 2, gl::FLOAT, gl::FALSE, 0, ptr::null());
+
+			gl::BindTexture(gl::TEXTURE_2D, 0);
+			gl::BindBuffer(gl::ARRAY_BUFFER, 0);
+			gl::BindVertexArray(0);
+			egl::make_current(display, egl::EGL_NO_SURFACE, egl::EGL_NO_SURFACE, egl::EGL_NO_CONTEXT);
+
+			let cairo = egl::create_context(display, config, main, &[])
+				.ok_or(error::platform::Error::EGL("could not create context".into()))?;
+
+			let device = cairo_egl_device_create(display, cairo);
+
 			self.inner = Some(Inner {
-				device:  device,
+				device:  ::std::ptr::null_mut(),
 				window:  window,
 				display: display,
 				surface: surface,
@@ -205,33 +210,35 @@ impl platform::Proxy for Proxy {
 				rect:      (rect_array, rect_buffer),
 			});
 
-			Ok(cairo::Surface::new(device, target, width, height))
+			Ok(cairo::Surface::new(::std::ptr::null_mut(), target, width, height))
 		}
 	}
 
-	fn before(&mut self, _surface: &cairo::Surface) {
-		if let Some(inner) = self.inner.as_mut() {
-			egl::make_current(inner.display, egl::EGL_NO_SURFACE, egl::EGL_NO_SURFACE, inner.cairo);
-		}
-	}
-
-	fn after(&mut self, surface: &cairo::Surface) {
+	fn render<F: FnOnce()>(&mut self, surface: &mut cairo::Surface, f: F) {
 		if let Some(inner) = self.inner.as_mut() {
 			unsafe {
+				egl::make_current(inner.display, egl::EGL_NO_SURFACE, egl::EGL_NO_SURFACE, inner.cairo);
+				f();
+				surface.flush();
 				cairo_gl_surface_swapbuffers(surface.0);
+				cairo_device_flush(inner.device);
+
 				egl::make_current(inner.display, egl::EGL_NO_SURFACE, egl::EGL_NO_SURFACE, inner.main);
 
 				gl::UseProgram(inner.program);
 				gl::ActiveTexture(gl::TEXTURE0);
 				gl::BindTexture(gl::TEXTURE_2D, inner.target);
+				gl::BindVertexArray(inner.rect.0);
 				gl::Uniform1i(inner.attribute.1, 0);
 
-				gl::EnableVertexAttribArray(0);
-				gl::BindBuffer(gl::ARRAY_BUFFER, inner.rect.1);
-				gl::VertexAttribPointer(inner.attribute.0, 2, gl::FLOAT, gl::FALSE, 0, ptr::null());
-				gl::DrawArrays(gl::TRIANGLES, 0, 6);
+				gl::DrawArrays(gl::TRIANGLE_STRIP, 0, 4);
+
+				gl::BindVertexArray(0);
+				gl::BindTexture(gl::TEXTURE_2D, 0);
+				gl::UseProgram(0);
 
 				egl::swap_buffers(inner.display, inner.surface);
+				egl::make_current(inner.display, egl::EGL_NO_SURFACE, egl::EGL_NO_SURFACE, egl::EGL_NO_CONTEXT);
 			}
 		}
 	}

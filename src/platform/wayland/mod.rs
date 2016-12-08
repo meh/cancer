@@ -23,5 +23,3 @@ pub use self::handler::Handler;
 
 mod proxy;
 pub use self::proxy::Proxy;
-
-mod util;

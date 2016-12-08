@@ -33,6 +33,9 @@ mod macos;
 #[cfg(target_os = "macos")]
 pub use self::macos::Window;
 
+#[cfg(all(feature = "wayland", any(target_os = "linux", target_os = "freebsd", target_os = "netbsd", target_os = "openbsd", target_os = "dragonfly")))]
+mod glut;
+
 mod proxy;
 pub use self::proxy::Proxy;
 

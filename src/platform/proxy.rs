@@ -47,8 +47,8 @@ pub trait Proxy: Send {
 	/// Ask senpai to notice you.
 	fn urgent(&self) { }
 
-	/// Before rendering.
-	fn before(&mut self, surface: &cairo::Surface) { }
+	/// The inner block is a renderer.
+	fn render<F: FnOnce()>(&mut self, surface: &mut cairo::Surface, f: F) { f() }
 
 	/// After rendering.
 	fn after(&mut self, surface: &cairo::Surface) { }
