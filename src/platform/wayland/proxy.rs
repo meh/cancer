@@ -47,31 +47,23 @@ pub struct Proxy {
 }
 
 pub struct Inner {
-	device:  *mut cairo_device_t,
-	window:  WlEglSurface,
-	display: EGLDisplay,
-	surface: EGLSurface,
-	main:    EGLContext,
-	cairo:   EGLContext,
-
-	program:   GLuint,
-	vertex:    GLuint,
-	fragment:  GLuint,
-	target:    GLuint,
-	attribute: (GLuint, GLint),
-	rect:      (GLuint, GLuint),
+	device:   *mut cairo_device_t,
+	window:   WlEglSurface,
+	display:  EGLDisplay,
+	surface:  EGLSurface,
+	main:     EGLContext,
+	cairo:    EGLContext,
+	renderer: glut::Renderer,
 }
 
 impl Drop for Inner {
 	fn drop(&mut self) {
 		unsafe {
+			egl::make_current(self.display, egl::EGL_NO_SURFACE, egl::EGL_NO_SURFACE, self.cairo);
 			cairo_device_destroy(self.device);
 
 			egl::make_current(self.display, egl::EGL_NO_SURFACE, egl::EGL_NO_SURFACE, self.main);
-			gl::DeleteProgram(self.program);
-			gl::DeleteShader(self.vertex);
-			gl::DeleteShader(self.fragment);
-			gl::DeleteTextures(1, &self.target);
+			self.renderer.release();
 
 			egl::destroy_context(self.display, self.cairo);
 			egl::destroy_context(self.display, self.main);
@@ -127,67 +119,10 @@ impl platform::Proxy for Proxy {
 			let surface = egl::create_window_surface(display, config, window.ptr() as *mut _, &[])
 				.ok_or(error::platform::Error::EGL("could not create surface".into()))?;
 
-			let vertex = glut::compile_shader(gl::VERTEX_SHADER, r"
-				#version 100
-
-				precision lowp float;
-
-				attribute vec2 position;
-				varying vec2 v_texture;
-
-				void main() {
-					gl_Position = vec4(position, 0.0, 1.0);
-					v_texture   = (position + vec2(1.0, 1.0)) / 2.0;
-				}
-			")?;
-
-			let fragment = glut::compile_shader(gl::FRAGMENT_SHADER, r"
-				#version 100
-
-				precision lowp float;
-
-				uniform sampler2D tex;
-				varying vec2 v_texture;
-
-				void main() {
-					gl_FragColor = texture2D(tex, v_texture);
-				}
-			")?;
-
-			const SQUARE: [f32; 8] = [
-				-1.0,  1.0,
-				 1.0,  1.0,
-				-1.0, -1.0,
-				 1.0, -1.0,
-			];
-
-			let program   = glut::link_program(vertex, fragment)?;
-			let attribute = (
-				gl::GetAttribLocation(program, b"position\0".as_ptr() as *const _) as GLuint,
-				gl::GetUniformLocation(program, b"tex\0".as_ptr() as *const _));
-
-			let mut target = 0;
-			gl::GenTextures(1, &mut target);
-			gl::BindTexture(gl::TEXTURE_2D, target);
-			gl::TexImage2D(gl::TEXTURE_2D, 0, gl::RGBA as GLint, width as GLint, height as GLint,
-				0, gl::BGRA, gl::UNSIGNED_BYTE, ptr::null_mut());
-
-			let mut rect_array = 0;
-			gl::GenVertexArrays(1, &mut rect_array);
-			gl::BindVertexArray(rect_array);
-
-			let mut rect_buffer = 0;
-			gl::GenBuffers(1, &mut rect_buffer);
-			gl::BindBuffer(gl::ARRAY_BUFFER, rect_buffer);
-			gl::BufferData(gl::ARRAY_BUFFER, mem::size_of_val(&SQUARE) as GLsizeiptr, SQUARE.as_ptr() as *const _, gl::STATIC_DRAW);
-
-			gl::EnableVertexAttribArray(attribute.0);
-			gl::VertexAttribPointer(attribute.0, 2, gl::FLOAT, gl::FALSE, 0, ptr::null());
-
-			gl::BindTexture(gl::TEXTURE_2D, 0);
-			gl::BindBuffer(gl::ARRAY_BUFFER, 0);
-			gl::BindVertexArray(0);
 			egl::make_current(display, egl::EGL_NO_SURFACE, egl::EGL_NO_SURFACE, egl::EGL_NO_CONTEXT);
+
+			let renderer = glut::Renderer::new(width, height)?;
+			let texture  = renderer.texture();
 
 			let cairo = egl::create_context(display, config, main, &[])
 				.ok_or(error::platform::Error::EGL("could not create context".into()))?;
@@ -195,22 +130,16 @@ impl platform::Proxy for Proxy {
 			let device = cairo_egl_device_create(display, cairo);
 
 			self.inner = Some(Inner {
-				device:  ::std::ptr::null_mut(),
-				window:  window,
-				display: display,
-				surface: surface,
-				main:    main,
-				cairo:   cairo,
-
-				program:   program,
-				vertex:    vertex,
-				fragment:  fragment,
-				target:    target,
-				attribute: attribute,
-				rect:      (rect_array, rect_buffer),
+				device:   device,
+				window:   window,
+				display:  display,
+				surface:  surface,
+				main:     main,
+				cairo:    cairo,
+				renderer: renderer,
 			});
 
-			Ok(cairo::Surface::new(::std::ptr::null_mut(), target, width, height))
+			Ok(cairo::Surface::new(device, texture, width, height))
 		}
 	}
 
@@ -224,18 +153,7 @@ impl platform::Proxy for Proxy {
 				cairo_device_flush(inner.device);
 
 				egl::make_current(inner.display, egl::EGL_NO_SURFACE, egl::EGL_NO_SURFACE, inner.main);
-
-				gl::UseProgram(inner.program);
-				gl::ActiveTexture(gl::TEXTURE0);
-				gl::BindTexture(gl::TEXTURE_2D, inner.target);
-				gl::BindVertexArray(inner.rect.0);
-				gl::Uniform1i(inner.attribute.1, 0);
-
-				gl::DrawArrays(gl::TRIANGLE_STRIP, 0, 4);
-
-				gl::BindVertexArray(0);
-				gl::BindTexture(gl::TEXTURE_2D, 0);
-				gl::UseProgram(0);
+				inner.renderer.render();
 
 				egl::swap_buffers(inner.display, inner.surface);
 				egl::make_current(inner.display, egl::EGL_NO_SURFACE, egl::EGL_NO_SURFACE, egl::EGL_NO_CONTEXT);

@@ -48,10 +48,10 @@ pub struct Window {
 }
 
 wayland_env!(Environment,
-    compositor:    wl_compositor::WlCompositor,
-    subcompositor: wl_subcompositor::WlSubcompositor,
-    shm:           wl_shm::WlShm,
-    shell:         wl_shell::WlShell);
+	compositor:    wl_compositor::WlCompositor,
+	subcompositor: wl_subcompositor::WlSubcompositor,
+	shm:           wl_shm::WlShm,
+	shell:         wl_shell::WlShell);
 
 impl Window {
 	pub fn new(name: Option<&str>, config: Arc<Config>, font: Arc<Font>) -> error::Result<Self> {
