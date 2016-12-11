@@ -82,6 +82,9 @@ extern "C" {
 	pub fn cairo_set_operator(cr: *mut cairo_t, operator: cairo_operator_t);
 	pub fn cairo_destroy(cr: *mut cairo_t);
 
+	pub fn cairo_push_group(cr: *mut cairo_t);
+	pub fn cairo_pop_group_to_source(cr: *mut cairo_t);
+
 	pub fn cairo_save(cr: *mut cairo_t);
 	pub fn cairo_restore(cr: *mut cairo_t);
 

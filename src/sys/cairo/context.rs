@@ -27,10 +27,19 @@ pub struct Context(pub *mut cairo_t);
 impl Context {
 	pub fn new(surface: &Surface) -> Self {
 		unsafe {
-			let context = cairo_create(surface.0);
-			cairo_set_operator(context, cairo_operator_t::Source);
+			Context(cairo_create(surface.0))
+		}
+	}
 
-			Context(context)
+	pub fn push(&mut self) {
+		unsafe {
+			cairo_push_group(self.0);
+		}
+	}
+
+	pub fn pop(&mut self) {
+		unsafe {
+			cairo_pop_group_to_source(self.0);
 		}
 	}
 
