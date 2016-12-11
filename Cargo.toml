@@ -41,9 +41,9 @@ unicode-segmentation = "0.1"
 unicode-width        = "0.1"
 
 [target.'cfg(any(target_os = "linux", target_os = "freebsd", target_os = "netbsd", target_os = "openbsd", target_os = "dragonfly"))'.dependencies]
-xcb       = { version = "0.7.6", features = ["thread"], optional = true }
+xcb       = { version = "0.7.6", features = ["xkb", "thread"], optional = true }
 xcb-util  = { version = "0.1.5", features = ["icccm", "ewmh", "thread"], optional = true }
-xkbcommon = { version = "0.2",   features = ["x11", "compose"], git = "https://github.com/meh/xkbcommon-rs", optional = true }
+xkb       = { version = "0.1",   features = ["x11"], optional = true }
 
 [target.'cfg(target_os = "macos")'.dependencies]
 objc            = "0.2"
@@ -56,7 +56,7 @@ default = ["x11"]
 static  = []
 fuzzy   = ["afl", "afl-plugin"]
 
-x11 = ["xcb", "xcb-util", "xkbcommon"]
+x11 = ["xcb", "xcb-util", "xkb"]
 
 [dependencies.afl]
 version  = "0.1"

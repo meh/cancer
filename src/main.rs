@@ -56,7 +56,7 @@ pub extern crate xcb;
 #[cfg(all(feature = "x11", any(target_os = "linux", target_os = "freebsd", target_os = "netbsd", target_os = "openbsd", target_os = "dragonfly")))]
 pub extern crate xcb_util as xcbu;
 #[cfg(all(feature = "x11", any(target_os = "linux", target_os = "freebsd", target_os = "netbsd", target_os = "openbsd", target_os = "dragonfly")))]
-pub extern crate xkbcommon;
+pub extern crate xkb;
 
 #[cfg(target_os = "macos")]
 #[macro_use(msg_send, sel)]

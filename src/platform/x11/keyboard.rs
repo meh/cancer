@@ -20,8 +20,7 @@ use std::env;
 
 use xcb;
 use xcbu::ewmh;
-use xkbcommon::xkb::{self, keysyms};
-use xkbcommon::xkb::compose::Status;
+use xkb;
 
 use error;
 use platform::key::{self, Key, Button, Keypad, Modifier, Lock};
@@ -80,21 +79,21 @@ impl Keyboard {
 				map as u16, map as u16, None).request_check()?;
 		}
 
-		let context = xkb::Context::new(xkb::CONTEXT_NO_FLAGS);
-		let device  = xkb::x11::get_core_keyboard_device_id(&connection);
-		let keymap  = xkb::x11::keymap_new_from_device(&context, &connection, device, xkb::KEYMAP_COMPILE_NO_FLAGS);
-		let state   = xkb::x11::state_new_from_device(&keymap, &connection, device);
+		let context = xkb::Context::default();
+		let device  = xkb::x11::device(&connection)?;
+		let keymap  = xkb::x11::keymap(&connection, device, &context, Default::default())?;
+		let state   = xkb::x11::state(&connection, device, &keymap)?;
 
 		let (table, compose) = {
 			let     locale = locale.map(String::from).or(env::var("LANG").ok()).unwrap_or("C".into());
-			let mut table  = if let Ok(table) = xkb::compose::Table::new_from_locale(&context, &locale, 0) {
+			let mut table  = if let Ok(table) = xkb::compose::Table::new(&context, &locale, Default::default()) {
 				table
 			}
 			else {
-				xkb::compose::Table::new_from_locale(&context, "C", 0).unwrap()
+				xkb::compose::Table::new(&context, "C", Default::default()).unwrap()
 			};
 
-			let state = table.state(0);
+			let state = table.state(Default::default());
 
 			(table, state)
 		};
@@ -126,20 +125,20 @@ impl Keyboard {
 	pub fn handle(&mut self, event: &xcb::GenericEvent) {
 		match event.response_type() - self.extension().first_event() {
 			xcb::xkb::NEW_KEYBOARD_NOTIFY | xcb::xkb::MAP_NOTIFY => {
-				self.keymap = xkb::x11::keymap_new_from_device(&self.context, &self.connection, self.device, xkb::KEYMAP_COMPILE_NO_FLAGS);
-				self.state  = xkb::x11::state_new_from_device(&self.keymap, &self.connection, self.device);
+				self.keymap = xkb::x11::keymap(&self.connection, self.device, &self.context, Default::default()).unwrap();
+				self.state  = xkb::x11::state(&self.connection, self.device, &self.keymap).unwrap();
 			}
 
 			xcb::xkb::STATE_NOTIFY => {
 				let event = xcb::cast_event::<xcb::xkb::StateNotifyEvent>(event);
 
-				self.state.update_mask(
-					event.base_mods() as xkb::ModMask,
-					event.latched_mods() as xkb::ModMask,
-					event.locked_mods() as xkb::ModMask,
-					event.base_group() as xkb::LayoutIndex,
-					event.latched_group() as xkb::LayoutIndex,
-					event.locked_group() as xkb::LayoutIndex);
+				self.state.update().mask(
+					event.base_mods(),
+					event.latched_mods(),
+					event.locked_mods(),
+					event.base_group(),
+					event.latched_group(),
+					event.locked_group());
 			}
 
 			_ => ()
@@ -147,173 +146,208 @@ impl Keyboard {
 	}
 
 	/// Translate a key code to the key symbol.
-	pub fn symbol(&self, code: u8) -> xkb::Keysym {
-		self.state.key_get_one_sym(code as xkb::Keycode)
+	pub fn symbol(&self, code: u8) -> Option<xkb::Keysym> {
+		self.state.key(code).sym()
 	}
 
 	/// Translate a key code to an UTF-8 string.
-	pub fn string(&self, code: u8) -> String {
-		self.state.key_get_utf8(code as xkb::Keycode)
+	pub fn string(&self, code: u8) -> Option<String> {
+		self.state.key(code).utf8()
 	}
 
 	pub fn key(&mut self, code: u8) -> Option<Key> {
-		const MODIFIERS: &[(&str, Modifier)] = &[
-			(xkb::MOD_NAME_ALT,   key::ALT),
-			(xkb::MOD_NAME_CTRL,  key::CTRL),
-			(xkb::MOD_NAME_LOGO,  key::LOGO),
-			(xkb::MOD_NAME_SHIFT, key::SHIFT)];
-
-		let modifier = MODIFIERS.iter().fold(Modifier::empty(), |modifier, &(n, m)|
-			if self.state.mod_name_is_active(&n, xkb::STATE_MODS_EFFECTIVE) {
+		let modifier = [
+			(xkb::name::mods::ALT,   key::ALT),
+			(xkb::name::mods::CTRL,  key::CTRL),
+			(xkb::name::mods::LOGO,  key::LOGO),
+			(xkb::name::mods::SHIFT, key::SHIFT)
+		].iter().fold(Modifier::empty(), |modifier, &(n, m)|
+			if self.state.mods().active(n, xkb::state::component::MODS_EFFECTIVE) {
 				modifier | m
 			}
 			else {
 				modifier
 			});
 
-		const LOCKS: &[(&str, Lock)] = &[
-			(xkb::MOD_NAME_CAPS, key::CAPS),
-			(xkb::MOD_NAME_NUM,  key::NUM)];
-
-		let lock = LOCKS.iter().fold(Lock::empty(), |lock, &(n, m)|
-			if self.state.mod_name_is_active(&n, xkb::STATE_MODS_EFFECTIVE) {
+		let lock = [
+			(xkb::name::mods::CAPS, key::CAPS),
+			(xkb::name::mods::NUM,  key::NUM)
+		].iter().fold(Lock::empty(), |lock, &(n, m)|
+			if self.state.mods().active(n, xkb::state::component::MODS_EFFECTIVE) {
 				lock | m
 			}
 			else {
 				lock
 			});
 
-		let symbol = self.symbol(code);
+		let symbol = try!(option self.symbol(code));
 		self.compose.feed(symbol);
 
 		debug!(target: "cancer::platform::key", "compose status: {:?}", self.compose.status());
 
 		match self.compose.status() {
-			Status::Nothing => (),
-			Status::Composing =>
+			xkb::compose::Status::Nothing => (),
+			xkb::compose::Status::Composing =>
 				return None,
 
-			Status::Composed => {
+			xkb::compose::Status::Composed => {
 				if let Some(string) = self.compose.utf8() {
 					self.compose.reset();
 					return Some(Key::new(string.into(), modifier, lock));
 				}
 			}
 
-			Status::Cancelled => {
+			xkb::compose::Status::Cancelled => {
 				self.compose.reset();
 				return None;
 			}
 		}
 
 		Some(Key::new(match symbol {
-			keysyms::KEY_Tab | keysyms::KEY_ISO_Left_Tab =>
+			xkb::key::Tab | xkb::key::ISO_Left_Tab =>
 				Button::Tab.into(),
 
-			keysyms::KEY_Escape =>
+			xkb::key::Escape =>
 				Button::Escape.into(),
 
-			keysyms::KEY_Return =>
+			xkb::key::Return =>
 				Button::Enter.into(),
 
-			keysyms::KEY_BackSpace =>
+			xkb::key::BackSpace =>
 				Button::Backspace.into(),
 
-			keysyms::KEY_Delete =>
+			xkb::key::Delete =>
 				Button::Delete.into(),
 
-			keysyms::KEY_Insert =>
+			xkb::key::Insert =>
 				Button::Insert.into(),
 
-			keysyms::KEY_Home =>
+			xkb::key::Home =>
 				Button::Home.into(),
 
-			keysyms::KEY_End =>
+			xkb::key::End =>
 				Button::End.into(),
 
-			keysyms::KEY_Page_Up =>
+			xkb::key::Page_Up =>
 				Button::PageUp.into(),
 
-			keysyms::KEY_Page_Down =>
+			xkb::key::Page_Down =>
 				Button::PageDown.into(),
 
-			keysyms::KEY_Up =>
+			xkb::key::Up =>
 				Button::Up.into(),
 
-			keysyms::KEY_Down =>
+			xkb::key::Down =>
 				Button::Down.into(),
 
-			keysyms::KEY_Right =>
+			xkb::key::Right =>
 				Button::Right.into(),
 
-			keysyms::KEY_Left =>
+			xkb::key::Left =>
 				Button::Left.into(),
 
-			keysyms::KEY_F1 ... keysyms::KEY_F35 =>
-				Button::F((symbol - keysyms::KEY_F1 + 1) as u8).into(),
+			xkb::key::F1  |
+			xkb::key::F2  |
+			xkb::key::F3  |
+			xkb::key::F4  |
+			xkb::key::F5  |
+			xkb::key::F6  |
+			xkb::key::F7  |
+			xkb::key::F8  |
+			xkb::key::F9  |
+			xkb::key::F10 |
+			xkb::key::F11 |
+			xkb::key::F12 |
+			xkb::key::F13 |
+			xkb::key::F14 |
+			xkb::key::F15 |
+			xkb::key::F16 |
+			xkb::key::F17 |
+			xkb::key::F18 |
+			xkb::key::F19 |
+			xkb::key::F20 |
+			xkb::key::F21 |
+			xkb::key::F22 |
+			xkb::key::F23 |
+			xkb::key::F24 |
+			xkb::key::F25 |
+			xkb::key::F26 |
+			xkb::key::F27 |
+			xkb::key::F28 |
+			xkb::key::F29 |
+			xkb::key::F30 |
+			xkb::key::F31 |
+			xkb::key::F32 |
+			xkb::key::F33 |
+			xkb::key::F34 |
+			xkb::key::F35 =>
+				Button::F((symbol.into(): u32 - xkb::key::F1.into(): u32 + 1) as u8).into(),
 
-			keysyms::KEY_Menu =>
+			xkb::key::Menu =>
 				Button::Menu.into(),
 
-			keysyms::KEY_KP_Enter =>
+			xkb::key::KP_Enter =>
 				Keypad::Enter.into(),
 
-			keysyms::KEY_KP_Home =>
+			xkb::key::KP_Home =>
 				Keypad::Home.into(),
 
-			keysyms::KEY_KP_Begin =>
+			xkb::key::KP_Begin =>
 				Keypad::Begin.into(),
 
-			keysyms::KEY_KP_End =>
+			xkb::key::KP_End =>
 				Keypad::End.into(),
 
-			keysyms::KEY_KP_Insert =>
+			xkb::key::KP_Insert =>
 				Keypad::Insert.into(),
 
-			keysyms::KEY_KP_Multiply =>
+			xkb::key::KP_Multiply =>
 				Keypad::Multiply.into(),
 
-			keysyms::KEY_KP_Add =>
+			xkb::key::KP_Add =>
 				Keypad::Add.into(),
 
-			keysyms::KEY_KP_Subtract =>
+			xkb::key::KP_Subtract =>
 				Keypad::Subtract.into(),
 
-			keysyms::KEY_KP_Divide =>
+			xkb::key::KP_Divide =>
 				Keypad::Divide.into(),
 
-			keysyms::KEY_KP_Decimal =>
+			xkb::key::KP_Decimal =>
 				Keypad::Decimal.into(),
 
-			keysyms::KEY_KP_Page_Up =>
+			xkb::key::KP_Page_Up =>
 				Keypad::PageUp.into(),
 
-			keysyms::KEY_KP_Page_Down =>
+			xkb::key::KP_Page_Down =>
 				Keypad::PageDown.into(),
 
-			keysyms::KEY_KP_Up =>
+			xkb::key::KP_Up =>
 				Keypad::Up.into(),
 
-			keysyms::KEY_KP_Down =>
+			xkb::key::KP_Down =>
 				Keypad::Down.into(),
 
-			keysyms::KEY_KP_Right =>
+			xkb::key::KP_Right =>
 				Keypad::Right.into(),
 
-			keysyms::KEY_KP_Left =>
+			xkb::key::KP_Left =>
 				Keypad::Left.into(),
 
-			keysyms::KEY_KP_0 ... keysyms::KEY_KP_9 =>
-				Keypad::Number((symbol - keysyms::KEY_KP_0) as u8).into(),
+			xkb::key::KP_0 |
+			xkb::key::KP_1 |
+			xkb::key::KP_2 |
+			xkb::key::KP_3 |
+			xkb::key::KP_4 |
+			xkb::key::KP_5 |
+			xkb::key::KP_6 |
+			xkb::key::KP_7 |
+			xkb::key::KP_8 |
+			xkb::key::KP_9 =>
+				Keypad::Number(((symbol.into(): u32 - xkb::key::KP_0.into(): u32) as u8)).into(),
 
 			_ => {
-				let mut string = self.string(code);
-
-				// If the string is empty, it means it's a function key which we don't
-				// support, so just ignore it.
-				if string.is_empty() {
-					return None;
-				}
+				let mut string = try!(option self.string(code));
 
 				// Convert from the control code representation to the real letter.
 				if modifier.contains(key::CTRL) && string.len() == 1 {
