@@ -1672,7 +1672,7 @@ impl Terminal {
 
 			term!(self; clean references (x + width, y));
 		}
-		// Just insert the graphame.
+		// Just insert the grapheme.
 		else {
 			self.grid[(x, y)].make_occupied(ch, self.cursor.style().clone());
 			self.touched.mark(x, y);
