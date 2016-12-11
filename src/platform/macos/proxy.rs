@@ -115,7 +115,9 @@ impl platform::Proxy for Proxy {
 		}
 	}
 
-	fn flush(&self) {
+	fn render<F: FnOnce()>(&mut self, surface: &mut cairo::Surface, f: F) {
+		f(); surface.flush();
+
 		unsafe {
 			msg_send![**self.context.borrow(), flushGraphics];
 		}

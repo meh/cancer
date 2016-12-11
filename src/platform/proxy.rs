@@ -47,8 +47,10 @@ pub trait Proxy: Send {
 	/// Ask senpai to notice you.
 	fn urgent(&self) { }
 
-	/// Flush whatever.
-	fn flush(&self) { }
+	/// Render the inner block.
+	fn render<F: FnOnce()>(&mut self, surface: &mut cairo::Surface, f: F) {
+		f(); surface.flush();
+	}
 
 	/// Open the given item.
 	fn open(&self, through: Option<&str>, value: &str) -> error::Result<()> { Ok(()) }

@@ -77,7 +77,9 @@ impl platform::Proxy for Proxy {
 		self.request.send(Request::Urgent).unwrap();
 	}
 
-	fn flush(&self) {
+	fn render<F: FnOnce()>(&mut self, surface: &mut cairo::Surface, f: F) {
+		f();
+		surface.flush();
 		self.request.send(Request::Flush).unwrap();
 	}
 

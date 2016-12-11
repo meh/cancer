@@ -261,10 +261,8 @@ fn main() {
 				let iter = $iter;
 
 				if visible {
-					renderer.render(render!(options), None, &interface, iter);
-
-					surface.flush();
-					window.flush();
+					window.render(&mut surface, ||
+						renderer.render(render!(options), None, &interface, iter));
 				}
 			});
 		}
@@ -320,19 +318,16 @@ fn main() {
 								let rows    = renderer.rows();
 								let columns = renderer.columns();
 
-								renderer.render(render!(options), Some(Region::new(0, 0, width, height)),
-									&interface, Region::new(0, 0, columns, rows).absolute());
-
-								surface.flush();
-								window.flush();
+								window.render(&mut surface, ||
+									renderer.render(render!(options), Some(Region::new(0, 0, width, height)),
+										&interface, Region::new(0, 0, columns, rows).absolute()));
 							}
 
 							Event::Damaged(region) => {
 								let damaged = renderer.damaged(&region);
-								renderer.render(render!(options), Some(region), &interface, damaged.relative());
 
-								surface.flush();
-								window.flush();
+								window.render(&mut surface, ||
+									renderer.render(render!(options), Some(region), &interface, damaged.relative()));
 							}
 
 							Event::Focus(focus) => {
