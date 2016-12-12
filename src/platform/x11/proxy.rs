@@ -78,8 +78,8 @@ impl platform::Proxy for Proxy {
 	}
 
 	fn render<F: FnOnce()>(&mut self, surface: &mut cairo::Surface, f: F) {
-		f();
-		surface.flush();
+		f(); surface.flush();
+
 		self.request.send(Request::Flush).unwrap();
 	}
 
