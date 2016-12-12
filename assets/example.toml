@@ -8,6 +8,13 @@ batch  = 33
 cache  = 2048
 scroll = 2048
 
+[environment.x11]
+display = ":0.0"
+bell    = 100
+
+[environment.cocoa]
+bell = "Purr"
+
 [input]
 prefix = "L-a"
 locale = "en_GB.UTF-8"

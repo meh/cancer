@@ -1,6 +1,4 @@
 [environment]
-bell = 0
-
 batch  = 16
 cache  = 4096
 scroll = 4096
