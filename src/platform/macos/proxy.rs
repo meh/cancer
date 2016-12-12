@@ -109,7 +109,7 @@ impl platform::Proxy for Proxy {
 
 	fn urgent(&self) {
 		unsafe {
-			if let Some(sound) = self.config.environment().bell() {
+			if let Some(sound) = self.config.environment().cocoa().bell() {
 				NSSound::soundNamed_(nil, NSString::alloc(nil).init_str(sound)).play();
 			}
 		}

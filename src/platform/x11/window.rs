@@ -62,7 +62,7 @@ impl Window {
 		let height = (24 * (font.height() + spacing)) + (margin * 2);
 
 		let (request, requests)  = channel();
-		let (connection, screen) = xcb::Connection::connect(config.environment().display())?;
+		let (connection, screen) = xcb::Connection::connect(config.environment().x11().display())?;
 		let connection           = Arc::new(ewmh::Connection::connect(connection).map_err(|(e, _)| e)?);
 		let keyboard             = Keyboard::new(connection.clone(), config.input().locale())?;
 		let window               = {
@@ -158,10 +158,7 @@ impl Window {
 
 						Request::Urgent => {
 							icccm::set_wm_hints(&self.connection, self.window, &icccm::WmHints::empty().is_urgent().build());
-
-							if let Some(volume) = self.config.environment().bell().and_then(|b| b.parse().ok()) {
-								xcb::bell(&self.connection, volume);
-							}
+							xcb::bell(&self.connection, self.config.environment().x11().bell());
 
 							self.connection.flush();
 						}

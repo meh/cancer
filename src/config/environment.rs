@@ -19,47 +19,69 @@ use toml::{self, Value};
 
 #[derive(PartialEq, Clone, Debug)]
 pub struct Environment {
-	display: Option<String>,
 	program: Option<String>,
 	term:    Option<String>,
-	bell:    Option<String>,
 
 	cache:  usize,
 	scroll: usize,
 	batch:  Option<u32>,
+
+	x11:   X11,
+	cocoa: Cocoa,
 }
 
 impl Default for Environment {
 	fn default() -> Self {
 		Environment {
-			display: None,
 			program: None,
 			term:    None,
-			bell:    None,
 
 			cache:  4096,
 			scroll: 4096,
 			batch:  Some(16),
+
+			x11:   Default::default(),
+			cocoa: Default::default(),
+		}
+	}
+}
+
+#[derive(PartialEq, Clone, Debug)]
+pub struct X11 {
+	display: Option<String>,
+	bell:    i8,
+}
+
+impl Default for X11 {
+	fn default() -> Self {
+		X11 {
+			display: None,
+			bell:    0,
+		}
+	}
+}
+
+#[derive(PartialEq, Clone, Debug)]
+pub struct Cocoa {
+	bell: Option<String>,
+}
+
+impl Default for Cocoa {
+	fn default() -> Self {
+		Cocoa {
+			bell: None,
 		}
 	}
 }
 
 impl Environment {
 	pub fn load(&mut self, table: &toml::Table) {
-		if let Some(value) = table.get("display").and_then(|v| v.as_str()) {
-			self.display = Some(value.into());
-		}
-
 		if let Some(value) = table.get("program").and_then(|v| v.as_str()) {
 			self.program = Some(value.into());
 		}
 
 		if let Some(value) = table.get("term").and_then(|v| v.as_str()) {
 			self.term = Some(value.into());
-		}
-
-		if let Some(value) = table.get("bell").and_then(|v| v.as_str()) {
-			self.bell = Some(value.into());
 		}
 
 		if let Some(value) = table.get("cache") {
@@ -97,10 +119,22 @@ impl Environment {
 				_ => ()
 			}
 		}
-	}
 
-	pub fn display(&self) -> Option<&str> {
-		self.display.as_ref().map(AsRef::as_ref)
+		if let Some(table) = table.get("x11").and_then(|v| v.as_table()) {
+			if let Some(value) = table.get("display").and_then(|v| v.as_str()) {
+				self.x11.display = Some(value.into());
+			}
+
+			if let Some(value) = table.get("bell").and_then(|v| v.as_integer()) {
+				self.x11.bell = value as i8;
+			}
+		}
+
+		if let Some(table) = table.get("cocoa").and_then(|v| v.as_table()) {
+			if let Some(value) = table.get("bell").and_then(|v| v.as_str()) {
+				self.cocoa.bell = Some(value.into());
+			}
+		}
 	}
 
 	pub fn program(&self) -> Option<&str> {
@@ -109,10 +143,6 @@ impl Environment {
 
 	pub fn term(&self) -> Option<&str> {
 		self.term.as_ref().map(AsRef::as_ref)
-	}
-
-	pub fn bell(&self) -> Option<&str> {
-		self.bell.as_ref().map(AsRef::as_ref)
 	}
 
 	pub fn cache(&self) -> usize {
@@ -125,5 +155,29 @@ impl Environment {
 
 	pub fn batch(&self) -> Option<u32> {
 		self.batch
+	}
+
+	pub fn x11(&self) -> &X11 {
+		&self.x11
+	}
+
+	pub fn cocoa(&self) -> &Cocoa {
+		&self.cocoa
+	}
+}
+
+impl X11 {
+	pub fn display(&self) -> Option<&str> {
+		self.display.as_ref().map(AsRef::as_ref)
+	}
+
+	pub fn bell(&self) -> i8 {
+		self.bell
+	}
+}
+
+impl Cocoa {
+	pub fn bell(&self) -> Option<&str> {
+		self.bell.as_ref().map(AsRef::as_ref)
 	}
 }
