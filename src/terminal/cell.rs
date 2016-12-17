@@ -21,7 +21,7 @@ use std::rc::Rc;
 use unicode_width::UnicodeWidthStr;
 
 use style::Style;
-use picto;
+use sys::cairo;
 
 #[derive(PartialEq, Clone, Debug)]
 pub enum Cell {
@@ -31,7 +31,7 @@ pub enum Cell {
 
 	Image {
 		style:  Rc<Style>,
-		buffer: picto::buffer::Rgba
+		buffer: cairo::Image,
 	},
 
 	Occupied {
@@ -167,7 +167,7 @@ impl Cell {
 	}
 
 	/// Make the cell into an image.
-	pub fn make_image(&mut self, buffer: picto::buffer::Rgba, style: Rc<Style>) {
+	pub fn make_image(&mut self, buffer: cairo::Image, style: Rc<Style>) {
 		mem::replace(self, Cell::Image {
 			buffer: buffer,
 			style:  style,
@@ -244,7 +244,7 @@ impl Cell {
 	}
 
 	/// Get the image buffer.
-	pub fn image(&self) -> &picto::buffer::Rgba {
+	pub fn image(&self) -> &cairo::Image {
 		match *self {
 			Cell::Image { ref buffer, .. } =>
 				buffer,

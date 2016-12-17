@@ -20,3 +20,6 @@ pub use self::surface::Surface;
 
 mod context;
 pub use self::context::Context;
+
+mod image;
+pub use self::image::Image;

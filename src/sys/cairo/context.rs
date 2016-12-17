@@ -21,8 +21,7 @@ use libc::c_int;
 use ffi::cairo::*;
 use ffi::pango::*;
 use sys::pango;
-use picto;
-use super::Surface;
+use super::{Surface, Image};
 
 pub struct Context(pub *mut cairo_t);
 
@@ -125,25 +124,10 @@ impl Context {
 		}
 	}
 
-	pub fn image(&mut self, buffer: &picto::buffer::Rgba, x: f64, y: f64) {
+	pub fn image(&mut self, image: &Image, x: f64, y: f64) {
 		unsafe {
-			let     stride = cairo_format_stride_for_width(cairo_format_t::Argb32, buffer.width() as c_int);
-			let mut data   = vec![0u8; (stride as u32 * buffer.height()) as usize];
-
-			for (i, chunk) in buffer.chunks(4).enumerate() {
-				let y = i / buffer.width() as usize;
-				let o = ((i % buffer.width() as usize) * 4)
-					+ (buffer.width() as usize * y)
-					+ ((stride as usize - buffer.width() as usize) * y);
-
-				data[o + 0] = chunk[2];
-				data[o + 1] = chunk[1];
-				data[o + 2] = chunk[0];
-				data[o + 3] = chunk[3];
-			}
-
-			let surface = cairo_image_surface_create_for_data(data.as_ptr(), cairo_format_t::Argb32,
-				buffer.width() as c_int, buffer.height() as c_int, stride);
+			let surface = cairo_image_surface_create_for_data(image.as_ptr(), cairo_format_t::Argb32,
+				image.width() as c_int, image.height() as c_int, image.stride() as c_int);
 
 			cairo_set_source_surface(self.0, surface, x, y);
 			cairo_paint(self.0);

@@ -20,23 +20,23 @@ use std::hash::BuildHasherDefault;
 use fnv::FnvHasher;
 use std::f32;
 
-use picto;
 use picto::color::{Rgba, Hsl, RgbHue};
 use control::DEC::SIXEL;
+use sys::cairo;
 
 #[derive(Debug)]
 pub struct Sixel {
 	raster: SIXEL::Header,
 
-	grid:   Vec<Vec<picto::buffer::Rgba>>,
+	grid:   Vec<Vec<cairo::Image>>,
 	width:  u32,
 	height: u32,
 	x:      u32,
 	y:      u32,
 
-	colors:     HashMap<u32, Rgba, BuildHasherDefault<FnvHasher>>,
-	background: Rgba,
+	colors:     HashMap<u32, (u8, u8, u8, u8), BuildHasherDefault<FnvHasher>>,
 	color:      u32,
+	background: (u8, u8, u8, u8),
 }
 
 impl Sixel {
@@ -51,9 +51,12 @@ impl Sixel {
 			y:      0,
 
 			colors:     Default::default(),
-			background: Rgba::new(background.red as f32, background.green as f32, background.blue as f32, background.alpha as f32),
 			color:      0,
-
+			background: (
+				(background.red   * 255.0) as u8,
+				(background.green * 255.0) as u8,
+				(background.blue  * 255.0) as u8,
+				(background.alpha * 255.0) as u8),
 		}
 	}
 
@@ -61,7 +64,7 @@ impl Sixel {
 		self.grid.len()
 	}
 
-	pub fn into_inner(self) -> Vec<Vec<picto::buffer::Rgba>> {
+	pub fn into_inner(self) -> Vec<Vec<cairo::Image>> {
 		self.grid
 	}
 
@@ -74,17 +77,19 @@ impl Sixel {
 	}
 
 	pub fn define(&mut self, id: u32, color: SIXEL::Color) {
-		self.colors.insert(id, match color {
+		let color = match color {
 			SIXEL::Color::Hsl(h, s, l) =>
 				Rgba::from(Hsl::new(RgbHue::from_radians(h as f32 * f32::consts::PI / 180.0),
-					s as f32 / 100.0, l as f32 / 100.0)),
+					s as f32 / 100.0, l as f32 / 100.0)).to_pixel(),
 
 			SIXEL::Color::Rgb(r, g, b) =>
-				Rgba::new_u8(r, g, b, 255),
+				(r, g, b, 255),
 
 			SIXEL::Color::Rgba(r, g, b, a) =>
-				Rgba::new_u8(r, g, b, a)
-		});
+				(r, g, b, a),
+		};
+
+		self.colors.insert(id, color);
 	}
 
 	pub fn start(&mut self) {
@@ -97,29 +102,29 @@ impl Sixel {
 	}
 
 	pub fn draw(&mut self, value: SIXEL::Map) {
-		let c = self.colors.get(&self.color).unwrap_or(&self.background);
-		let x = (self.x / self.width) as usize;
+		let color = self.colors.get(&self.color).unwrap_or(&self.background);
+
+		let x  = (self.x / self.width) as usize;
+		let xo = self.x % self.width;
 
 		for (i, y) in (self.y .. self.y + (6 * self.raster.aspect.0)).enumerate() {
-			let ox = self.x % self.width;
-			let oy = y as u32 % self.height;
-
-			let y = (y / self.height) as usize;
+			let i  = (i as u32 / self.raster.aspect.0) as u8;
+			let yo = y as u32 % self.height;
+			let y  = (y / self.height) as usize;
 
 			if y >= self.grid.len() {
 				self.grid.push(Vec::new());
 			}
 
 			if x >= self.grid[y].len() {
-				self.grid[y].push(
-					picto::buffer::Rgba::from_pixel(self.width, self.height, &self.background));
+				self.grid[y].push(cairo::Image::new(self.width, self.height));
 			}
 
-			if value.get((i as u32 / self.raster.aspect.0) as u8) {
-				self.grid[y][x].set(ox, oy, c);
+			if value.get(i) {
+				self.grid[y][x].set(xo, yo, *color);
 			}
 			else if self.raster.background {
-				self.grid[y][x].set(ox, oy, &self.background);
+				self.grid[y][x].set(xo, yo, self.background);
 			}
 		}
 
