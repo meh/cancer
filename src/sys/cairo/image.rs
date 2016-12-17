@@ -23,7 +23,9 @@ pub struct Image {
 	width:  u32,
 	height: u32,
 	stride: u32,
-	buffer: Vec<u8>,
+
+	buffer:  Vec<u8>,
+	pattern: *mut cairo_pattern_t,
 }
 
 impl Image {
@@ -32,11 +34,18 @@ impl Image {
 			let stride = cairo_format_stride_for_width(cairo_format_t::Argb32, width as c_int) as u32;
 			let buffer = vec![0u8; (stride * height) as usize];
 
+			let surface = cairo_image_surface_create_for_data(buffer.as_ptr(), cairo_format_t::Argb32,
+				width as c_int, height as c_int, stride as c_int);
+
+			let pattern = cairo_pattern_create_for_surface(surface);
+
 			Image {
 				width:  width,
 				height: height,
 				stride: stride,
-				buffer: buffer,
+
+				buffer:  buffer,
+				pattern: pattern,
 			}
 		}
 	}
@@ -62,7 +71,15 @@ impl Image {
 		self.buffer[offset + 3] = a;
 	}
 
-	pub fn as_ptr(&self) -> *mut c_uchar {
-		self.buffer.as_ptr() as *mut c_uchar
+	pub fn as_ptr(&self) -> *mut cairo_pattern_t {
+		self.pattern
+	}
+}
+
+impl Drop for Image {
+	fn drop(&mut self) {
+		unsafe {
+			cairo_pattern_destroy(self.pattern);
+		}
 	}
 }

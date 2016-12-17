@@ -28,6 +28,9 @@ pub struct cairo_device_t(c_void);
 pub struct cairo_surface_t(c_void);
 
 #[repr(C)]
+pub struct cairo_pattern_t(c_void);
+
+#[repr(C)]
 #[derive(Eq, PartialEq, Copy, Clone, Debug)]
 pub enum cairo_format_t {
 	Invalid = -1,
@@ -39,8 +42,23 @@ pub enum cairo_format_t {
 	Rgb30,
 }
 
+#[repr(C)]
+#[derive(PartialEq, Copy, Clone, Debug)]
+pub struct cairo_matrix_t {
+	pub xx: c_double,
+	pub yx: c_double,
+
+	pub xy: c_double,
+	pub yy: c_double,
+
+	pub x0: c_double,
+	pub y0: c_double,
+}
+
 extern "C" {
 	pub fn cairo_format_stride_for_width(format: cairo_format_t, width: c_int) -> c_int;
+
+	pub fn cairo_matrix_init_translate(matrix: *mut cairo_matrix_t, x: c_double, y: c_double);
 
 	pub fn cairo_create(surface: *mut cairo_surface_t) -> *mut cairo_t;
 	pub fn cairo_destroy(cr: *mut cairo_t);
@@ -52,6 +70,7 @@ extern "C" {
 	pub fn cairo_restore(cr: *mut cairo_t);
 
 	pub fn cairo_paint(cr: *mut cairo_t);
+	pub fn cairo_set_source(cr: *mut cairo_t, pattern: *mut cairo_pattern_t);
 	pub fn cairo_set_source_rgb(cr: *mut cairo_t, r: c_double, g: c_double, b: c_double);
 	pub fn cairo_set_source_rgba(cr: *mut cairo_t, r: c_double, g: c_double, b: c_double, a: c_double);
 	pub fn cairo_set_source_surface(cr: *mut cairo_t, surface: *const cairo_surface_t, x: c_double, y: c_double);
@@ -69,6 +88,10 @@ extern "C" {
 	pub fn cairo_image_surface_create_for_data(data: *const c_uchar, format: cairo_format_t, width: c_int, height: c_int, stride: c_int) -> *mut cairo_surface_t;
 	pub fn cairo_surface_flush(surface: *mut cairo_surface_t);
 	pub fn cairo_surface_destroy(surface: *mut cairo_surface_t);
+
+	pub fn cairo_pattern_create_for_surface(surface: *mut cairo_surface_t) -> *mut cairo_pattern_t;
+	pub fn cairo_pattern_set_matrix(pattern: *mut cairo_pattern_t, matrix: *const cairo_matrix_t);
+	pub fn cairo_pattern_destroy(pattern: *mut cairo_pattern_t);
 }
 
 #[cfg(all(feature = "x11", any(target_os = "linux", target_os = "freebsd", target_os = "netbsd", target_os = "openbsd", target_os = "dragonfly")))]

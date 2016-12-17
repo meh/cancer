@@ -15,12 +15,13 @@
 // You should have received a copy of the GNU General Public License
 // along with cancer.  If not, see <http://www.gnu.org/licenses/>.
 
-use picto::color::{Rgb, Rgba};
+use std::mem;
 
 use libc::c_int;
 use ffi::cairo::*;
 use ffi::pango::*;
 use sys::pango;
+use picto::color::{Rgb, Rgba};
 use super::{Surface, Image};
 
 pub struct Context(pub *mut cairo_t);
@@ -126,12 +127,14 @@ impl Context {
 
 	pub fn image(&mut self, image: &Image, x: f64, y: f64) {
 		unsafe {
-			let surface = cairo_image_surface_create_for_data(image.as_ptr(), cairo_format_t::Argb32,
-				image.width() as c_int, image.height() as c_int, image.stride() as c_int);
+			let mut matrix  = mem::uninitialized();
+			cairo_matrix_init_translate(&mut matrix, -x, -y);
 
-			cairo_set_source_surface(self.0, surface, x, y);
+			let pattern = image.as_ptr();
+			cairo_pattern_set_matrix(pattern, &matrix);
+
+			cairo_set_source(self.0, pattern);
 			cairo_paint(self.0);
-			cairo_surface_destroy(surface);
 		}
 	}
 }
