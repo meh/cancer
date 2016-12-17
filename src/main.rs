@@ -166,8 +166,9 @@ fn main() {
 
 		let mut renderer = Renderer::new(config.clone(), font.clone(), &surface, w, h);
 
-		let mut interface = Interface::from(Terminal::new(config.clone(), font.clone(),
-			renderer.columns(), renderer.rows())?);
+		let mut interface = Interface::from(Terminal::new(config.clone(),
+			(font.width(), font.height() + config.style().spacing()),
+			(renderer.columns(), renderer.rows()))?);
 
 		let mut tty = Tty::spawn(renderer.columns(), renderer.rows(),
 			matches.value_of("term").or_else(|| config.environment().term()),
@@ -407,7 +408,6 @@ fn main() {
 	use std::panic::UnwindSafe;
 
 	use config::Config;
-	use font::Font;
 	use terminal::Terminal;
 
 	env_logger::init().unwrap();
@@ -415,21 +415,6 @@ fn main() {
 	let matches = App::new("cancer")
 		.version(env!("CARGO_PKG_VERSION"))
 		.author("meh. <meh@schizofreni.co>")
-		.arg(Arg::with_name("config")
-			.short("c")
-			.long("config")
-			.help("The path to the configuration file.")
-			.takes_value(true))
-		.arg(Arg::with_name("font")
-			.short("f")
-			.long("font")
-			.takes_value(true)
-			.help("Font to use with the terminal."))
-		.arg(Arg::with_name("term")
-			.short("t")
-			.long("term")
-			.takes_value(true).
-			help("Specify the TERM environment variable to use."))
 		.arg(Arg::with_name("test")
 			.short("T")
 			.long("test")
@@ -437,10 +422,8 @@ fn main() {
 			.help("Test a crasher."))
 		.get_matches();
 
-	let config = Arc::new(Config::load(matches.value_of("config")).unwrap());
-	let font   = Arc::new(Font::load(matches.value_of("font").unwrap_or(config.style().font())).unwrap());
-
-	let mut terminal = Terminal::new(config, font, 80, 24).unwrap();
+	let mut terminal = Terminal::new(Arc::new(Config::default()),
+		(6, 11), (80, 24)).unwrap();
 
 	if matches.is_present("test") {
 		let mut content = Vec::new();

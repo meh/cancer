@@ -30,7 +30,6 @@ use picto::color::Rgba;
 use control::{self, Control, C0, C1, DEC, CSI, SGR};
 use util;
 use error;
-use font::Font;
 use config::{self, Config};
 use config::style::Shape;
 use style::{self, Style};
@@ -46,7 +45,7 @@ use interface::Action;
 #[derive(Debug)]
 pub struct Terminal {
 	config: Arc<Config>,
-	font:   Arc<Font>,
+	font:   (u32, u32),
 
 	region:  Region,
 	cache:   Option<Vec<u8>>,
@@ -140,14 +139,14 @@ macro_rules! term {
 
 impl Terminal {
 	/// Create a new terminal.
-	pub fn new(config: Arc<Config>, font: Arc<Font>, width: u32, height: u32) -> error::Result<Self> {
+	pub fn new(config: Arc<Config>, font: (u32, u32), (width, height): (u32, u32)) -> error::Result<Self> {
 		let region = Region::from(0, 0, width, height);
 		let grid   = Grid::new(width, height, config.environment().scroll());
 		let tabs   = Tabs::new(width, height);
 
 		Ok(Terminal {
 			config: config.clone(),
-			font:   font.clone(),
+			font:   font,
 
 			region:  region,
 			cache:   Default::default(),
@@ -1586,7 +1585,7 @@ impl Terminal {
 			Control::DEC(DEC::Sixel(header, mut content)) => {
 				let mut sixel = Sixel::new(header,
 					self.cursor.style().background().unwrap_or(self.config.style().color().background()),
-					self.font.width(), self.font.height() + self.config.style().spacing());
+					self.font.0, self.font.1);
 
 				// Parse and draw the sixel image locally.
 				while !content.is_empty() {
