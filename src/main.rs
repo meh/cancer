@@ -407,6 +407,7 @@ fn main() {
 	use std::panic::UnwindSafe;
 
 	use config::Config;
+	use font::Font;
 	use terminal::Terminal;
 
 	env_logger::init().unwrap();
@@ -436,7 +437,10 @@ fn main() {
 			.help("Test a crasher."))
 		.get_matches();
 
-	let mut terminal = Terminal::new(Arc::new(Config::load(matches.value_of("config")).unwrap()), 80, 24).unwrap();
+	let config = Arc::new(Config::load(matches.value_of("config")).unwrap());
+	let font   = Arc::new(Font::load(matches.value_of("font").unwrap_or(config.style().font())).unwrap());
+
+	let mut terminal = Terminal::new(config, font, 80, 24).unwrap();
 
 	if matches.is_present("test") {
 		let mut content = Vec::new();
