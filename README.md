@@ -11,7 +11,7 @@ curl https://sh.rustup.rs -sSf | sh
 rustup install nightly
 ```
 
-then you can install it with Cargo.
+Then you can install it with Cargo.
 
 ```shell
 cargo +nightly install --force --git https://github.com/meh/cancer
