@@ -210,6 +210,7 @@ cancer+secret| secret features,
 	Se=\E[2 q,
 	Ss=\E[%p1%d q,
 	Tc,
+	Ts,
 	8f=\E[38;2;%p1%d;%p2%d;%p3%dm,
 	8b=\E[48;2;%p1%d;%p2%d;%p3%dm,
 
