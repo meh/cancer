@@ -25,17 +25,18 @@ use std::cmp;
 
 use unicode_segmentation::UnicodeSegmentation;
 use unicode_width::UnicodeWidthStr;
-use palette::Rgba;
+use picto::Region;
+use picto::color::Rgba;
 use control::{self, Control, C0, C1, DEC, CSI, SGR};
 use util;
 use error;
+use font::Font;
 use config::{self, Config};
 use config::style::Shape;
 use style::{self, Style};
 use platform::key::{self, Key};
 use platform::mouse::{self, Mouse};
-use util::Region;
-use terminal::{Iter, Touched, Cell, Tabs, Grid, cell};
+use terminal::{Iter, Touched, Cell, Tabs, Grid, Sixel, cell};
 use terminal::mode::{self, Mode};
 use terminal::cursor::{self, Cursor};
 use terminal::touched;
@@ -44,7 +45,9 @@ use interface::Action;
 
 #[derive(Debug)]
 pub struct Terminal {
-	config:  Arc<Config>,
+	config: Arc<Config>,
+	font:   Arc<Font>,
+
 	region:  Region,
 	cache:   Option<Vec<u8>>,
 	touched: Touched,
@@ -137,13 +140,15 @@ macro_rules! term {
 
 impl Terminal {
 	/// Create a new terminal.
-	pub fn new(config: Arc<Config>, width: u32, height: u32) -> error::Result<Self> {
-		let region = Region::new(0, 0, width, height);
+	pub fn new(config: Arc<Config>, font: Arc<Font>, width: u32, height: u32) -> error::Result<Self> {
+		let region = Region::from(0, 0, width, height);
 		let grid   = Grid::new(width, height, config.environment().scroll());
 		let tabs   = Tabs::new(width, height);
 
 		Ok(Terminal {
-			config:  config.clone(),
+			config: config.clone(),
+			font:   font.clone(),
+
 			region:  region,
 			cache:   Default::default(),
 			touched: Touched::default(),
@@ -1576,6 +1581,85 @@ impl Terminal {
 
 			Control::C0(C0::Bell) => {
 				actions.push(Action::Urgent);
+			}
+
+			Control::DEC(DEC::Sixel(header, mut content)) => {
+				let mut sixel = Sixel::new(header,
+					self.cursor.style().background().unwrap_or(self.config.style().color().background()),
+					self.font.width(), self.font.height() + self.config.style().spacing());
+
+				// Parse and draw the sixel image locally.
+				while !content.is_empty() {
+					match DEC::SIXEL::parse(content) {
+						control::Result::Done(rest, item) => {
+							content = rest;
+
+							debug!(target: "cancer::terminal::input::sixel", "sixel {:?}", item);
+
+							match item {
+								DEC::SIXEL::Raster { aspect, .. } => {
+									sixel.aspect(aspect);
+								}
+
+								DEC::SIXEL::Enable(id) => {
+									sixel.enable(id);
+								}
+
+								DEC::SIXEL::Define(id, color) => {
+									sixel.define(id, color);
+								}
+
+								DEC::SIXEL::Value(value) => {
+									sixel.draw(value);
+								}
+
+								DEC::SIXEL::Repeat(times, value) => {
+									for _ in 0 .. times {
+										sixel.draw(value);
+									}
+								}
+
+								DEC::SIXEL::CarriageReturn => {
+									sixel.start();
+								}
+
+								DEC::SIXEL::LineFeed => {
+									sixel.next();
+								}
+							}
+						}
+
+						control::Result::Error(_) =>
+							content = &content[1..],
+
+						control::Result::Incomplete(_) =>
+							break,
+					}
+				}
+
+				// Store the initial position.
+				let (x, _) = term!(self; cursor);
+				let rows   = sixel.rows();
+
+				// Move the drawn grid into the terminal.
+				for (i, row) in sixel.into_inner().into_iter().enumerate() {
+					for buffer in row {
+						let (x, y) = term!(self; cursor);
+						self.grid[(x, y)].make_image(buffer, self.cursor.style().clone());
+
+						if term!(self; cursor Right(1)).is_some() {
+							break;
+						}
+					}
+
+					if i < rows - 1 {
+						if term!(self; cursor Down(1)).is_some() {
+							term!(self; scroll up 1);
+						}
+
+						term!(self; cursor Position(Some(x), None));
+					}
+				}
 			}
 
 			code => {

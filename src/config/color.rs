@@ -20,7 +20,7 @@ use std::hash::BuildHasherDefault;
 use fnv::FnvHasher;
 
 use toml;
-use palette::Rgba;
+use picto::color::Rgba;
 
 use config::util::to_color;
 

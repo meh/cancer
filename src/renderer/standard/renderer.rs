@@ -18,7 +18,7 @@
 use std::mem;
 use std::rc::Rc;
 
-use util::Region;
+use picto::Region;
 use config::style::Shape;
 use sys::cairo;
 use style;
@@ -84,7 +84,7 @@ impl Renderer {
 	/// Draw the margins within the given region.
 	pub fn margin(&mut self, state: &State, region: &Region) {
 		let (rows, columns)    = (state.rows(), state.columns());
-		let (c, f, o, s, h, v) = (state.config(), state.font(), &mut self.context, state.spacing(), state.margin().horizontal, state.margin().vertical);
+		let (c, f, o, s, h, v) = (state.config(), state.font(), &mut self.context, state.config().style().spacing(), state.margin().horizontal, state.margin().vertical);
 
 		// Bail out if there's no margin.
 		if h == 0 && v == 0 {
@@ -142,6 +142,8 @@ impl Renderer {
 		{
 			// Draw the background.
 			o.rectangle(x as f64, y as f64, w as f64, h as f64);
+			o.clip();
+
 			match cursor.shape() {
 				Shape::Block => {
 					if options.focus() && !bc {
@@ -157,13 +159,11 @@ impl Renderer {
 						c.style().color().background()));
 				}
 			}
-			o.fill();
+
+			o.paint();
 
 			// Draw the glyph.
 			if cell.is_occupied() && !(options.blinking() && cell.style().attributes().contains(style::BLINK)) {
-				o.save();
-				o.rectangle(x as f64, y as f64, w as f64, h as f64);
-				o.clip();
 				o.move_to(x as f64, (y + f.ascent()) as f64);
 
 				match cursor.shape() {
@@ -179,7 +179,6 @@ impl Renderer {
 
 				let computed = self.glyphs.compute(Rc::new(cell.value().into()), cell.style().attributes());
 				o.glyph(computed.text(), computed.glyphs());
-				o.restore();
 			}
 
 			// Render cursors that require to be on top.
@@ -253,22 +252,21 @@ impl Renderer {
 		{
 			// Draw the background.
 			o.rectangle(x as f64, y as f64, w as f64, h as f64);
+			o.clip();
 			o.rgba(bg);
-			o.fill();
+			o.paint();
 
 			// Draw the glyph.
 			if !cell.style().attributes().contains(style::BLINK) || !options.blinking() {
 				if cell.is_occupied() {
-					o.save();
-					o.rectangle(x as f64, y as f64, w as f64, h as f64);
-					o.clip();
-
 					o.move_to(x as f64, (y + f.ascent()) as f64);
 					o.rgba(fg);
+
 					let computed = self.glyphs.compute(Rc::new(cell.value().into()), cell.style().attributes());
 					o.glyph(computed.text(), computed.glyphs());
-
-					o.restore();
+				}
+				else if cell.is_image() {
+					o.image(cell.image(), x as f64, y as f64);
 				}
 
 				// Draw underline.

@@ -17,7 +17,8 @@
 
 use std::sync::Arc;
 
-use util::{clamp, Region};
+use util::clamp;
+use picto::Region;
 use config::Config;
 use font::Font;
 
@@ -28,9 +29,7 @@ pub struct State {
 
 	pub(super) width:  u32,
 	pub(super) height: u32,
-
-	pub(super) spacing: u32,
-	pub(super) margin:  Margin,
+	pub(super) margin: Margin,
 }
 
 /// Adaptable margins depending on the view size.
@@ -64,18 +63,13 @@ impl State {
 	/// How many rows fit the view.
 	pub fn rows(&self) -> u32 {
 		(self.height - (self.margin.vertical * 2)) /
-			(self.font.height() + self.spacing)
+			(self.font.height() + self.config.style().spacing())
 	}
 
 	/// How many columns fit the view.
 	pub fn columns(&self) -> u32 {
 		(self.width - (self.margin.horizontal * 2)) /
 			self.font.width()
-	}
-
-	/// The current spacing.
-	pub fn spacing(&self) -> u32 {
-		self.spacing
 	}
 
 	/// The current margins.
@@ -85,7 +79,7 @@ impl State {
 
 	/// Resize the state.
 	pub fn resize(&mut self, width: u32, height: u32) {
-		let (m, s) = (self.config.style().margin(), self.spacing);
+		let (m, s) = (self.config.style().margin(), self.config.style().spacing());
 
 		self.margin.horizontal = m +
 			((width - (m * 2)) % self.font.width()) / 2;
@@ -99,7 +93,7 @@ impl State {
 
 	/// Find the cell position from the real position.
 	pub fn position(&self, x: u32, y: u32) -> Option<(u32, u32)> {
-		let (f, h, v, s) = (&self.font, self.margin.horizontal, self.margin.vertical, self.spacing);
+		let (f, h, v, s) = (&self.font, self.margin.horizontal, self.margin.vertical, self.config.style().spacing());
 
 		// Check if the region falls exactly within a margin, if so bail out.
 		if h != 0 && v != 0 &&
@@ -125,7 +119,7 @@ impl State {
 
 	/// Turn the damaged region to cell-space.
 	pub fn damaged(&self, region: &Region) -> Region {
-		let (f, h, v, s) = (&self.font, self.margin.horizontal, self.margin.vertical, self.spacing);
+		let (f, h, v, s) = (&self.font, self.margin.horizontal, self.margin.vertical, self.config.style().spacing());
 
 		// Check if the region falls exactly within a margin, if so bail out.
 		if h != 0 && v != 0 &&
@@ -134,7 +128,7 @@ impl State {
 		    (region.y < v && region.height <= v - region.y) ||
 		    (region.y >= self.height - v))
 		{
-			return Region::new(0, 0, 0, 0);
+			return Region::from(0, 0, 0, 0);
 		}
 
 		// Cache font dimensions.
@@ -165,7 +159,7 @@ impl State {
 		// This is done because the dirty region is actually bigger than the one
 		// reported, or because the algorithm is broken. Regardless, this way it
 		// works properly.
-		Region::new(x, y,
+		Region::from(x, y,
 			w + if x + w < self.columns() { 1 } else { 0 },
 			h + if y + h < self.rows() { 1 } else { 0 })
 	}

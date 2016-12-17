@@ -18,7 +18,7 @@
 use std::sync::Arc;
 use std::ops::Deref;
 
-use util::Region;
+use picto::Region;
 use sys::cairo;
 use config::Config;
 use font::Font;
@@ -66,9 +66,7 @@ impl Renderer {
 
 			width:  width,
 			height: height,
-
-			spacing: spacing,
-			margin:  margin,
+			margin: margin,
 		};
 
 		let mode = if state.config().style().ligatures() {

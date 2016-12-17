@@ -29,12 +29,12 @@ lru-cache     = "0.1"
 shlex         = "0.1"
 schedule_recv = "0.1"
 itertools     = "0.5"
-control-code  = "0.4.7"
+picto         = { version = "0.4", default-features = false }
+control-code  = "0.5"
 
 clap     = "2"
 app_dirs = "1.1"
 toml     = "0.1"
-palette  = "0.2"
 regex    = "0.1"
 
 unicode-segmentation = "0.1"

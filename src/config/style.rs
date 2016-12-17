@@ -16,7 +16,7 @@
 // along with cancer.  If not, see <http://www.gnu.org/licenses/>.
 
 use toml::{self, Value};
-use palette::Rgba;
+use picto::color::Rgba;
 use config::util::to_color;
 
 #[derive(PartialEq, Clone, Debug)]

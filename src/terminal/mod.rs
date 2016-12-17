@@ -45,5 +45,8 @@ pub use self::tabs::Tabs;
 mod input;
 pub use self::input::Input;
 
+mod sixel;
+pub use self::sixel::Sixel;
+
 mod terminal;
 pub use self::terminal::Terminal;

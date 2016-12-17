@@ -21,11 +21,17 @@ use std::rc::Rc;
 use unicode_width::UnicodeWidthStr;
 
 use style::Style;
+use picto;
 
 #[derive(PartialEq, Clone, Debug)]
 pub enum Cell {
 	Empty {
 		style: Rc<Style>,
+	},
+
+	Image {
+		style:  Rc<Style>,
+		buffer: picto::buffer::Rgba
 	},
 
 	Occupied {
@@ -115,10 +121,21 @@ impl Cell {
 		}
 	}
 
+	/// Check if the cell is an image.
+	pub fn is_image(&self) -> bool {
+		if let Cell::Image { .. } = *self {
+			true
+		}
+		else {
+			false
+		}
+	}
+
 	/// Check if the cell is wide.
 	pub fn is_wide(&self) -> bool {
 		match *self {
-			Cell::Empty { .. } =>
+			Cell::Empty { .. } |
+			Cell::Image { .. } =>
 				false,
 
 			Cell::Occupied { ref value, .. } =>
@@ -149,10 +166,19 @@ impl Cell {
 		mem::replace(self, Cell::Reference(offset));
 	}
 
+	/// Make the cell into an image.
+	pub fn make_image(&mut self, buffer: picto::buffer::Rgba, style: Rc<Style>) {
+		mem::replace(self, Cell::Image {
+			buffer: buffer,
+			style:  style,
+		});
+	}
+
 	/// Change the style in place.
 	pub fn set_style(&mut self, value: Rc<Style>) {
 		match *self {
 			Cell::Empty { ref mut style, .. } |
+			Cell::Image { ref mut style, .. } |
 			Cell::Occupied { ref mut style, .. } =>
 				*style = value,
 
@@ -165,6 +191,7 @@ impl Cell {
 	pub fn style(&self) -> &Rc<Style> {
 		match *self {
 			Cell::Empty { ref style, .. } |
+			Cell::Image { ref style, .. } |
 			Cell::Occupied { ref style, .. } =>
 				style,
 
@@ -182,7 +209,8 @@ impl Cell {
 			Cell::Occupied { ref value, .. } =>
 				value,
 
-			Cell::Reference(..) =>
+			Cell::Reference(..) |
+			Cell::Image { .. } =>
 				"",
 		}
 	}
@@ -190,7 +218,8 @@ impl Cell {
 	/// Get the cell width.
 	pub fn width(&self) -> u32 {
 		match *self {
-			Cell::Empty { .. } =>
+			Cell::Empty { .. } |
+			Cell::Image { .. } =>
 				1,
 
 			Cell::Occupied { ref value, .. } =>
@@ -208,7 +237,21 @@ impl Cell {
 				offset as u32,
 
 			Cell::Empty { .. } |
-			Cell::Occupied { .. } =>
+			Cell::Occupied { .. } |
+			Cell::Image { .. } =>
+				unreachable!()
+		}
+	}
+
+	/// Get the image buffer.
+	pub fn image(&self) -> &picto::buffer::Rgba {
+		match *self {
+			Cell::Image { ref buffer, .. } =>
+				buffer,
+
+			Cell::Empty { .. } |
+			Cell::Occupied { .. } |
+			Cell::Reference(..) =>
 				unreachable!()
 		}
 	}

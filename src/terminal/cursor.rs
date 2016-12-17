@@ -21,7 +21,7 @@ use std::sync::Arc;
 use std::convert::TryFrom;
 use std::i32;
 
-use palette::Rgba;
+use picto::color::Rgba;
 use style::Style;
 use config::Config;
 use config::style::Shape;
@@ -76,6 +76,7 @@ impl Default for State {
 
 pub use self::Travel::*;
 
+#[allow(dead_code)]
 impl Cursor {
 	/// Create a new cursor.
 	pub fn new(config: Arc<Config>, width: u32, height: u32) -> Self {

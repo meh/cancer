@@ -18,9 +18,6 @@
 #[macro_use]
 mod macros;
 
-mod region;
-pub use self::region::{Region, Coordinates};
-
 pub fn clamp<T: PartialOrd>(n: T, min: T, max: T) -> T {
 	if n > max {
 		max

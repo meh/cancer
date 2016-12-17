@@ -32,7 +32,7 @@
 // You should have received a copy of the GNU General Public License
 // along with cancer.  If not, see <http://www.gnu.org/licenses/>.
 
-use util::Region;
+use picto::Region;
 use sys::cairo;
 use interface::Interface;
 use renderer::State;
@@ -63,7 +63,7 @@ impl Renderer {
 	pub fn render<I>(&mut self, state: &State, options: Options, region: Option<Region>, interface: &Interface, iter: I)
 		where I: Iterator<Item = (u32, u32)>
 	{
-		self.context.rgba(&::palette::Rgba::new_u8(0, 0, 0, 255));
+		self.context.rgba(&::picto::color::Rgba::new_u8(0, 0, 0, 255));
 		self.context.paint();
 	}
 }

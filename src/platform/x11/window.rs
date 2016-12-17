@@ -30,7 +30,7 @@ use platform::{Event, Clipboard};
 use platform::key;
 use platform::mouse::{self, Mouse};
 use platform::x11::{Keyboard, Proxy};
-use util::Region;
+use picto::Region;
 
 /// X11 window.
 pub struct Window {
@@ -214,7 +214,7 @@ impl Window {
 							let w     = event.width() as u32;
 							let h     = event.height() as u32;
 
-							try!(manager.send(Event::Damaged(Region::new(x, y, w, h))));
+							try!(manager.send(Event::Damaged(Region::from(x, y, w, h))));
 						}
 
 						xcb::MAP_NOTIFY | xcb::UNMAP_NOTIFY => {

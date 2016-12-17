@@ -35,8 +35,8 @@ extern crate fnv;
 extern crate itertools;
 extern crate lru_cache as lru;
 extern crate shlex;
-extern crate palette;
 extern crate schedule_recv as timer;
+extern crate picto;
 #[macro_use(arg)]
 extern crate control_code as control;
 
@@ -94,7 +94,7 @@ fn main() {
 	use std::io::Write;
 	use std::thread;
 
-	use util::Region;
+	use picto::Region;
 	use config::Config;
 	use font::Font;
 	use renderer::Renderer;
@@ -164,11 +164,14 @@ fn main() {
 		let mut surface = window.surface().unwrap();
 		let     (w, h)  = window.dimensions();
 
-		let mut renderer  = Renderer::new(config.clone(), font.clone(), &surface, w, h);
-		let mut interface = Interface::from(Terminal::new(config.clone(), renderer.columns(), renderer.rows())?);
-		let mut tty       = Tty::spawn(renderer.columns(), renderer.rows(),
-	                                 matches.value_of("term").or_else(|| config.environment().term()),
-	                                 matches.value_of("execute").or_else(|| config.environment().program()))?;
+		let mut renderer = Renderer::new(config.clone(), font.clone(), &surface, w, h);
+
+		let mut interface = Interface::from(Terminal::new(config.clone(), font.clone(),
+			renderer.columns(), renderer.rows())?);
+
+		let mut tty = Tty::spawn(renderer.columns(), renderer.rows(),
+			matches.value_of("term").or_else(|| config.environment().term()),
+			matches.value_of("execute").or_else(|| config.environment().program()))?;
 
 		let mut focused = true;
 		let mut visible = true;
@@ -319,8 +322,8 @@ fn main() {
 								let columns = renderer.columns();
 
 								window.render(&mut surface, ||
-									renderer.render(render!(options), Some(Region::new(0, 0, width, height)),
-										&interface, Region::new(0, 0, columns, rows).absolute()));
+									renderer.render(render!(options), Some(Region::from(0, 0, width, height)),
+										&interface, Region::from(0, 0, columns, rows).absolute()));
 							}
 
 							Event::Damaged(region) => {
