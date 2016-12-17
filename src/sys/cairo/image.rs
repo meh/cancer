@@ -15,6 +15,9 @@
 // You should have received a copy of the GNU General Public License
 // along with cancer.  If not, see <http://www.gnu.org/licenses/>.
 
+use std::ptr;
+use std::cell::Cell;
+
 use libc::{c_uchar, c_int};
 use ffi::cairo::*;
 
@@ -25,7 +28,7 @@ pub struct Image {
 	stride: u32,
 
 	buffer:  Vec<u8>,
-	pattern: *mut cairo_pattern_t,
+	pattern: Cell<*mut cairo_pattern_t>,
 }
 
 impl Image {
@@ -34,18 +37,13 @@ impl Image {
 			let stride = cairo_format_stride_for_width(cairo_format_t::Argb32, width as c_int) as u32;
 			let buffer = vec![0u8; (stride * height) as usize];
 
-			let surface = cairo_image_surface_create_for_data(buffer.as_ptr(), cairo_format_t::Argb32,
-				width as c_int, height as c_int, stride as c_int);
-
-			let pattern = cairo_pattern_create_for_surface(surface);
-
 			Image {
 				width:  width,
 				height: height,
 				stride: stride,
 
 				buffer:  buffer,
-				pattern: pattern,
+				pattern: Cell::new(ptr::null_mut()),
 			}
 		}
 	}
@@ -72,14 +70,29 @@ impl Image {
 	}
 
 	pub fn as_ptr(&self) -> *mut cairo_pattern_t {
-		self.pattern
+		unsafe {
+			if let Some(ptr) = self.pattern.get().as_mut() {
+				ptr
+			}
+			else {
+				let surface = cairo_image_surface_create_for_data(self.buffer.as_ptr(), cairo_format_t::Argb32,
+					self.width as c_int, self.height as c_int, self.stride as c_int);
+
+				let pattern = cairo_pattern_create_for_surface(surface);
+
+				self.pattern.set(pattern);
+				pattern
+			}
+		}
 	}
 }
 
 impl Drop for Image {
 	fn drop(&mut self) {
 		unsafe {
-			cairo_pattern_destroy(self.pattern);
+			if let Some(ptr) = self.pattern.get().as_mut() {
+				cairo_pattern_destroy(ptr);
+			}
 		}
 	}
 }
