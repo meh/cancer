@@ -28,11 +28,10 @@ use sys::cairo;
 pub struct Sixel {
 	raster: SIXEL::Header,
 
-	grid:   Vec<Vec<cairo::Image>>,
-	width:  u32,
-	height: u32,
-	x:      u32,
-	y:      u32,
+	grid:     Vec<Vec<cairo::Image>>,
+	cell:     (u32, u32),
+	limit:    (u32, u32),
+	position: (u32, u32),
 
 	colors:     HashMap<u32, (u8, u8, u8, u8), BuildHasherDefault<FnvHasher>>,
 	color:      u32,
@@ -40,15 +39,14 @@ pub struct Sixel {
 }
 
 impl Sixel {
-	pub fn new(header: SIXEL::Header, background: &Rgba<f64>, width: u32, height: u32) -> Self {
+	pub fn new(header: SIXEL::Header, background: &Rgba<f64>, cell: (u32, u32), limit: (u32, u32)) -> Self {
 		Sixel {
 			raster: header,
 
-			grid:   Default::default(),
-			width:  width,
-			height: height,
-			x:      0,
-			y:      0,
+			grid:     Default::default(),
+			cell:     cell,
+			limit:    limit,
+			position: (0, 0),
 
 			colors:     Default::default(),
 			color:      0,
@@ -93,51 +91,59 @@ impl Sixel {
 	}
 
 	pub fn start(&mut self) {
-		self.x = 0;
+		self.position.0 = 0;
 	}
 
 	pub fn next(&mut self) {
-		self.x  = 0;
-		self.y += 6 * self.raster.aspect.0;
+		self.position.0  = 0;
+		self.position.1 += 6 * self.raster.aspect.0;
 	}
 
 	pub fn draw(&mut self, value: SIXEL::Map) {
+		// The color for enabled bits.
 		let color = self.colors.get(&self.color).unwrap_or(&self.background);
 
 		// The X within the local grid.
-		let x  = (self.x / self.width) as usize;
+		let x = (self.position.0 / self.cell.0) as usize;
+
+		// Bail out early if the cell is beyond the terminal limit.
+		if x as u32 + self.limit.0 >= self.limit.1 {
+			return;
+		}
 
 		// The X within the image buffer.
-		let xo = self.x % self.width;
+		let xo = self.position.0 % self.cell.0;
 
-		for (i, y) in (self.y .. self.y + (6 * self.raster.aspect.0)).enumerate() {
+		for (i, y) in (self.position.1 .. self.position.1 + (6 * self.raster.aspect.0)).enumerate() {
 			// The bit index within the sixel map.
 			let bit = (i as u32 / self.raster.aspect.0) as u8;
 
 			// The Y within the image buffer.
-			let yo = y as u32 % self.height;
+			let yo = y as u32 % self.cell.1;
 
 			// The Y within the grid.
-			let y = (y / self.height) as usize;
+			let y = (y / self.cell.1) as usize;
 
-			// If the grid doesn't have enough rows, push enough.
-			while y >= self.grid.len() {
+			// If the grid doesn't have enough rows, extend it.
+			if y >= self.grid.len() {
 				self.grid.push(Vec::new());
 			}
 
-			// If the grid doesn't have enough columns, push enough.
-			while x >= self.grid[y].len() {
-				self.grid[y].push(cairo::Image::new(self.width, self.height));
+			// If the grid doesn't have enough columns, extend it.
+			if x >= self.grid[y].len() {
+				self.grid[y].push(cairo::Image::new(self.cell.0, self.cell.1));
 			}
 
+			// If the bit is enabled, set it.
 			if value.get(bit) {
 				self.grid[y][x].set(xo, yo, *color);
 			}
+			// If disabled bits should set the background color, do so.
 			else if self.raster.background {
 				self.grid[y][x].set(xo, yo, self.background);
 			}
 		}
 
-		self.x += 1;
+		self.position.0 += 1;
 	}
 }

@@ -1583,9 +1583,11 @@ impl Terminal {
 			}
 
 			Control::DEC(DEC::Sixel(header, mut content)) => {
+				let (edge, _) = term!(self; cursor);
 				let mut sixel = Sixel::new(header,
 					self.cursor.style().background().unwrap_or(self.config.style().color().background()),
-					self.font.0, self.font.1);
+					(self.font.0, self.font.1),
+					(edge, self.region.width));
 
 				// Parse and draw the sixel image locally.
 				while !content.is_empty() {
@@ -1636,35 +1638,30 @@ impl Terminal {
 					}
 				}
 
-				// Store the initial position.
-				let (x, _) = term!(self; cursor);
-				let rows   = sixel.rows();
 
 				// Move the drawn grid into the terminal.
+				let rows = sixel.rows();
 				for (i, row) in sixel.into_inner().into_iter().enumerate() {
 					for buffer in row {
 						let (x, y) = term!(self; cursor);
 						self.grid[(x, y)].make_image(buffer, self.cursor.style().clone());
-
-						if term!(self; cursor Right(1)).is_some() {
-							break;
-						}
+						term!(self; cursor Right(1));
 					}
 
 					// Clean leftover references.
-					{
-						let (x, y) = term!(self; cursor);
-						self.grid.clean_references(x, y);
+					let (x, y) = term!(self; cursor);
+					self.grid.clean_references(x, y);
+
+					// If it's the last row, skip cursor movement.
+					if i == rows - 1 {
+						continue;
 					}
 
-					// Move the cursor, skipping the last row.
-					if i < rows - 1 {
-						if term!(self; cursor Down(1)).is_some() {
-							term!(self; scroll up 1);
-						}
-
-						term!(self; cursor Position(Some(x), None));
+					if term!(self; cursor Down(1)).is_some() {
+						term!(self; scroll! up 1);
 					}
+
+					term!(self; cursor Position(Some(edge), None));
 				}
 			}
 
