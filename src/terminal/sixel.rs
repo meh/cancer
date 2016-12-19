@@ -104,23 +104,33 @@ impl Sixel {
 	pub fn draw(&mut self, value: SIXEL::Map) {
 		let color = self.colors.get(&self.color).unwrap_or(&self.background);
 
+		// The X within the local grid.
 		let x  = (self.x / self.width) as usize;
+
+		// The X within the image buffer.
 		let xo = self.x % self.width;
 
 		for (i, y) in (self.y .. self.y + (6 * self.raster.aspect.0)).enumerate() {
-			let i  = (i as u32 / self.raster.aspect.0) as u8;
-			let yo = y as u32 % self.height;
-			let y  = (y / self.height) as usize;
+			// The bit index within the sixel map.
+			let bit = (i as u32 / self.raster.aspect.0) as u8;
 
-			if y >= self.grid.len() {
+			// The Y within the image buffer.
+			let yo = y as u32 % self.height;
+
+			// The Y within the grid.
+			let y = (y / self.height) as usize;
+
+			// If the grid doesn't have enough rows, push enough.
+			while y >= self.grid.len() {
 				self.grid.push(Vec::new());
 			}
 
-			if x >= self.grid[y].len() {
+			// If the grid doesn't have enough columns, push enough.
+			while x >= self.grid[y].len() {
 				self.grid[y].push(cairo::Image::new(self.width, self.height));
 			}
 
-			if value.get(i) {
+			if value.get(bit) {
 				self.grid[y][x].set(xo, yo, *color);
 			}
 			else if self.raster.background {

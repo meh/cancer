@@ -1651,6 +1651,13 @@ impl Terminal {
 						}
 					}
 
+					// Clean leftover references.
+					{
+						let (x, y) = term!(self; cursor);
+						self.grid.clean_references(x, y);
+					}
+
+					// Move the cursor, skipping the last row.
 					if i < rows - 1 {
 						if term!(self; cursor Down(1)).is_some() {
 							term!(self; scroll up 1);
