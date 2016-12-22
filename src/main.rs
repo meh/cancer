@@ -101,7 +101,7 @@ fn main() {
 	use interface::{Interface, Action};
 	use terminal::Terminal;
 	use overlay::Overlay;
-	use platform::{Window, Tty, Event};
+	use platform::{Window, Tty, Event, Proxy};
 	use platform::mouse::{self, Mouse};
 
 	env_logger::init().unwrap();
@@ -137,8 +137,12 @@ fn main() {
 		.arg(Arg::with_name("term")
 			.short("t")
 			.long("term")
-			.takes_value(true).
-			help("Specify the TERM environment variable to use."))
+			.takes_value(true)
+			.help("Specify the TERM environment variable to use."))
+		.arg(Arg::with_name("title")
+			.long("title")
+			.takes_value(true)
+			.help("Specify the window title."))
 		.arg(Arg::with_name("tic")
 			.short("T")
 			.long("tic")
@@ -155,7 +159,12 @@ fn main() {
 
 	let mut window = Window::new(matches.value_of("name"), config.clone(), font.clone()).unwrap();
 	let     proxy  = window.proxy();
-	let     _      = window.run(spawn(&matches, config.clone(), font.clone(), proxy).unwrap());
+
+	if let Some(title) = matches.value_of("title") {
+		proxy.set_title(title.into());
+	}
+
+	let _ = window.run(spawn(&matches, config.clone(), font.clone(), proxy).unwrap());
 
 	fn spawn<W: platform::Proxy + 'static>(matches: &ArgMatches, config: Arc<Config>, font: Arc<Font>, mut window: W) -> error::Result<Sender<Event>> {
 		let (sender, events) = channel();
