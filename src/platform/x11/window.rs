@@ -306,6 +306,10 @@ impl Window {
 								_ => continue,
 							};
 
+							if !press && (button == mouse::Button::Up || button == mouse::Button::Down) {
+								continue;
+							}
+
 							try!(manager.send(Event::Mouse(Mouse::Click(mouse::Click {
 								press:    press,
 								button:   button,

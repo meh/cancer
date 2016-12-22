@@ -316,13 +316,6 @@ impl Window {
 							modifier: modifier,
 							position: position(&self.window, &self.view, event),
 						}))));
-
-						try!(manager.send(Event::Mouse(Mouse::Click(mouse::Click {
-							press:    false,
-							button:   button,
-							modifier: modifier,
-							position: position(&self.window, &self.view, event),
-						}))));
 					}
 
 					event => {
