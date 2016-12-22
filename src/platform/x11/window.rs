@@ -36,6 +36,7 @@ use picto::Region;
 pub struct Window {
 	config:     Arc<Config>,
 	connection: Arc<ewmh::Connection>,
+	root:       xcb::Window,
 	window:     xcb::Window,
 	keyboard:   Keyboard,
 	receiver:   Option<Receiver<Request>>,
@@ -65,11 +66,12 @@ impl Window {
 		let (connection, screen) = xcb::Connection::connect(config.environment().x11().display())?;
 		let connection           = Arc::new(ewmh::Connection::connect(connection).map_err(|(e, _)| e)?);
 		let keyboard             = Keyboard::new(connection.clone(), config.input().locale())?;
-		let window               = {
+		let (root, window)       = {
 			let window = connection.generate_id();
 			let screen = connection.get_setup().roots().nth(screen as usize).unwrap();
+			let root   = screen.root();
 
-			xcb::create_window(&connection, xcb::COPY_FROM_PARENT as u8, window, screen.root(),
+			xcb::create_window(&connection, xcb::COPY_FROM_PARENT as u8, window, root,
 				0, 0, width as u16, height as u16,
 				0, xcb::WINDOW_CLASS_INPUT_OUTPUT as u16, screen.root_visual(), &[
 					(xcb::CW_BACKING_PIXEL, screen.black_pixel()),
@@ -94,10 +96,14 @@ impl Window {
 				.resize(font.width() as i32, (font.height() + spacing) as i32)
 				.build());
 
+			xcb::change_property(&connection, xcb::PROP_MODE_REPLACE as u8,
+				window, connection.WM_PROTOCOLS(), xcb::ATOM_ATOM, 32, &[
+					connection.WM_PING(), connection.WM_ACTION_CLOSE()]);
+
 			xcb::map_window(&connection, window);
 			connection.flush();
 
-			window
+			(root, window)
 		};
 
 		let proxy = Proxy {
@@ -110,6 +116,7 @@ impl Window {
 		Ok(Window {
 			config:     config.clone(),
 			connection: connection,
+			root:       root,
 			window:     window,
 			keyboard:   keyboard,
 			receiver:   Some(requests),
@@ -147,6 +154,8 @@ impl Window {
 		let STRING      = xcb::ATOM_STRING;
 		let TARGETS     = xcb::intern_atom(&self.connection, false, "TARGETS").get_reply().unwrap().atom();
 		let SELECTION   = xcb::intern_atom(&self.connection, false, "CANCER_CLIPBOARD").get_reply().unwrap().atom();
+
+		let WM_DELETE_WINDOW = xcb::intern_atom(&self.connection, false, "WM_DELETE_WINDOW").get_reply().unwrap().atom();
 
 		loop {
 			select! {
@@ -239,6 +248,25 @@ impl Window {
 
 							try!(manager.send(Event::Resize(reply.width() as u32, reply.height() as u32)));
 							try!(manager.send(Event::Redraw));
+						}
+
+						xcb::CLIENT_MESSAGE => {
+							let event = xcb::cast_event::<xcb::ClientMessageEvent>(&event);
+
+							if event.type_() == self.connection.WM_PROTOCOLS() {
+								match event.data().data32()[0] {
+									n if n == self.connection.WM_PING() => {
+										xcb::send_event(&self.connection, false, self.root, 0, &xcb::ClientMessageEvent::new(
+											event.format(), self.root, self.connection.WM_PROTOCOLS(), event.data().clone()));
+									}
+
+									n if n == WM_DELETE_WINDOW => {
+										try!(manager.send(Event::Closed));
+									}
+
+									_ => ()
+								}
+							}
 						}
 
 						xcb::SELECTION_CLEAR => {
