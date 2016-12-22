@@ -15,5 +15,5 @@ You also have to run the following command to make sure the terminal
 capabilities are installed.
 
 ```shell
-cancer -T | tic -
+cancer -T | tic -x -
 ```
