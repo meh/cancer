@@ -233,6 +233,14 @@ impl Window {
 							try!(manager.send(Event::Resize(w, h)));
 						}
 
+						xcb::REPARENT_NOTIFY => {
+							let event = xcb::cast_event::<xcb::ReparentNotifyEvent>(&event);
+							let reply = try!(continue xcb::get_geometry(&self.connection, event.parent()).get_reply());
+
+							try!(manager.send(Event::Resize(reply.width() as u32, reply.height() as u32)));
+							try!(manager.send(Event::Redraw));
+						}
+
 						xcb::SELECTION_CLEAR => {
 							let event = xcb::cast_event::<xcb::SelectionClearEvent>(&event);
 							clipboard.remove(&event.selection());
