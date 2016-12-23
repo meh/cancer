@@ -333,6 +333,9 @@ impl Terminal {
 					if ch >= b'a' && ch <= b'z' {
 						output.write_all(&[ch - b'a' + 1])
 					}
+					else if ch == b'@' {
+						output.write_all(&[0])
+					}
 					else {
 						output.write_all(string.as_bytes())
 					}

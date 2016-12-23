@@ -346,6 +346,9 @@ impl Keyboard {
 			xkb::key::KP_9 =>
 				Keypad::Number(((symbol.into(): u32 - xkb::key::KP_0.into(): u32) as u8)).into(),
 
+			xkb::key::space =>
+				String::from(if modifier.contains(key::CTRL) { "@" } else { " " }).into(),
+
 			_ => {
 				let mut string = try!(option self.string(code));
 
