@@ -17,12 +17,14 @@
 
 #![feature(mpsc_select, conservative_impl_trait, slice_patterns, static_in_const)]
 #![feature(trace_macros, type_ascription, inclusive_range_syntax, pub_restricted)]
-#![feature(deque_extras, box_syntax, try_from)]
+#![feature(deque_extras, box_syntax, try_from, alloc_system)]
 
 #![cfg_attr(feature = "fuzzy", feature(plugin))]
 #![cfg_attr(feature = "fuzzy", plugin(afl_plugin))]
 #[cfg(feature = "fuzzy")]
 extern crate afl;
+
+extern crate alloc_system;
 
 #[macro_use(error, debug, log)]
 extern crate log;
