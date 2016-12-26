@@ -29,8 +29,9 @@ use error::{self, Error};
 
 #[derive(Debug)]
 pub struct Tty {
-	id: c_int,
-	fd: c_int,
+	id:   c_int,
+	fd:   c_int,
+	font: (u32, u32),
 
 	input:  Sender<Vec<u8>>,
 	output: Option<Receiver<Vec<u8>>>,
@@ -38,13 +39,14 @@ pub struct Tty {
 }
 
 impl Tty {
-	pub fn spawn(width: u32, height: u32, term: Option<&str>, program: Option<&str>) -> error::Result<Self> {
+	pub fn spawn(term: Option<&str>, program: Option<&str>, font: (u32, u32), size: (u32, u32)) -> error::Result<Self> {
 		unsafe {
 			let mut size = winsize {
-				ws_row:    height as c_ushort,
-				ws_col:    width as c_ushort,
-				ws_xpixel: 0,
-				ws_ypixel: 0,
+				ws_row:    size.1 as c_ushort,
+				ws_col:    size.0 as c_ushort,
+
+				ws_xpixel: (size.0 * font.0) as c_ushort,
+				ws_ypixel: (size.1 * font.1) as c_ushort,
 			};
 
 			let mut master = 0;
@@ -91,8 +93,9 @@ impl Tty {
 					let (input, output) = Tty::open(master, master);
 
 					Ok(Tty {
-						id: id,
-						fd: master,
+						id:   id,
+						fd:   master,
+						font: font,
 
 						input:  input,
 						output: Some(output),
@@ -176,8 +179,8 @@ impl Tty {
 			let size = winsize {
 				ws_row:    height as c_ushort,
 				ws_col:    width as c_ushort,
-				ws_xpixel: 0,
-				ws_ypixel: 0,
+				ws_xpixel: (self.font.0 * width) as c_ushort,
+				ws_ypixel: (self.font.1 * height) as c_ushort,
 			};
 
 			if ioctl(self.fd, TIOCSWINSZ as _, &size) < 0 {

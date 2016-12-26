@@ -181,9 +181,11 @@ fn main() {
 			(font.width(), font.height() + config.style().spacing()),
 			(renderer.columns(), renderer.rows()))?);
 
-		let mut tty = Tty::spawn(renderer.columns(), renderer.rows(),
+		let mut tty = Tty::spawn(
 			matches.value_of("term").or_else(|| config.environment().term()),
-			matches.value_of("execute").or_else(|| config.environment().program()))?;
+			matches.value_of("execute").or_else(|| config.environment().program()),
+			(font.width(), font.height() + config.style().spacing()),
+			(renderer.columns(), renderer.rows()))?;
 
 		let mut focused = true;
 		let mut visible = true;
