@@ -251,8 +251,7 @@ cancer+base| terminal cancer base features,
 	kUP6=\E[1;6A,
 	kUP7=\E[1;7A,
 
-# This will warn about unknown capabilities, that's okay.
-cancer+secret| secret features,
+cancer+secret| secret capabilities,
 	AX,
 	XT,
 	XM,
@@ -261,6 +260,8 @@ cancer+secret| secret features,
 	Ms=\E]clipboard:set:%p1%s:%p2%s\007,
 	Se=\E[2 q,
 	Ss=\E[%p1%d q,
+
+cancer+truecolor| secret true color capabilities,
 	Tc,
 	Ts,
 	8f=\E[38;2;%p1%d;%p2%d;%p3%dm,
@@ -281,6 +282,7 @@ cancer| terminal cancer,
 # 256 color terminal.
 cancer-256color| terminal cancer with 256 colors,
 	use=cancer,
+	use=cancer+truecolor,
 
 #	Terminal attributes
 	colors#256,
