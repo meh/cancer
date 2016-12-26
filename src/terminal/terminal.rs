@@ -1617,6 +1617,10 @@ impl Terminal {
 									sixel.draw(value);
 								}
 
+								DEC::SIXEL::Repeat(times, value) if value.is_empty() => {
+									sixel.shift(times);
+								}
+
 								DEC::SIXEL::Repeat(times, value) => {
 									for _ in 0 .. times {
 										sixel.draw(value);
@@ -1640,7 +1644,6 @@ impl Terminal {
 							break,
 					}
 				}
-
 
 				// Move the drawn grid into the terminal.
 				let rows = sixel.rows();

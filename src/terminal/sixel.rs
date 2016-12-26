@@ -90,6 +90,17 @@ impl Sixel {
 		self.colors.insert(id, color);
 	}
 
+	pub fn shift(&mut self, amount: u32) {
+		if self.raster.background {
+			for _ in 0 .. amount {
+				self.draw(SIXEL::Map(0));
+			}
+		}
+		else {
+			self.position.0 += amount;
+		}
+	}
+
 	pub fn start(&mut self) {
 		self.position.0 = 0;
 	}
@@ -100,6 +111,11 @@ impl Sixel {
 	}
 
 	pub fn draw(&mut self, value: SIXEL::Map) {
+		if !self.raster.background && value.is_empty() {
+			self.position.0 += 1;
+			return;
+		}
+
 		// The color for enabled bits.
 		let color = self.colors.get(&self.color).unwrap_or(&self.background);
 
@@ -125,12 +141,12 @@ impl Sixel {
 			let y = (y / self.cell.1) as usize;
 
 			// If the grid doesn't have enough rows, extend it.
-			if y >= self.grid.len() {
+			while y >= self.grid.len() {
 				self.grid.push(Vec::new());
 			}
 
 			// If the grid doesn't have enough columns, extend it.
-			if x >= self.grid[y].len() {
+			while x >= self.grid[y].len() {
 				self.grid[y].push(cairo::Image::new(self.cell.0, self.cell.1));
 			}
 
