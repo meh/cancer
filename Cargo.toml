@@ -30,7 +30,7 @@ shlex         = "0.1"
 schedule_recv = "0.1"
 itertools     = "0.5"
 picto         = { version = "0.4", default-features = false }
-control-code  = "0.5.3"
+control-code  = "0.6"
 
 clap     = "2"
 app_dirs = "1.1"

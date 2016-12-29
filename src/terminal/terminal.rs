@@ -52,6 +52,7 @@ pub struct Terminal {
 	touched: Touched,
 	mode:    Mode,
 	click:   Option<mouse::Click>,
+	device:  Option<Device>,
 
 	scroll: Option<u32>,
 	grid:   Grid,
@@ -62,6 +63,13 @@ pub struct Terminal {
 }
 
 unsafe impl Send for Terminal { }
+
+#[derive(Debug)]
+enum Device {
+	Begin,
+	Unknown,
+	Sixel(Sixel),
+}
 
 macro_rules! term {
 	($term:ident; charset) => (
@@ -153,6 +161,7 @@ impl Terminal {
 			touched: Touched::default(),
 			mode:    Mode::default(),
 			click:   None,
+			device:  None,
 
 			scroll: None,
 			grid:   grid,
@@ -771,6 +780,163 @@ impl Terminal {
 		debug!(target: "cancer::terminal::input::raw", "input: {:?}", input);
 
 		while !input.is_empty() {
+			// Handle device control strings.
+			if let Some(device) = self.device.take() {
+				match device {
+					// New device control sequence, check the kind.
+					Device::Begin => {
+						match DEC::SIXEL::header(input) {
+							control::Result::Done(rest, header) => {
+								let origin = term!(self; cursor);
+								let sixel  = Sixel::new(origin, header,
+									self.cursor.style().background().unwrap_or(self.config.style().color().background()),
+									(self.font.0, self.font.1),
+									(origin.0, self.region.width));
+
+								self.device = Some(Device::Sixel(sixel));
+								input       = rest;
+
+								continue;
+							}
+
+							control::Result::Incomplete(..) => {
+								debug!(target: "cancer::terminal::input", "incomplete input: {:?}", input);
+								self.cache  = Some(input.to_vec());
+								self.device = Some(Device::Begin);
+								break;
+							}
+
+							control::Result::Error(..) => ()
+						}
+
+						self.device = Some(Device::Unknown);
+					}
+
+					Device::Unknown => {
+						match C1::is_end(input) {
+							control::Result::Done(rest, _) => {
+								input = rest;
+								continue;
+							}
+
+							control::Result::Incomplete(..) => {
+								debug!(target: "cancer::terminal::input", "incomplete input: {:?}", input);
+								self.cache  = Some(input.to_vec());
+								self.device = Some(Device::Unknown);
+								break;
+							}
+
+							control::Result::Error(..) => ()
+						}
+
+						self.device = Some(Device::Unknown);
+					}
+
+					Device::Sixel(mut sixel) => {
+						match C1::is_end(input) {
+							// Move the drawn grid into the terminal.
+							control::Result::Done(rest, _) => {
+								let rows = sixel.rows();
+								let edge = sixel.origin().0;
+
+								for (i, row) in sixel.into_inner().into_iter().enumerate() {
+									for buffer in row {
+										let (x, y) = term!(self; cursor);
+										self.grid[(x, y)].make_image(buffer, self.cursor.style().clone());
+										term!(self; cursor Right(1));
+									}
+
+									// Clean leftover references.
+									let (x, y) = term!(self; cursor);
+									self.grid.clean_references(x, y);
+
+									// If it's the last row, skip cursor movement.
+									if i == rows - 1 {
+										continue;
+									}
+
+									if term!(self; cursor Down(1)).is_some() {
+										term!(self; scroll! up 1);
+									}
+
+									term!(self; cursor Position(Some(edge), None));
+								}
+
+								input = rest;
+								continue;
+							}
+
+							control::Result::Incomplete(..) => {
+								debug!(target: "cancer::terminal::input", "incomplete input: {:?}", input);
+								self.cache  = Some(input.to_vec());
+								self.device = Some(Device::Sixel(sixel));
+								break;
+							}
+
+							control::Result::Error(..) => ()
+						}
+
+						match DEC::SIXEL::parse(input) {
+							control::Result::Done(rest, ref item) if !rest.is_empty() => {
+								input = rest;
+								debug!(target: "cancer::terminal::input::sixel", "sixel {:?}", item);
+
+								match *item {
+									DEC::SIXEL::Raster { aspect, .. } => {
+										sixel.aspect(aspect);
+									}
+
+									DEC::SIXEL::Enable(id) => {
+										sixel.enable(id);
+									}
+
+									DEC::SIXEL::Define(id, color) => {
+										sixel.define(id, color);
+									}
+
+									DEC::SIXEL::Value(value) => {
+										sixel.draw(value);
+									}
+
+									DEC::SIXEL::Repeat(times, value) if value.is_empty() => {
+										sixel.shift(times);
+									}
+
+									DEC::SIXEL::Repeat(times, value) => {
+										for _ in 0 .. times {
+											sixel.draw(value);
+										}
+									}
+
+									DEC::SIXEL::CarriageReturn => {
+										sixel.start();
+									}
+
+									DEC::SIXEL::LineFeed => {
+										sixel.next();
+									}
+								}
+							}
+
+							control::Result::Error(err) =>
+								input = &input[1..],
+
+							control::Result::Done(..) |
+							control::Result::Incomplete(..) => {
+								debug!(target: "cancer::terminal::input", "incomplete input: {:?}", input);
+								self.cache  = Some(input.to_vec());
+								self.device = Some(Device::Sixel(sixel));
+								break;
+							}
+						}
+
+						self.device = Some(Device::Sixel(sixel));
+					}
+				}
+
+				continue;
+			}
+
 			// Try to parse the input.
 			let item = match control::parse(input) {
 				// No control code.
@@ -791,7 +957,6 @@ impl Terminal {
 						// The given input isn't a complete unicode sequence, cache it.
 						Input::Incomplete(_) => {
 							debug!(target: "cancer::terminal::input", "incomplete input: {:?}", input);
-
 							self.cache = Some(input.to_vec());
 							break;
 						}
@@ -825,7 +990,6 @@ impl Terminal {
 				// The given input isn't a complete sequence, cache it.
 				control::Result::Incomplete(_) => {
 					debug!(target: "cancer::terminal::input", "incomplete input: {:?}", input);
-
 					self.cache = Some(input.to_vec());
 					break;
 				}
@@ -1585,90 +1749,8 @@ impl Terminal {
 				actions.push(Action::Urgent);
 			}
 
-			Control::DEC(DEC::Sixel(header, mut content)) => {
-				let (edge, _) = term!(self; cursor);
-				let mut sixel = Sixel::new(header,
-					self.cursor.style().background().unwrap_or(self.config.style().color().background()),
-					(self.font.0, self.font.1),
-					(edge, self.region.width));
-
-				// Parse and draw the sixel image locally.
-				while !content.is_empty() {
-					match DEC::SIXEL::parse(content) {
-						control::Result::Done(rest, item) => {
-							content = rest;
-
-							debug!(target: "cancer::terminal::input::sixel", "sixel {:?}", item);
-
-							match item {
-								DEC::SIXEL::Raster { aspect, .. } => {
-									sixel.aspect(aspect);
-								}
-
-								DEC::SIXEL::Enable(id) => {
-									sixel.enable(id);
-								}
-
-								DEC::SIXEL::Define(id, color) => {
-									sixel.define(id, color);
-								}
-
-								DEC::SIXEL::Value(value) => {
-									sixel.draw(value);
-								}
-
-								DEC::SIXEL::Repeat(times, value) if value.is_empty() => {
-									sixel.shift(times);
-								}
-
-								DEC::SIXEL::Repeat(times, value) => {
-									for _ in 0 .. times {
-										sixel.draw(value);
-									}
-								}
-
-								DEC::SIXEL::CarriageReturn => {
-									sixel.start();
-								}
-
-								DEC::SIXEL::LineFeed => {
-									sixel.next();
-								}
-							}
-						}
-
-						control::Result::Error(_) =>
-							content = &content[1..],
-
-						control::Result::Incomplete(_) =>
-							break,
-					}
-				}
-
-				// Move the drawn grid into the terminal.
-				let rows = sixel.rows();
-				for (i, row) in sixel.into_inner().into_iter().enumerate() {
-					for buffer in row {
-						let (x, y) = term!(self; cursor);
-						self.grid[(x, y)].make_image(buffer, self.cursor.style().clone());
-						term!(self; cursor Right(1));
-					}
-
-					// Clean leftover references.
-					let (x, y) = term!(self; cursor);
-					self.grid.clean_references(x, y);
-
-					// If it's the last row, skip cursor movement.
-					if i == rows - 1 {
-						continue;
-					}
-
-					if term!(self; cursor Down(1)).is_some() {
-						term!(self; scroll! up 1);
-					}
-
-					term!(self; cursor Position(Some(edge), None));
-				}
+			Control::C1(C1::DeviceControl) => {
+				self.device = Some(Device::Begin);
 			}
 
 			code => {

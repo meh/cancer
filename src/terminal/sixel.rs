@@ -27,6 +27,7 @@ use sys::cairo;
 #[derive(Debug)]
 pub struct Sixel {
 	raster: SIXEL::Header,
+	origin: (u32, u32),
 
 	grid:     Vec<Vec<cairo::Image>>,
 	cell:     (u32, u32),
@@ -39,9 +40,10 @@ pub struct Sixel {
 }
 
 impl Sixel {
-	pub fn new(header: SIXEL::Header, background: &Rgba<f64>, cell: (u32, u32), limit: (u32, u32)) -> Self {
+	pub fn new(origin: (u32, u32), header: SIXEL::Header, background: &Rgba<f64>, cell: (u32, u32), limit: (u32, u32)) -> Self {
 		Sixel {
 			raster: header,
+			origin: origin,
 
 			grid:     Default::default(),
 			cell:     cell,
@@ -56,6 +58,10 @@ impl Sixel {
 				(background.blue  * 255.0) as u8,
 				(background.alpha * 255.0) as u8),
 		}
+	}
+
+	pub fn origin(&self) -> (u32, u32) {
+		self.origin
 	}
 
 	pub fn rows(&self) -> usize {
