@@ -168,4 +168,42 @@ impl Sixel {
 
 		self.position.0 += 1;
 	}
+
+	pub fn handle(&mut self, item: &SIXEL::T) {
+		match *item {
+			SIXEL::Raster { aspect, .. } => {
+				self.aspect(aspect);
+			}
+
+			SIXEL::Enable(id) => {
+				self.enable(id);
+			}
+
+			SIXEL::Define(id, color) => {
+				self.define(id, color);
+			}
+
+			SIXEL::Value(value) => {
+				self.draw(value);
+			}
+
+			SIXEL::Repeat(times, value) if value.is_empty() => {
+				self.shift(times);
+			}
+
+			SIXEL::Repeat(times, value) => {
+				for _ in 0 .. times {
+					self.draw(value);
+				}
+			}
+
+			SIXEL::CarriageReturn => {
+				self.start();
+			}
+
+			SIXEL::LineFeed => {
+				self.next();
+			}
+		}
+	}
 }

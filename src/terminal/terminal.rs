@@ -52,7 +52,7 @@ pub struct Terminal {
 	touched: Touched,
 	mode:    Mode,
 	click:   Option<mouse::Click>,
-	device:  Option<Device>,
+	command: Option<Command>,
 
 	scroll: Option<u32>,
 	grid:   Grid,
@@ -65,10 +65,10 @@ pub struct Terminal {
 unsafe impl Send for Terminal { }
 
 #[derive(Debug)]
-enum Device {
-	Begin,
-	Unknown,
+enum Command {
+	Device,
 	Sixel(Sixel),
+	Internal,
 }
 
 macro_rules! term {
@@ -161,7 +161,7 @@ impl Terminal {
 			touched: Touched::default(),
 			mode:    Mode::default(),
 			click:   None,
-			device:  None,
+			command: None,
 
 			scroll: None,
 			grid:   grid,
@@ -780,62 +780,47 @@ impl Terminal {
 		debug!(target: "cancer::terminal::input::raw", "input: {:?}", input);
 
 		while !input.is_empty() {
-			// Handle device control strings.
-			if let Some(device) = self.device.take() {
-				match device {
-					// New device control sequence, check the kind.
-					Device::Begin => {
+			if let Some(command) = self.command.take() {
+				if !C1::is_string(input[0]) && C1::is_end(input).is_err() {
+					debug!(target: "cancer::terminal::input", "invalid string {:0x}", input[0]);
+					break;
+				}
+
+				match command {
+					Command::Device => {
 						match DEC::SIXEL::header(input) {
 							control::Result::Done(rest, header) => {
+								input = rest;
+
 								let origin = term!(self; cursor);
 								let sixel  = Sixel::new(origin, header,
 									self.cursor.style().background().unwrap_or(self.config.style().color().background()),
 									(self.font.0, self.font.1),
 									(origin.0, self.region.width));
 
-								self.device = Some(Device::Sixel(sixel));
-								input       = rest;
-
+								self.command = Some(Command::Sixel(sixel));
 								continue;
 							}
 
 							control::Result::Incomplete(..) => {
 								debug!(target: "cancer::terminal::input", "incomplete input: {:?}", input);
-								self.cache  = Some(input.to_vec());
-								self.device = Some(Device::Begin);
+								self.cache   = Some(input.to_vec());
+								self.command = Some(Command::Device);
 								break;
 							}
 
 							control::Result::Error(..) => ()
 						}
 
-						self.device = Some(Device::Unknown);
+						// TODO: insert ReGIS header check
 					}
 
-					Device::Unknown => {
-						match C1::is_end(input) {
-							control::Result::Done(rest, _) => {
-								input = rest;
-								continue;
-							}
-
-							control::Result::Incomplete(..) => {
-								debug!(target: "cancer::terminal::input", "incomplete input: {:?}", input);
-								self.cache  = Some(input.to_vec());
-								self.device = Some(Device::Unknown);
-								break;
-							}
-
-							control::Result::Error(..) => ()
-						}
-
-						self.device = Some(Device::Unknown);
-					}
-
-					Device::Sixel(mut sixel) => {
+					Command::Sixel(mut sixel) => {
 						match C1::is_end(input) {
 							// Move the drawn grid into the terminal.
 							control::Result::Done(rest, _) => {
+								input = rest;
+
 								let rows = sixel.rows();
 								let edge = sixel.origin().0;
 
@@ -862,14 +847,13 @@ impl Terminal {
 									term!(self; cursor Position(Some(edge), None));
 								}
 
-								input = rest;
 								continue;
 							}
 
 							control::Result::Incomplete(..) => {
 								debug!(target: "cancer::terminal::input", "incomplete input: {:?}", input);
-								self.cache  = Some(input.to_vec());
-								self.device = Some(Device::Sixel(sixel));
+								self.cache   = Some(input.to_vec());
+								self.command = Some(Command::Sixel(sixel));
 								break;
 							}
 
@@ -878,44 +862,11 @@ impl Terminal {
 
 						match DEC::SIXEL::parse(input) {
 							control::Result::Done(rest, ref item) if !rest.is_empty() => {
-								input = rest;
 								debug!(target: "cancer::terminal::input::sixel", "sixel {:?}", item);
 
-								match *item {
-									DEC::SIXEL::Raster { aspect, .. } => {
-										sixel.aspect(aspect);
-									}
-
-									DEC::SIXEL::Enable(id) => {
-										sixel.enable(id);
-									}
-
-									DEC::SIXEL::Define(id, color) => {
-										sixel.define(id, color);
-									}
-
-									DEC::SIXEL::Value(value) => {
-										sixel.draw(value);
-									}
-
-									DEC::SIXEL::Repeat(times, value) if value.is_empty() => {
-										sixel.shift(times);
-									}
-
-									DEC::SIXEL::Repeat(times, value) => {
-										for _ in 0 .. times {
-											sixel.draw(value);
-										}
-									}
-
-									DEC::SIXEL::CarriageReturn => {
-										sixel.start();
-									}
-
-									DEC::SIXEL::LineFeed => {
-										sixel.next();
-									}
-								}
+								input = rest;
+								sixel.handle(item);
+								self.command = Some(Command::Sixel(sixel));
 							}
 
 							control::Result::Error(err) =>
@@ -924,13 +875,30 @@ impl Terminal {
 							control::Result::Done(..) |
 							control::Result::Incomplete(..) => {
 								debug!(target: "cancer::terminal::input", "incomplete input: {:?}", input);
-								self.cache  = Some(input.to_vec());
-								self.device = Some(Device::Sixel(sixel));
+								self.cache   = Some(input.to_vec());
+								self.command = Some(Command::Sixel(sixel));
 								break;
 							}
 						}
+					}
 
-						self.device = Some(Device::Sixel(sixel));
+					Command::Internal => {
+						match C1::string(input) {
+							control::Result::Done(rest, item) => {
+								input = rest;
+								actions.extend(self.command(item));
+							}
+
+							control::Result::Incomplete(..) => {
+								debug!(target: "cancer::terminal::input", "incomplete input: {:?}", input);
+								self.cache   = Some(input.to_vec());
+								self.command = Some(Command::Internal);
+								break;
+							}
+
+							control::Result::Error(..) =>
+								break,
+						}
 					}
 				}
 
@@ -1691,66 +1659,20 @@ impl Terminal {
 				self.touched.push(term!(self; cursor));
 			}
 
-			// Secret control codes.
-			Control::C1(C1::OperatingSystemCommand(cmd)) if cmd.starts_with("0;") ||
-				                                              cmd.starts_with("1;") ||
-				                                              cmd.starts_with("2;") ||
-				                                              cmd.starts_with("k;") => {
-				actions.push(Action::Title(String::from(&cmd[2..])));
-			}
-
-			Control::C1(C1::OperatingSystemCommand(cmd)) if cmd.starts_with("cursor:") => {
-				let mut parts = cmd.split(':').skip(1);
-
-				match parts.next() {
-					Some("fg") => {
-						let     desc  = parts.next().unwrap_or("-");
-						let mut color = *self.config.style().cursor().foreground();
-
-						if let Some(c) = config::util::to_color(desc) {
-							color = c;
-						}
-
-						self.cursor.foreground = color;
-					}
-
-					Some("bg") => {
-						let     desc  = parts.next().unwrap_or("-");
-						let mut color = *self.config.style().cursor().background();
-
-						if let Some(c) = config::util::to_color(desc) {
-							color = c;
-						}
-
-						self.cursor.background = color;
-					}
-
-					_ => ()
-				}
-
-				self.touched.push(term!(self; cursor));
-			}
-
-			Control::C1(C1::OperatingSystemCommand(cmd)) if cmd.starts_with("clipboard:") => {
-				let mut parts = cmd.split(':').skip(1);
-
-				match parts.next() {
-					Some("set") => {
-						if let (Some(name), Some(string)) = (parts.next(), parts.next()) {
-							actions.push(Action::Copy(name.into(), string.into()));
-						}
-					}
-
-					_ => ()
-				}
-			}
-
 			Control::C0(C0::Bell) => {
 				actions.push(Action::Urgent);
 			}
 
 			Control::C1(C1::DeviceControl) => {
-				self.device = Some(Device::Begin);
+				self.command = Some(Command::Device);
+			}
+
+			Control::C1(C1::String) |
+			Control::C1(C1::PrivacyMessage) |
+			Control::C1(C1::ApplicationProgramCommand) |
+			Control::C1(C1::SingleCharacter) |
+			Control::C1(C1::OperatingSystemCommand) => {
+				self.command = Some(Command::Internal);
 			}
 
 			code => {
@@ -1866,6 +1788,69 @@ impl Terminal {
 		else {
 			term!(self; cursor Right(width));
 		}
+	}
+
+	fn command(&mut self, command: &str) -> Vec<Action> {
+		let mut actions = Vec::new();
+
+		match command {
+			cmd if cmd.starts_with("0;") ||
+			       cmd.starts_with("1;") ||
+			       cmd.starts_with("2;") ||
+			       cmd.starts_with("k;") => {
+				actions.push(Action::Title(String::from(&cmd[2..])));
+			}
+
+			cmd if cmd.starts_with("cursor:") => {
+				let mut parts = cmd.split(':').skip(1);
+
+				match parts.next() {
+					Some("fg") => {
+						let     desc  = parts.next().unwrap_or("-");
+						let mut color = *self.config.style().cursor().foreground();
+
+						if let Some(c) = config::util::to_color(desc) {
+							color = c;
+						}
+
+						self.cursor.foreground = color;
+					}
+
+					Some("bg") => {
+						let     desc  = parts.next().unwrap_or("-");
+						let mut color = *self.config.style().cursor().background();
+
+						if let Some(c) = config::util::to_color(desc) {
+							color = c;
+						}
+
+						self.cursor.background = color;
+					}
+
+					_ => ()
+				}
+
+				self.touched.push(term!(self; cursor));
+			}
+
+			cmd if cmd.starts_with("clipboard:") => {
+				let mut parts = cmd.split(':').skip(1);
+
+				match parts.next() {
+					Some("set") => {
+						if let (Some(name), Some(string)) = (parts.next(), parts.next()) {
+							actions.push(Action::Copy(name.into(), string.into()));
+						}
+					}
+
+					_ => ()
+				}
+			}
+
+			_ => ()
+		}
+
+		actions
 	}
 }
 
