@@ -869,7 +869,7 @@ impl Terminal {
 								self.command = Some(Command::Sixel(sixel));
 							}
 
-							control::Result::Error(err) =>
+							control::Result::Error(..) =>
 								input = &input[1..],
 
 							control::Result::Done(..) |
@@ -970,7 +970,6 @@ impl Terminal {
 			};
 
 			debug!(target: "cancer::terminal::input::parsed", "item: {:?}", item);
-
 			actions.extend(self.control(item, output.by_ref())?);
 		}
 
