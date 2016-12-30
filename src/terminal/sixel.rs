@@ -158,11 +158,11 @@ impl Sixel {
 
 			// If the bit is enabled, set it.
 			if value.get(bit) {
-				self.grid[y][x].set(xo, yo, *color);
+				self.grid[y][x].set(xo, yo, color);
 			}
 			// If disabled bits should set the background color, do so.
 			else if self.raster.background {
-				self.grid[y][x].set(xo, yo, self.background);
+				self.grid[y][x].set(xo, yo, &self.background);
 			}
 		}
 

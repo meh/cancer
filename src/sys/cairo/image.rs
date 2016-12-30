@@ -60,7 +60,7 @@ impl Image {
 		self.stride
 	}
 
-	pub fn set(&mut self, x: u32, y: u32, (r, g, b, a): (u8, u8, u8, u8)) {
+	pub fn set(&mut self, x: u32, y: u32, &(r, g, b, a): &(u8, u8, u8, u8)) {
 		let offset = ((x * 4) + (y * self.stride)) as usize;
 
 		self.buffer[offset + 0] = b;
@@ -69,20 +69,19 @@ impl Image {
 		self.buffer[offset + 3] = a;
 	}
 
-	pub fn as_ptr(&self) -> *mut cairo_pattern_t {
+	pub fn pattern(&self) -> *mut cairo_pattern_t {
 		unsafe {
 			if let Some(ptr) = self.pattern.get().as_mut() {
-				ptr
+				return ptr;
 			}
-			else {
-				let surface = cairo_image_surface_create_for_data(self.buffer.as_ptr(), cairo_format_t::Argb32,
-					self.width as c_int, self.height as c_int, self.stride as c_int);
 
-				let pattern = cairo_pattern_create_for_surface(surface);
+			let surface = cairo_image_surface_create_for_data(self.buffer.as_ptr(), cairo_format_t::Argb32,
+				self.width as c_int, self.height as c_int, self.stride as c_int);
 
-				self.pattern.set(pattern);
-				pattern
-			}
+			let pattern = cairo_pattern_create_for_surface(surface);
+
+			self.pattern.set(pattern);
+			pattern
 		}
 	}
 }

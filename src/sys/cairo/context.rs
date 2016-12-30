@@ -130,7 +130,7 @@ impl Context {
 			let mut matrix  = mem::uninitialized();
 			cairo_matrix_init_translate(&mut matrix, -x, -y);
 
-			let pattern = image.as_ptr();
+			let pattern = image.pattern();
 			cairo_pattern_set_matrix(pattern, &matrix);
 
 			cairo_set_source(self.0, pattern);
