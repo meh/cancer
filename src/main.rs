@@ -53,21 +53,21 @@ use clap::{App, Arg, ArgMatches};
 
 extern crate libc;
 
-#[cfg(all(feature = "x11", any(target_os = "linux", target_os = "freebsd", target_os = "netbsd", target_os = "openbsd", target_os = "dragonfly")))]
+#[cfg(all(feature = "x11", unix))]
 pub extern crate xcb;
-#[cfg(all(feature = "x11", any(target_os = "linux", target_os = "freebsd", target_os = "netbsd", target_os = "openbsd", target_os = "dragonfly")))]
+#[cfg(all(feature = "x11", unix))]
 pub extern crate xcb_util as xcbu;
-#[cfg(all(feature = "x11", any(target_os = "linux", target_os = "freebsd", target_os = "netbsd", target_os = "openbsd", target_os = "dragonfly")))]
+#[cfg(all(feature = "x11", unix))]
 pub extern crate xkb;
 
-#[cfg(target_os = "macos")]
+#[cfg(all(feature = "quartz", target_os = "macos"))]
 #[macro_use(msg_send, sel)]
 pub extern crate objc;
-#[cfg(target_os = "macos")]
+#[cfg(all(feature = "quartz", target_os = "macos"))]
 pub extern crate cocoa;
-#[cfg(target_os = "macos")]
+#[cfg(all(feature = "quartz", target_os = "macos"))]
 pub extern crate core_foundation;
-#[cfg(target_os = "macos")]
+#[cfg(all(feature = "quartz", target_os = "macos"))]
 pub extern crate core_graphics;
 
 #[macro_use]

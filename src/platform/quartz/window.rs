@@ -31,7 +31,7 @@ use error;
 use config::Config;
 use font::Font;
 use platform::Event;
-use platform::macos::{Proxy, IdRef, Delegate};
+use platform::quartz::{Proxy, IdRef, Delegate};
 use platform::key::{self, Key};
 use platform::mouse::{self, Mouse};
 

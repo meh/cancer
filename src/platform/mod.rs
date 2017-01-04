@@ -18,16 +18,6 @@
 mod tty;
 pub use self::tty::Tty;
 
-#[cfg(all(feature = "x11", any(target_os = "linux", target_os = "freebsd", target_os = "netbsd", target_os = "openbsd", target_os = "dragonfly")))]
-mod x11;
-#[cfg(all(feature = "x11", any(target_os = "linux", target_os = "freebsd", target_os = "netbsd", target_os = "openbsd", target_os = "dragonfly")))]
-pub use self::x11::Window;
-
-#[cfg(target_os = "macos")]
-mod macos;
-#[cfg(target_os = "macos")]
-pub use self::macos::Window;
-
 mod proxy;
 pub use self::proxy::Proxy;
 
@@ -42,3 +32,13 @@ pub use self::mouse::Mouse;
 
 mod clipboard;
 pub use self::clipboard::Clipboard;
+
+#[cfg(all(feature = "x11", unix))]
+mod x11;
+#[cfg(all(feature = "x11", unix))]
+pub use self::x11::Window;
+
+#[cfg(all(feature = "quartz", target_os = "macos"))]
+mod quartz;
+#[cfg(all(feature = "quartz", target_os = "macos"))]
+pub use self::quartz::Window;
