@@ -790,6 +790,8 @@ impl Terminal {
 					Command::Device => {
 						match DEC::SIXEL::header(input) {
 							control::Result::Done(rest, header) => {
+								debug!(target: "cancer::terminal::input::sixel", "sixel {:?}", header);
+
 								input = rest;
 
 								let origin = term!(self; cursor);
@@ -819,32 +821,34 @@ impl Terminal {
 						match C1::is_end(input) {
 							// Move the drawn grid into the terminal.
 							control::Result::Done(rest, _) => {
+								debug!(target: "cancer::terminal::input::sixel", "sixel End");
+
 								input = rest;
 
 								let rows = sixel.rows();
 								let edge = sixel.origin().0;
 
+								// Move each row into the grid.
 								for (i, row) in sixel.into_inner().into_iter().enumerate() {
-									for buffer in row {
-										let (x, y) = term!(self; cursor);
-										self.grid[(x, y)].make_image(buffer, self.cursor.style().clone());
+									let (x, y) = term!(self; cursor);
+
+									for (offset, buffer) in row.into_iter().enumerate() {
+										self.grid[(x + offset as u32, y)].make_image(buffer, self.cursor.style().clone());
 										term!(self; cursor Right(1));
 									}
 
 									// Clean leftover references.
 									let (x, y) = term!(self; cursor);
-									self.grid.clean_references(x, y);
+									self.grid.clean_references(x - 1, y);
 
 									// If it's the last row, skip cursor movement.
-									if i == rows - 1 {
-										continue;
-									}
+									if i < rows - 1 {
+										if term!(self; cursor Down(1)).is_some() {
+											term!(self; scroll! up 1);
+										}
 
-									if term!(self; cursor Down(1)).is_some() {
-										term!(self; scroll! up 1);
+										term!(self; cursor Position(Some(edge), None));
 									}
-
-									term!(self; cursor Position(Some(edge), None));
 								}
 
 								continue;
@@ -1314,7 +1318,12 @@ impl Terminal {
 
 			// Erase functions.
 			Control::C1(C1::ControlSequence(CSI::EraseDisplay(CSI::Erase::ToEnd))) => {
-				let (x, y) = term!(self; cursor);
+				let (mut x, y) = term!(self; cursor);
+
+				// Make sure to delete references.
+				while x > 0 && self.grid[(x, y)].is_reference() {
+					x -= 1;
+				}
 
 				for x in x .. self.region.width {
 					self.grid[(x, y)].make_empty(self.cursor.style().clone());
@@ -1332,7 +1341,12 @@ impl Terminal {
 			}
 
 			Control::C1(C1::ControlSequence(CSI::EraseDisplay(CSI::Erase::ToStart))) => {
-				let (x, y) = term!(self; cursor);
+				let (mut x, y) = term!(self; cursor);
+
+				// Make sure to delete references.
+				while x < self.region.width - 1 && self.grid[(x + 1, y)].is_reference() {
+					x += 1;
+				}
 
 				for x in 0 ... x {
 					self.grid[(x, y)].make_empty(self.cursor.style().clone());
@@ -1362,7 +1376,12 @@ impl Terminal {
 			}
 
 			Control::C1(C1::ControlSequence(CSI::EraseLine(CSI::Erase::ToEnd))) => {
-				let (x, y) = term!(self; cursor);
+				let (mut x, y) = term!(self; cursor);
+
+				// Make sure to delete references.
+				while x > 0 && self.grid[(x, y)].is_reference() {
+					x -= 1;
+				}
 
 				for x in x .. self.region.width {
 					self.grid[(x, y)].make_empty(self.cursor.style().clone());
@@ -1373,7 +1392,12 @@ impl Terminal {
 			}
 
 			Control::C1(C1::ControlSequence(CSI::EraseLine(CSI::Erase::ToStart))) => {
-				let (x, y) = term!(self; cursor);
+				let (mut x, y) = term!(self; cursor);
+
+				// Make sure to delete references.
+				while x < self.region.width - 1 && self.grid[(x + 1, y)].is_reference() {
+					x += 1;
+				}
 
 				for x in 0 ... x {
 					self.grid[(x, y)].make_empty(self.cursor.style().clone());

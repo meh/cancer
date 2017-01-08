@@ -369,6 +369,14 @@ impl Grid {
 	}
 }
 
+impl Index<u32> for Grid {
+	type Output = Row;
+
+	fn index(&self, y: u32) -> &Self::Output {
+		&self.view[y as usize]
+	}
+}
+
 impl Index<(u32, u32)> for Grid {
 	type Output = Cell;
 
