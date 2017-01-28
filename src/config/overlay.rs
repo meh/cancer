@@ -25,7 +25,7 @@ use config::util::{to_color, to_attributes};
 use config::style::{Cursor, Shape};
 use style::{self, Style};
 
-#[derive(PartialEq, Clone, Debug)]
+#[derive(Clone, Debug)]
 pub struct Overlay {
 	pub(super) cursor:    Cursor,
 	pub(super) status:    Option<Style>,
@@ -58,7 +58,7 @@ impl Default for Overlay {
 	}
 }
 
-#[derive(PartialEq, Clone, Debug)]
+#[derive(Clone, Debug)]
 pub struct Hinter {
 	label:   Vec<char>,
 	matcher: Regex,

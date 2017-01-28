@@ -65,7 +65,7 @@ struct Selector {
 	style:   Rc<Style>,
 }
 
-#[derive(PartialEq, Clone, Debug)]
+#[derive(Clone, Debug)]
 struct Hinter {
 	selected: Option<String>,
 	current:  Option<String>,
@@ -1057,7 +1057,7 @@ impl Overlay {
 					self.hinter.config = config;
 
 					for url in urls {
-						self.hint(url, &content);
+						self.hint((url.start(), url.end()), &content);
 					}
 
 					self.touched.all();

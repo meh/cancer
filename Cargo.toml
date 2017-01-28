@@ -19,7 +19,7 @@ pkg-config = "0.3"
 
 [dependencies]
 log        = "0.3"
-env_logger = "0.3"
+env_logger = "0.4"
 
 libc          = "0.2"
 bitflags      = "0.7"
@@ -34,10 +34,10 @@ control-code  = "0.6"
 
 clap     = "2"
 app_dirs = "1.1"
-toml     = "0.1"
-regex    = "0.1"
+toml     = "0.2"
+regex    = "0.2"
 
-unicode-segmentation = "0.1"
+unicode-segmentation = "1.0"
 unicode-width        = "0.1"
 
 [target.'cfg(unix)'.dependencies]
@@ -47,9 +47,9 @@ xkb       = { version = "0.1",   features = ["x11"], optional = true }
 
 [target.'cfg(target_os = "macos")'.dependencies]
 objc            = { version = "0.2", optional = true }
-cocoa           = { version = "0.5.0", optional = true }
+cocoa           = { version = "0.6", optional = true }
 core-foundation = { version = "0", optional = true }
-core-graphics   = { version = "0.4", optional = true }
+core-graphics   = { version = "0.6", optional = true }
 
 [features]
 default = ["quartz", "x11"]

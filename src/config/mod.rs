@@ -41,7 +41,7 @@ pub use self::overlay::Overlay;
 pub mod color;
 pub use self::color::Color;
 
-#[derive(PartialEq, Clone, Default, Debug)]
+#[derive(Clone, Default, Debug)]
 pub struct Config {
 	environment: Environment,
 	input:       Input,
