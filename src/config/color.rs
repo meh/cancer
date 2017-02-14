@@ -303,7 +303,7 @@ impl Default for Color {
 }
 
 impl Color {
-	pub fn load(&mut self, table: &toml::Table) {
+	pub fn load(&mut self, table: &toml::value::Table) {
 		for (key, value) in table {
 			if let Ok(index) = key.parse::<u8>() {
 				if let Some(color) = value.as_str().and_then(|v| to_color(v)) {

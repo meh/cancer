@@ -123,7 +123,7 @@ impl Default for Cursor {
 }
 
 impl Style {
-	pub fn load(&mut self, table: &toml::Table) {
+	pub fn load(&mut self, table: &toml::value::Table) {
 		if let Some(value) = table.get("font").and_then(|v| v.as_str()) {
 			self.font = value.into();
 		}

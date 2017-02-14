@@ -30,11 +30,11 @@ shlex         = "0.1"
 schedule_recv = "0.1"
 itertools     = "0.5"
 picto         = { version = "0.4", default-features = false }
-control-code  = "0.6"
+control-code  = "0.7"
 
 clap     = "2"
 app_dirs = "1.1"
-toml     = "0.2"
+toml     = "0.3"
 regex    = "0.2"
 
 unicode-segmentation = "1.0"
@@ -47,7 +47,7 @@ xkb       = { version = "0.1",   features = ["x11"], optional = true }
 
 [target.'cfg(target_os = "macos")'.dependencies]
 objc            = { version = "0.2", optional = true }
-cocoa           = { version = "0.6", optional = true }
+cocoa           = { version = "0.7", optional = true }
 core-foundation = { version = "0", optional = true }
 core-graphics   = { version = "0.6", optional = true }
 

@@ -36,7 +36,7 @@ impl Default for Input {
 }
 
 impl Input {
-	pub fn load(&mut self, table: &toml::Table) {
+	pub fn load(&mut self, table: &toml::value::Table) {
 		if let Some(value) = table.get("prefix").and_then(|v| v.as_str()) {
 			self.prefix = to_key(value);
 		}

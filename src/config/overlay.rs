@@ -84,7 +84,7 @@ impl Default for Hinter {
 }
 
 impl Overlay {
-	pub fn load(&mut self, table: &toml::Table) {
+	pub fn load(&mut self, table: &toml::value::Table) {
 		if let Some(table) = table.get("cursor").and_then(|v| v.as_table()) {
 			if let Some(value) = table.get("shape").and_then(|v| v.as_str()) {
 				match &*value.to_lowercase() {

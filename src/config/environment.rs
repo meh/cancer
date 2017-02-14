@@ -75,7 +75,7 @@ impl Default for Cocoa {
 }
 
 impl Environment {
-	pub fn load(&mut self, table: &toml::Table) {
+	pub fn load(&mut self, table: &toml::value::Table) {
 		if let Some(value) = table.get("program").and_then(|v| v.as_str()) {
 			self.program = Some(value.into());
 		}

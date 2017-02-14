@@ -991,7 +991,7 @@ impl Terminal {
 
 			Control::C1(C1::ControlSequence(CSI::DeviceStatusReport(CSI::Report::CursorPosition))) => {
 				try!(control::format_to(output.by_ref(),
-					&CSI::CursorPositionReport { x: self.cursor.x(), y: self.cursor.y() }, true));
+					&CSI::CursorPositionReport { x: self.cursor.x(), y: self.cursor.y() }));
 			}
 
 			Control::DEC(DEC::Unicode(value)) => {

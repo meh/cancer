@@ -71,23 +71,23 @@ impl Config {
 		if let Ok(mut file) = File::open(path) {
 			let mut content = String::new();
 			let     _       = file.read_to_string(&mut content);
-			let mut parser  = toml::Parser::new(&content);
 
-			if let Some(table) = parser.parse() {
-				return Ok(Config::from(table));
+			match content.parse::<toml::Value>() {
+				Ok(table) =>
+					return Ok(Config::from(table.as_table().unwrap())),
+
+				Err(error) => {
+					error!(target: "cancer::config", "could not load configuration file");
+					error!(target: "cancer::config", "{:?}", error);
+				}
 			}
 
-			error!(target: "cancer::config", "could not load configuration file");
-
-			for error in &parser.errors {
-				error!(target: "cancer::config", "syntax error: {}", error);
-			}
 		}
 		else {
 			error!(target: "cancer::config", "could not read configuration file");
 		}
 
-		Ok(Config::from(toml::Table::new()))
+		Ok(Config::from(&toml::value::Table::new()))
 	}
 
 	pub fn environment(&self) -> &Environment {
@@ -111,8 +111,8 @@ impl Config {
 	}
 }
 
-impl From<toml::Table> for Config {
-	fn from(table: toml::Table) -> Config {
+impl<'a> From<&'a toml::value::Table> for Config {
+	fn from(table: &'a toml::value::Table) -> Config {
 		let mut config = Config::default();
 
 		if let Some(table) = table.get("environment").and_then(|v| v.as_table()) {
