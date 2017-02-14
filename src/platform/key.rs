@@ -32,9 +32,9 @@ impl PartialEq for Key {
 bitflags! {
 	pub flags Modifier: u8 {
 		const ALT   = 1 << 0,
-		const CTRL  = 1 << 2,
-		const LOGO  = 1 << 4,
-		const SHIFT = 1 << 6,
+		const CTRL  = 1 << 1,
+		const LOGO  = 1 << 2,
+		const SHIFT = 1 << 3,
 	}
 }
 
