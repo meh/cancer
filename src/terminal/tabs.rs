@@ -36,9 +36,16 @@ impl Tabs {
 	}
 
 	pub fn resize(&mut self, cols: u32, rows: u32) {
+		self.inner.grow(cols as usize, false);
+
+		if cols > self.cols {
+			for i in (self.cols .. cols).filter(|i| i % 8 == 0) {
+				self.inner.set(i as usize, true);
+			}
+		}
+
 		self.cols = cols;
 		self.rows = rows;
-		self.inner.grow(cols as usize, false);
 	}
 
 	pub fn set(&mut self, x: u32, value: bool) {
@@ -53,28 +60,33 @@ impl Tabs {
 		self.inner.clear()
 	}
 
-	pub fn next(&self, n: i32, x: u32) -> u32 {
-		let mut x = x;
+	pub fn next(&self, n: i32, start: u32) -> u32 {
+		let mut end = start;
 
 		if n > 0 {
-			while x < self.cols {
-				x += 1;
+			while end < self.cols {
+				end += 1;
 
-				if self.get(x) {
+				if self.get(end) {
 					break;
 				}
 			}
 		}
 		else {
-			while x != 0 {
-				x -= 1;
+			while end != 0 {
+				end -= 1;
 
-				if self.get(x) {
+				if self.get(end) {
 					break;
 				}
 			}
 		}
 
-		x
+		if end == self.cols && !self.get(end) {
+			start
+		}
+		else {
+			end
+		}
 	}
 }
