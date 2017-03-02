@@ -79,14 +79,14 @@ impl From<RecvError> for Error {
 
 #[derive(Debug)]
 pub enum Platform {
-	#[cfg(all(feature = "x11", unix))]
+	#[cfg(all(unix, not(target_os = "macos")))]
 	X11(platform::x11::Error),
 
-	#[cfg(all(feature = "quartz", target_os = "macos"))]
+	#[cfg(target_os = "macos")]
 	Quartz(platform::quartz::Error),
 }
 
-#[cfg(all(feature = "x11", unix))]
+#[cfg(all(unix, not(target_os = "macos")))]
 pub mod platform {
 	pub mod x11 {
 		use super::super::{Error as Err, Platform};
@@ -120,7 +120,7 @@ pub mod platform {
 	}
 }
 
-#[cfg(all(feature = "quartz", target_os = "macos"))]
+#[cfg(target_os = "macos")]
 pub mod platform {
 	pub mod quartz {
 		pub type Error = ();
@@ -151,7 +151,7 @@ impl error::Error for Error {
 			Error::Unknown =>
 				"Unknown error.",
 
-			#[cfg(all(feature = "x11", unix))]
+			#[cfg(all(unix, not(target_os = "macos")))]
 			Error::Platform(Platform::X11(ref err)) => match *err {
 				platform::x11::Error::Request(..) =>
 					"An X request failed.",
@@ -166,7 +166,7 @@ impl error::Error for Error {
 					"Connection to the X display failed.",
 			},
 
-			#[cfg(all(feature = "quartz", target_os = "macos"))]
+			#[cfg(target_os = "macos")]
 			Error::Platform(Platform::Quartz(_)) =>
 				"Something happened :(",
 		}

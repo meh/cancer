@@ -15,7 +15,7 @@
 // You should have received a copy of the GNU General Public License
 // along with cancer.  If not, see <http://www.gnu.org/licenses/>.
 
-#![feature(mpsc_select, conservative_impl_trait, slice_patterns, static_in_const)]
+#![feature(mpsc_select, conservative_impl_trait, slice_patterns)]
 #![feature(trace_macros, type_ascription, inclusive_range_syntax, pub_restricted)]
 #![feature(deque_extras, box_syntax, try_from)]
 
@@ -51,21 +51,21 @@ use clap::{App, Arg, ArgMatches};
 
 extern crate libc;
 
-#[cfg(all(feature = "x11", unix))]
+#[cfg(all(unix, not(target_os = "macos")))]
 pub extern crate xcb;
-#[cfg(all(feature = "x11", unix))]
+#[cfg(all(unix, not(target_os = "macos")))]
 pub extern crate xcb_util as xcbu;
-#[cfg(all(feature = "x11", unix))]
+#[cfg(all(unix, not(target_os = "macos")))]
 pub extern crate xkb;
 
-#[cfg(all(feature = "quartz", target_os = "macos"))]
+#[cfg(target_os = "macos")]
 #[macro_use(msg_send, sel)]
 pub extern crate objc;
-#[cfg(all(feature = "quartz", target_os = "macos"))]
+#[cfg(target_os = "macos")]
 pub extern crate cocoa;
-#[cfg(all(feature = "quartz", target_os = "macos"))]
+#[cfg(target_os = "macos")]
 pub extern crate core_foundation;
-#[cfg(all(feature = "quartz", target_os = "macos"))]
+#[cfg(target_os = "macos")]
 pub extern crate core_graphics;
 
 #[macro_use]

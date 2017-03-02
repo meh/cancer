@@ -31,7 +31,7 @@ impl Surface {
 	}
 }
 
-#[cfg(all(feature = "x11", unix))]
+#[cfg(all(unix, not(target_os = "macos")))]
 impl Surface {
 	pub fn new(connection: &xcb::Connection, drawable: xcb::Drawable, visual: xcb::Visualtype, width: u32, height: u32) -> Self {
 		unsafe {
@@ -40,7 +40,7 @@ impl Surface {
 	}
 }
 
-#[cfg(all(feature = "quartz", target_os = "macos"))]
+#[cfg(target_os = "macos")]
 impl Surface {
 	pub fn new(context: *mut c_void, width: u32, height: u32) -> Self {
 		unsafe {

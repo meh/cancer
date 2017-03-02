@@ -40,24 +40,20 @@ regex    = "0.2"
 unicode-segmentation = "1.0"
 unicode-width        = "0.1"
 
-[target.'cfg(unix)'.dependencies]
-xcb       = { version = "0.7.6", features = ["xkb", "thread"], optional = true }
-xcb-util  = { version = "0.1.5", features = ["icccm", "ewmh", "thread"], optional = true }
-xkb       = { version = "0.1",   features = ["x11"], optional = true }
+[target.'cfg(all(unix, not(target_os = "macos")))'.dependencies]
+xcb       = { version = "0.7.6", features = ["xkb", "thread"] }
+xcb-util  = { version = "0.1.5", features = ["icccm", "ewmh", "thread"] }
+xkb       = { version = "0.1",   features = ["x11"] }
 
 [target.'cfg(target_os = "macos")'.dependencies]
-objc            = { version = "0.2", optional = true }
-cocoa           = { version = "0.7", optional = true }
-core-foundation = { version = "0", optional = true }
-core-graphics   = { version = "0.7", optional = true }
+objc            = "0.2"
+cocoa           = "0.8"
+core-foundation = "0"
+core-graphics   = "0.7"
 
 [features]
-default = ["quartz", "x11"]
-static  = []
-fuzzy   = ["afl", "afl-plugin"]
-
-x11 = ["xcb", "xcb-util", "xkb"]
-quartz = ["objc", "cocoa", "core-foundation", "core-graphics"]
+static = []
+fuzzy  = ["afl", "afl-plugin"]
 
 [dependencies.afl]
 version  = "0.1"

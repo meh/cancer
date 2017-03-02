@@ -94,7 +94,7 @@ extern "C" {
 	pub fn cairo_pattern_destroy(pattern: *mut cairo_pattern_t);
 }
 
-#[cfg(all(feature = "x11", unix))]
+#[cfg(all(unix, not(target_os = "macos")))]
 pub mod platform {
 	use super::*;
 
@@ -108,7 +108,7 @@ pub mod platform {
 	}
 }
 
-#[cfg(all(feature = "quartz", target_os = "macos"))]
+#[cfg(target_os = "macos")]
 pub mod platform {
 	use super::*;
 

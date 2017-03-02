@@ -33,12 +33,12 @@ pub use self::mouse::Mouse;
 mod clipboard;
 pub use self::clipboard::Clipboard;
 
-#[cfg(all(feature = "x11", unix))]
+#[cfg(all(unix, not(target_os = "macos")))]
 mod x11;
-#[cfg(all(feature = "x11", unix))]
+#[cfg(all(unix, not(target_os = "macos")))]
 pub use self::x11::Window;
 
-#[cfg(all(feature = "quartz", target_os = "macos"))]
+#[cfg(target_os = "macos")]
 mod quartz;
-#[cfg(all(feature = "quartz", target_os = "macos"))]
+#[cfg(target_os = "macos")]
 pub use self::quartz::Window;
