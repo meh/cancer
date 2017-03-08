@@ -23,7 +23,7 @@ use objc::declare::ClassDecl;
 use cocoa::base::{id, nil};
 use cocoa::appkit::{NSWindow, NSView};
 
-use platform::quartz::IdRef;
+use platform::cocoa::IdRef;
 use platform::Event;
 
 #[derive(Debug)]

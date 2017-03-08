@@ -29,7 +29,7 @@ use cocoa::base::{class, nil};
 use sys::cairo;
 use error;
 use platform::{self, Clipboard, Event};
-use platform::quartz::IdRef;
+use platform::cocoa::IdRef;
 use config::Config;
 
 #[derive(Debug)]

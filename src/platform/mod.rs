@@ -39,6 +39,6 @@ mod x11;
 pub use self::x11::Window;
 
 #[cfg(target_os = "macos")]
-mod quartz;
+mod cocoa;
 #[cfg(target_os = "macos")]
-pub use self::quartz::Window;
+pub use self::cocoa::Window;
