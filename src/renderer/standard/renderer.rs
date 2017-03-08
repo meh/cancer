@@ -60,8 +60,6 @@ impl Renderer {
 	pub fn render<I>(&mut self, state: &State, options: Options, region: Option<Region>, interface: &Interface, iter: I)
 		where I: Iterator<Item = (u32, u32)>
 	{
-		self.context.push();
-
 		if let Some(region) = region {
 			self.margin(state, &region);
 		}
@@ -76,9 +74,6 @@ impl Renderer {
 		else {
 			self.cell(state, &interface.cursor().cell(), options);
 		}
-
-		self.context.pop();
-		self.context.paint();
 	}
 
 	/// Draw the margins within the given region.
@@ -95,6 +90,7 @@ impl Renderer {
 		{
 			// Set to background color.
 			o.rgba(c.style().color().background());
+			o.set_operator(cairo::Operator::Source);
 
 			// Left margin.
 			if region.x < h {
@@ -251,12 +247,14 @@ impl Renderer {
 		o.save();
 		{
 			// Draw the background.
+			o.set_operator(cairo::Operator::Source);
 			o.rectangle(x as f64, y as f64, w as f64, h as f64);
 			o.clip();
 			o.rgba(bg);
 			o.paint();
 
 			// Draw the glyph.
+			o.set_operator(cairo::Operator::Over);
 			if !cell.style().attributes().contains(style::BLINK) || !options.blinking() {
 				if cell.is_occupied() {
 					o.move_to(x as f64, (y + f.ascent()) as f64);
