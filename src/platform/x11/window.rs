@@ -65,14 +65,36 @@ impl Window {
 		let (connection, screen) = xcb::Connection::connect(config.environment().x11().display())?;
 		let connection           = Arc::new(ewmh::Connection::connect(connection).map_err(|(e, _)| e)?);
 		let keyboard             = Keyboard::new(connection.clone(), config.input().locale())?;
-		let window               = {
+		let (window, depth)      = {
 			let window = connection.generate_id();
 			let screen = connection.get_setup().roots().nth(screen as usize).unwrap();
 
-			xcb::create_window(&connection, xcb::COPY_FROM_PARENT as u8, window, screen.root(),
+			let mut win_depth = screen.root_depth();
+			let visual = {
+				let mut visual = screen.root_visual();
+				for depth in screen.allowed_depths() {
+					if depth.depth() != 32 {
+						continue;
+					}
+					for vis in depth.visuals() {
+						win_depth = 32;
+						visual = vis.visual_id();
+						break;
+					}
+				}
+				visual
+			};
+
+			let colormap = connection.generate_id();
+			xcb::create_colormap(&connection, xcb::COLORMAP_ALLOC_NONE as u8,
+				colormap, screen.root(), visual);
+
+			xcb::create_window(&connection, win_depth, window, screen.root(),
 				0, 0, width as u16, height as u16,
-				0, xcb::WINDOW_CLASS_INPUT_OUTPUT as u16, screen.root_visual(), &[
+				0, xcb::WINDOW_CLASS_INPUT_OUTPUT as u16, visual, &[
 					(xcb::CW_BACKING_PIXEL, screen.black_pixel()),
+					(xcb::CW_BORDER_PIXEL, screen.black_pixel()),
+					(xcb::CW_COLORMAP, colormap),
 					(xcb::CW_EVENT_MASK,
 						xcb::EVENT_MASK_KEY_PRESS |
 						xcb::EVENT_MASK_KEY_RELEASE |
@@ -97,7 +119,7 @@ impl Window {
 			xcb::map_window(&connection, window);
 			connection.flush();
 
-			window
+			(window, win_depth)
 		};
 
 		let proxy = Proxy {
@@ -105,6 +127,7 @@ impl Window {
 			connection: connection.clone(),
 			window:     window,
 			screen:     screen,
+			depth:      depth,
 		};
 
 		Ok(Window {

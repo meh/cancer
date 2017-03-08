@@ -15,6 +15,8 @@
 // You should have received a copy of the GNU General Public License
 // along with cancer.  If not, see <http://www.gnu.org/licenses/>.
 
+pub use ffi::cairo::cairo_operator_t as Operator;
+
 mod surface;
 pub use self::surface::Surface;
 
