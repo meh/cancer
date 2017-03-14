@@ -32,6 +32,7 @@ pub struct Proxy {
 	pub(super) connection: Arc<ewmh::Connection>,
 	pub(super) window:     xcb::Window,
 	pub(super) screen:     i32,
+	pub(super) depth:      u8,
 }
 
 unsafe impl Send for Proxy { }
@@ -47,7 +48,7 @@ impl platform::Proxy for Proxy {
 		let (width, height) = self.dimensions();
 
 		for item in screen.allowed_depths() {
-			if item.depth() == 24 {
+			if item.depth() == self.depth {
 				for visual in item.visuals() {
 					return Ok(cairo::Surface::new(&self.connection, self.window, visual, width, height));
 				}
