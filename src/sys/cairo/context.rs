@@ -22,7 +22,7 @@ use ffi::cairo::*;
 use ffi::pango::*;
 use sys::pango;
 use picto::color::{Rgb, Rgba};
-use super::{Surface, Image};
+use super::{Surface, Image, Operator};
 
 pub struct Context(pub *mut cairo_t);
 
@@ -135,6 +135,12 @@ impl Context {
 
 			cairo_set_source(self.0, pattern);
 			cairo_paint(self.0);
+		}
+	}
+
+	pub fn operator(&mut self, operator: Operator) {
+		unsafe {
+			cairo_set_operator(self.0, operator);
 		}
 	}
 }

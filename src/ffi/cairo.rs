@@ -43,6 +43,40 @@ pub enum cairo_format_t {
 }
 
 #[repr(C)]
+#[derive(Eq, PartialEq, Copy, Clone, Debug)]
+pub enum cairo_operator_t {
+	Clear,
+	Source,
+	Over,
+	In,
+	Out,
+	Atop,
+	Dest,
+	DestOver,
+	DestIn,
+	DestOut,
+	DestAtop,
+	Xor,
+	Add,
+	Saturate,
+	Multiply,
+	Screen,
+	Overlay,
+	Darken,
+	Lighten,
+	ColorDodge,
+	ColorBurn,
+	HardLight,
+	SoftLight,
+	Difference,
+	Exclusion,
+	HslHue,
+	HslSaturation,
+	HslColor,
+	HslLuminosity,
+}
+
+#[repr(C)]
 #[derive(PartialEq, Copy, Clone, Debug)]
 pub struct cairo_matrix_t {
 	pub xx: c_double,
@@ -62,6 +96,7 @@ extern "C" {
 
 	pub fn cairo_create(surface: *mut cairo_surface_t) -> *mut cairo_t;
 	pub fn cairo_destroy(cr: *mut cairo_t);
+	pub fn cairo_set_operator(cr: *mut cairo_t, operator: cairo_operator_t);
 
 	pub fn cairo_push_group(cr: *mut cairo_t);
 	pub fn cairo_pop_group_to_source(cr: *mut cairo_t);
