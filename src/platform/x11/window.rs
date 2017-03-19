@@ -146,7 +146,7 @@ impl Window {
 			let (sender, receiver) = sync_channel(16);
 
 			// Drain events into a channel.
-			thread::spawn(move || {
+			thread::Builder::new().name("cancer::x11".into()).spawn(move || {
 				while let Some(event) = connection.wait_for_event() {
 					try!(return sender.send(event));
 				}

@@ -282,7 +282,7 @@ fn main() {
 			});
 		}
 
-		thread::spawn(move || {
+		thread::Builder::new().name("cancer::runner".into()).spawn(move || {
 			let _batcher = _batcher;
 
 			loop {

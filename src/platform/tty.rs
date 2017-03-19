@@ -111,7 +111,7 @@ impl Tty {
 		let (o_sender, o_receiver) = sync_channel::<Vec<u8>>(16);
 
 		// Spawn the reader.
-		thread::spawn(move || {
+		thread::Builder::new().name("cancer::tty::reader".into()).spawn(move || {
 			let mut buffer = [0u8; 64 * 1024];
 			let     flags  = fcntl(input, F_GETFL, 0);
 
@@ -154,7 +154,7 @@ impl Tty {
 		});
 
 		// Spawn writer.
-		thread::spawn(move || {
+		thread::Builder::new().name("cancer::tty::writer".into()).spawn(move || {
 			while let Ok(buffer) = i_receiver.recv() {
 				let mut buffer = &buffer[..];
 
