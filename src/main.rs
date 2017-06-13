@@ -28,7 +28,7 @@ extern crate afl;
 extern crate log;
 extern crate env_logger;
 
-#[macro_use(bitflags)]
+#[macro_use]
 extern crate bitflags;
 extern crate bit_vec;
 extern crate fnv;
