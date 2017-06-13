@@ -28,6 +28,7 @@ pub struct Image {
 	stride: u32,
 
 	buffer:  Vec<u8>,
+	surface: Cell<*mut cairo_surface_t>,
 	pattern: Cell<*mut cairo_pattern_t>,
 }
 
@@ -43,6 +44,7 @@ impl Image {
 				stride: stride,
 
 				buffer:  buffer,
+				surface: Cell::new(ptr::null_mut()),
 				pattern: Cell::new(ptr::null_mut()),
 			}
 		}
@@ -80,6 +82,7 @@ impl Image {
 
 			let pattern = cairo_pattern_create_for_surface(surface);
 
+			self.surface.set(surface);
 			self.pattern.set(pattern);
 			pattern
 		}
@@ -91,6 +94,10 @@ impl Drop for Image {
 		unsafe {
 			if let Some(ptr) = self.pattern.get().as_mut() {
 				cairo_pattern_destroy(ptr);
+			}
+
+			if let Some(ptr) = self.surface.get().as_mut() {
+				cairo_surface_destroy(ptr);
 			}
 		}
 	}
