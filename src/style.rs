@@ -25,16 +25,16 @@ pub struct Style {
 }
 
 bitflags! {
-	pub flags Attributes: u8 {
-		const NONE      = 0,
-		const BOLD      = 1 << 0,
-		const FAINT     = 1 << 1,
-		const ITALIC    = 1 << 2,
-		const UNDERLINE = 1 << 3,
-		const BLINK     = 1 << 4,
-		const REVERSE   = 1 << 5,
-		const INVISIBLE = 1 << 6,
-		const STRUCK    = 1 << 7,
+	pub struct Attributes: u8 {
+		const NONE      = 0;
+		const BOLD      = 1 << 0;
+		const FAINT     = 1 << 1;
+		const ITALIC    = 1 << 2;
+		const UNDERLINE = 1 << 3;
+		const BLINK     = 1 << 4;
+		const REVERSE   = 1 << 5;
+		const INVISIBLE = 1 << 6;
+		const STRUCK    = 1 << 7;
 	}
 }
 
