@@ -22,7 +22,7 @@ log        = "0.3"
 env_logger = "0.4"
 
 libc          = "0.2"
-bitflags      = "0.8"
+bitflags      = "0.9"
 bit-vec       = "0.4"
 fnv           = "1.0"
 lru-cache     = "0.1"
@@ -49,7 +49,7 @@ xkb       = { version = "0.1",   features = ["x11"] }
 objc            = "0.2"
 cocoa           = "0.8"
 core-foundation = "0"
-core-graphics   = "0.7"
+core-graphics   = "0.8"
 
 [features]
 static = []

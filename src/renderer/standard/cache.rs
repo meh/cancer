@@ -50,11 +50,11 @@ impl Cell {
 }
 
 bitflags! {
-	flags Flags: u8 {
-		const NONE     = 0,
-		const VALID    = 1 << 0,
-		const BLINKING = 1 << 1,
-		const REVERSE  = 1 << 2,
+	struct Flags: u8 {
+		const NONE     = 0;
+		const VALID    = 1 << 0;
+		const BLINKING = 1 << 1;
+		const REVERSE  = 1 << 2;
 	}
 }
 

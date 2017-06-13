@@ -60,11 +60,11 @@ pub enum Travel {
 }
 
 bitflags! {
-	pub flags State: u8 {
-		const BLINK   = 1 << 0,
-		const VISIBLE = 1 << 1,
-		const WRAP    = 1 << 2,
-		const ORIGIN  = 1 << 3,
+	pub struct State: u8 {
+		const BLINK   = 1 << 0;
+		const VISIBLE = 1 << 1;
+		const WRAP    = 1 << 2;
+		const ORIGIN  = 1 << 3;
 	}
 }
 

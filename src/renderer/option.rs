@@ -16,12 +16,12 @@
 // along with cancer.  If not, see <http://www.gnu.org/licenses/>.
 
 bitflags! {
-	pub flags Options: u8 {
-		const DAMAGE   = 1 << 0,
-		const BLINKING = 1 << 1,
-		const FOCUS    = 1 << 2,
-		const REVERSE  = 1 << 3,
-		const CURSOR   = 1 << 4,
+	pub struct Options: u8 {
+		const DAMAGE   = 1 << 0;
+		const BLINKING = 1 << 1;
+		const FOCUS    = 1 << 2;
+		const REVERSE  = 1 << 3;
+		const CURSOR   = 1 << 4;
 	}
 }
 

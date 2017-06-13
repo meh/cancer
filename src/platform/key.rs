@@ -30,11 +30,11 @@ impl PartialEq for Key {
 }
 
 bitflags! {
-	pub flags Modifier: u8 {
-		const ALT   = 1 << 0,
-		const CTRL  = 1 << 1,
-		const LOGO  = 1 << 2,
-		const SHIFT = 1 << 3,
+	pub struct Modifier: u8 {
+		const ALT   = 1 << 0;
+		const CTRL  = 1 << 1;
+		const LOGO  = 1 << 2;
+		const SHIFT = 1 << 3;
 	}
 }
 
@@ -45,9 +45,9 @@ impl Default for Modifier {
 }
 
 bitflags! {
-	pub flags Lock: u8 {
-		const CAPS = 1 << 0,
-		const NUM  = 1 << 1,
+	pub struct Lock: u8 {
+		const CAPS = 1 << 0;
+		const NUM  = 1 << 1;
 	}
 }
 

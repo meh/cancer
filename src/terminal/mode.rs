@@ -16,29 +16,29 @@
 // along with cancer.  If not, see <http://www.gnu.org/licenses/>.
 
 bitflags! {
-	pub flags Mode: u32 {
-		const BLINK              = 1 << 0,
-		const REVERSE            = 1 << 1,
-		const WRAP               = 1 << 2,
-		const BRACKETED_PASTE    = 1 << 3,
-		const KEYBOARD_LOCK      = 1 << 4,
-		const APPLICATION_KEYPAD = 1 << 5,
-		const APPLICATION_CURSOR = 1 << 6,
-		const CRLF               = 1 << 7,
-		const INSERT             = 1 << 8,
-		const ECHO               = 1 << 9,
-		const FOCUS              = 1 << 10,
-		const UTF8               = 1 << 11,
+	pub struct Mode: u32 {
+		const BLINK              = 1 << 0;
+		const REVERSE            = 1 << 1;
+		const WRAP               = 1 << 2;
+		const BRACKETED_PASTE    = 1 << 3;
+		const KEYBOARD_LOCK      = 1 << 4;
+		const APPLICATION_KEYPAD = 1 << 5;
+		const APPLICATION_CURSOR = 1 << 6;
+		const CRLF               = 1 << 7;
+		const INSERT             = 1 << 8;
+		const ECHO               = 1 << 9;
+		const FOCUS              = 1 << 10;
+		const UTF8               = 1 << 11;
 
-		const MOUSE_BUTTON = 1 << 12,
-		const MOUSE_MOTION = 1 << 13,
-		const MOUSE_SGR    = 1 << 14,
-		const MOUSE_X10    = 1 << 15,
-		const MOUSE_MANY   = 1 << 16,
+		const MOUSE_BUTTON = 1 << 12;
+		const MOUSE_MOTION = 1 << 13;
+		const MOUSE_SGR    = 1 << 14;
+		const MOUSE_X10    = 1 << 15;
+		const MOUSE_MANY   = 1 << 16;
 		const MOUSE        = MOUSE_BUTTON.bits |
 		                     MOUSE_MOTION.bits |
 		                     MOUSE_X10.bits    |
-		                     MOUSE_MANY.bits,
+		                     MOUSE_MANY.bits;
 	}
 }
 
