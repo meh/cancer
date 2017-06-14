@@ -86,6 +86,12 @@ impl Image {
 	}
 }
 
+impl AsRef<[u8]> for Image {
+	fn as_ref(&self) -> &[u8] {
+		&self.buffer
+	}
+}
+
 impl Drop for Image {
 	fn drop(&mut self) {
 		unsafe {

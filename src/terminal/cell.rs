@@ -170,6 +170,12 @@ impl Cell {
 
 	/// Make the cell into an image.
 	pub fn make_image(&mut self, buffer: cairo::Image, style: Rc<Style>) {
+		if let Cell::Image { ref buffer, .. } = *self {
+			if buffer.as_ref() == buffer.as_ref() {
+				return;
+			}
+		}
+
 		mem::replace(self, Cell::Image {
 			buffer: Box::new(buffer),
 			style:  style,
