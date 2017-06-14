@@ -39,6 +39,7 @@ regex    = "0.2"
 
 unicode-segmentation = "1.0"
 unicode-width        = "0.1"
+tendril              = "0.3"
 
 [target.'cfg(all(unix, not(target_os = "macos")))'.dependencies]
 xcb       = { version = "0.7.6", features = ["xkb", "thread"] }

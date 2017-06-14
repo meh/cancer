@@ -19,6 +19,8 @@ use std::ops::Deref;
 use std::mem;
 use std::rc::Rc;
 use unicode_width::UnicodeWidthStr;
+use tendril::Tendril;
+use tendril::fmt::UTF8;
 
 use style::Style;
 use sys::cairo;
@@ -31,12 +33,12 @@ pub enum Cell {
 
 	Image {
 		style:  Rc<Style>,
-		buffer: cairo::Image,
+		buffer: Box<cairo::Image>,
 	},
 
 	Occupied {
 		style: Rc<Style>,
-		value: String,
+		value: Tendril<UTF8>,
 	},
 
 	Reference(u8),
@@ -69,7 +71,7 @@ impl Cell {
 	/// Create an occupied cell.
 	pub fn occupied(value: String, style: Rc<Style>) -> Self {
 		Cell::Occupied {
-			value: value,
+			value: value.into(),
 			style: style,
 		}
 	}
@@ -139,7 +141,7 @@ impl Cell {
 				false,
 
 			Cell::Occupied { ref value, .. } =>
-				value.width() > 1,
+				value.as_ref().width() > 1,
 
 			Cell::Reference(..) =>
 				unreachable!()
@@ -156,7 +158,7 @@ impl Cell {
 	/// Make the cell occupied.
 	pub fn make_occupied<T: Into<String>>(&mut self, value: T, style: Rc<Style>) {
 		mem::replace(self, Cell::Occupied {
-			value: value.into(),
+			value: value.into().into(),
 			style: style,
 		});
 	}
@@ -169,7 +171,7 @@ impl Cell {
 	/// Make the cell into an image.
 	pub fn make_image(&mut self, buffer: cairo::Image, style: Rc<Style>) {
 		mem::replace(self, Cell::Image {
-			buffer: buffer,
+			buffer: Box::new(buffer),
 			style:  style,
 		});
 	}
@@ -207,7 +209,7 @@ impl Cell {
 				" ",
 
 			Cell::Occupied { ref value, .. } =>
-				value,
+				value.as_ref(),
 
 			Cell::Reference(..) |
 			Cell::Image { .. } =>
@@ -223,7 +225,7 @@ impl Cell {
 				1,
 
 			Cell::Occupied { ref value, .. } =>
-				value.width() as u32,
+				value.as_ref().width() as u32,
 
 			Cell::Reference(..) =>
 				unreachable!(),

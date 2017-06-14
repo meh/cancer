@@ -42,6 +42,7 @@ extern crate control_code as control;
 
 extern crate unicode_segmentation;
 extern crate unicode_width;
+extern crate tendril;
 
 extern crate regex;
 extern crate app_dirs;
