@@ -19,8 +19,7 @@ use std::ops::Deref;
 use std::mem;
 use std::rc::Rc;
 use unicode_width::UnicodeWidthStr;
-use tendril::Tendril;
-use tendril::fmt::UTF8;
+use tendril::StrTendril;
 
 use style::Style;
 use sys::cairo;
@@ -38,7 +37,7 @@ pub enum Cell {
 
 	Occupied {
 		style: Rc<Style>,
-		value: Tendril<UTF8>,
+		value: StrTendril,
 	},
 
 	Reference(u8),
