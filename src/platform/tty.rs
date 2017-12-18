@@ -151,7 +151,7 @@ impl Tty {
 
 				try!(return o_sender.send((&buffer[.. consumed]).to_vec()));
 			}
-		});
+		}).unwrap();
 
 		// Spawn writer.
 		thread::Builder::new().name("cancer::tty::writer".into()).spawn(move || {
@@ -165,7 +165,7 @@ impl Tty {
 					}
 				}
 			}
-		});
+		}).unwrap();
 
 		(i_sender, o_receiver)
 	}

@@ -130,7 +130,7 @@ impl Keyboard {
 			}
 
 			xcb::xkb::STATE_NOTIFY => {
-				let event = xcb::cast_event::<xcb::xkb::StateNotifyEvent>(event);
+				let event = unsafe { xcb::cast_event::<xcb::xkb::StateNotifyEvent>(event) };
 
 				self.state.update().mask(
 					event.base_mods(),

@@ -94,7 +94,7 @@ macro_rules! term {
 		if $y < $term.cursor.scroll.1 {
 			$term.grid.up($n as u32, Some(($y, $term.cursor.scroll.1)));
 
-			for y in $y ... $term.cursor.scroll.1 {
+			for y in $y ..= $term.cursor.scroll.1 {
 				$term.touched.line(y);
 			}
 		}
@@ -108,7 +108,7 @@ macro_rules! term {
 		if $y < $term.cursor.scroll.1 {
 			$term.grid.down($n as u32, Some(($y, $term.cursor.scroll.1)));
 
-			for y in $y ... $term.cursor.scroll.1 {
+			for y in $y ..= $term.cursor.scroll.1 {
 				$term.touched.line(y);
 			}
 		}
@@ -1348,7 +1348,7 @@ impl Terminal {
 					x += 1;
 				}
 
-				for x in 0 ... x {
+				for x in 0 ..= x {
 					self.grid[(x, y)].make_empty(self.cursor.style().clone());
 					self.touched.mark(x, y);
 				}
@@ -1399,7 +1399,7 @@ impl Terminal {
 					x += 1;
 				}
 
-				for x in 0 ... x {
+				for x in 0 ..= x {
 					self.grid[(x, y)].make_empty(self.cursor.style().clone());
 					self.touched.mark(x, y);
 				}

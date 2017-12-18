@@ -1138,7 +1138,7 @@ impl Overlay {
 		fn edge(row: &Row, start: u32, end: u32) -> u32 {
 			let mut found = None;
 
-			for x in start ... end {
+			for x in start ..= end {
 				let cell = &row[x as usize];
 
 				if cell.is_empty() && found.is_none() {
@@ -1158,7 +1158,7 @@ impl Overlay {
 				let mut unwrap = None::<Vec<String>>;
 
 				// Iterate in reverse on the rows, so wrapped lines can be unwrapped.
-				for y in end.1 ... start.1 {
+				for y in end.1 ..= start.1 {
 					// Adapt the horizontal edges based on the vertical position.
 					let (start, end) = if start.1 == end.1 {
 						(start.0, end.0)
@@ -1177,7 +1177,7 @@ impl Overlay {
 					let mut line = String::new();
 
 					// Fill the current line.
-					for x in start ... edge(row, start, end) {
+					for x in start ..= edge(row, start, end) {
 						line.push_str(row[x as usize].value());
 					}
 
@@ -1225,11 +1225,11 @@ impl Overlay {
 				let mut result = String::new();
 
 				// Iterate in proper order.
-				for y in (end.1 ... start.1).rev() {
+				for y in (end.1 ..= start.1).rev() {
 					let row = &self[y];
 
 					// Collect up from edge to edge.
-					for x in start.0 ... edge(row, start.0, end.0) {
+					for x in start.0 ..= edge(row, start.0, end.0) {
 						result.push_str(row[x as usize].value());
 					}
 
@@ -1418,7 +1418,7 @@ impl Overlay {
 		match what {
 			Highlight::Selection(&Selection::Normal { start, end }) => {
 				// Adapt the horizontal edges based on the vertical position.
-				for y in end.1 ... start.1 {
+				for y in end.1 ..= start.1 {
 					let (start, end) = if start.1 == end.1 {
 						(start.0, end.0)
 					}
@@ -1432,7 +1432,7 @@ impl Overlay {
 						(0, self.inner.columns() - 1)
 					};
 
-					for x in start ... end {
+					for x in start ..= end {
 						if flag {
 							let mut cell = self[y][x as usize].clone();
 							cell.set_style(self.selector.style.clone());
@@ -1446,8 +1446,8 @@ impl Overlay {
 			}
 
 			Highlight::Selection(&Selection::Block { start, end }) => {
-				for y in end.1 ... start.1 {
-					for x in start.0 ... end.0 {
+				for y in end.1 ..= start.1 {
+					for x in start.0 ..= end.0 {
 						if flag {
 							let mut cell = self[y][x as usize].clone();
 							cell.set_style(self.selector.style.clone());
@@ -1461,7 +1461,7 @@ impl Overlay {
 			}
 
 			Highlight::Selection(&Selection::Line { start, end }) => {
-				for y in end ... start {
+				for y in end ..= start {
 					for x in 0 .. self.inner.columns() {
 						if flag {
 							let mut cell = self[y][x as usize].clone();

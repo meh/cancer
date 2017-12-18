@@ -150,7 +150,7 @@ impl Window {
 				while let Some(event) = connection.wait_for_event() {
 					try!(return sender.send(event));
 				}
-			});
+			}).unwrap();
 
 			receiver
 		}
@@ -227,7 +227,7 @@ impl Window {
 
 					match event.response_type() {
 						xcb::EXPOSE => {
-							let event = xcb::cast_event::<xcb::ExposeEvent>(&event);
+							let event = unsafe { xcb::cast_event::<xcb::ExposeEvent>(&event) };
 							let x     = event.x() as u32;
 							let y     = event.y() as u32;
 							let w     = event.width() as u32;
@@ -245,7 +245,7 @@ impl Window {
 						}
 
 						xcb::CONFIGURE_NOTIFY => {
-							let event = xcb::cast_event::<xcb::ConfigureNotifyEvent>(&event);
+							let event = unsafe { xcb::cast_event::<xcb::ConfigureNotifyEvent>(&event) };
 							let w     = event.width() as u32;
 							let h     = event.height() as u32;
 
@@ -253,7 +253,7 @@ impl Window {
 						}
 
 						xcb::REPARENT_NOTIFY => {
-							let event = xcb::cast_event::<xcb::ReparentNotifyEvent>(&event);
+							let event = unsafe { xcb::cast_event::<xcb::ReparentNotifyEvent>(&event) };
 							let reply = try!(continue xcb::get_geometry(&self.connection, event.parent()).get_reply());
 
 							try!(manager.send(Event::Resize(reply.width() as u32, reply.height() as u32)));
@@ -261,12 +261,12 @@ impl Window {
 						}
 
 						xcb::SELECTION_CLEAR => {
-							let event = xcb::cast_event::<xcb::SelectionClearEvent>(&event);
+							let event = unsafe { xcb::cast_event::<xcb::SelectionClearEvent>(&event) };
 							clipboard.remove(&event.selection());
 						}
 
 						xcb::SELECTION_REQUEST => {
-							let event = xcb::cast_event::<xcb::SelectionRequestEvent>(&event);
+							let event = unsafe { xcb::cast_event::<xcb::SelectionRequestEvent>(&event) };
 							let reply = try!(continue xcb::get_atom_name(&self.connection, event.target()).get_reply());
 
 							debug!(target: "cancer::platform::clipboard", "request clipboard: {:?}", reply.name());
@@ -308,7 +308,7 @@ impl Window {
 						}
 
 						xcb::PROPERTY_NOTIFY => {
-							let event = xcb::cast_event::<xcb::PropertyNotifyEvent>(&event);
+							let event = unsafe { xcb::cast_event::<xcb::PropertyNotifyEvent>(&event) };
 
 							if event.atom() == SELECTION {
 								let reply = try!(continue icccm::get_text_property(&self.connection, self.window, SELECTION).get_reply());
@@ -322,7 +322,7 @@ impl Window {
 
 						xcb::BUTTON_PRESS | xcb::BUTTON_RELEASE => {
 							let press = event.response_type() == xcb::BUTTON_PRESS;
-							let event = xcb::cast_event::<xcb::ButtonPressEvent>(&event);
+							let event = unsafe { xcb::cast_event::<xcb::ButtonPressEvent>(&event) };
 
 							let button = match event.detail() {
 								1 => mouse::Button::Left,
@@ -349,7 +349,7 @@ impl Window {
 						}
 
 						xcb::MOTION_NOTIFY => {
-							let event = xcb::cast_event::<xcb::MotionNotifyEvent>(&event);
+							let event = unsafe { xcb::cast_event::<xcb::MotionNotifyEvent>(&event) };
 
 							try!(manager.send(Event::Mouse(Mouse::Motion(mouse::Motion {
 								modifier: key::Modifier::from(event.state()),
@@ -365,7 +365,7 @@ impl Window {
 						}
 
 						xcb::KEY_PRESS => {
-							let event = xcb::cast_event::<xcb::KeyPressEvent>(&event);
+							let event = unsafe { xcb::cast_event::<xcb::KeyPressEvent>(&event) };
 
 							if let Some(key) = self.keyboard.key(event.detail()) {
 								try!(manager.send(Event::Key(key)));

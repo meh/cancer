@@ -16,7 +16,7 @@
 // along with cancer.  If not, see <http://www.gnu.org/licenses/>.
 
 #![feature(mpsc_select, conservative_impl_trait, slice_patterns)]
-#![feature(trace_macros, type_ascription, inclusive_range_syntax, pub_restricted)]
+#![feature(trace_macros, type_ascription, inclusive_range_syntax)]
 #![feature(box_syntax, try_from)]
 
 #![cfg_attr(feature = "fuzzy", feature(plugin))]
@@ -37,7 +37,6 @@ extern crate lru_cache as lru;
 extern crate shlex;
 extern crate schedule_recv as timer;
 extern crate picto;
-#[macro_use(arg)]
 extern crate control_code as control;
 
 extern crate unicode_segmentation;
@@ -406,7 +405,7 @@ fn main() {
 					}
 				}
 			}
-		});
+		}).unwrap();
 
 		Ok(sender)
 	}
