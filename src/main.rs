@@ -104,7 +104,7 @@ fn main() {
 	use platform::{Window, Tty, Event, Proxy};
 	use platform::mouse::{self, Mouse};
 
-	env_logger::init().unwrap();
+	env_logger::init();
 
 	let matches = App::new("cancer")
 		.version(env!("CARGO_PKG_VERSION"))
@@ -421,7 +421,7 @@ fn main() {
 	use config::Config;
 	use terminal::Terminal;
 
-	env_logger::init().unwrap();
+	env_logger::init();
 
 	let matches = App::new("cancer")
 		.version(env!("CARGO_PKG_VERSION"))
