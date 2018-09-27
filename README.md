@@ -4,8 +4,14 @@ This is a terminal emulator. Why yet another? Because.
 
 Installation
 ------------
-To install it you will need [rustup.rs](https://rustup.rs), then you can
-install it with Cargo.
+To install it you will need [rustup.rs](https://rustup.rs).
+
+```shell
+curl https://sh.rustup.rs -sSf | sh
+rustup install nightly
+```
+
+Then you can install it with Cargo.
 
 ```shell
 cargo +nightly install --force --git https://github.com/meh/cancer
